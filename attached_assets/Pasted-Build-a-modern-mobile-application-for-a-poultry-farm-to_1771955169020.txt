@@ -1,0 +1,221 @@
+Build a modern mobile application for a poultry farm to record bird weight measurements on selling day.
+
+Tech Requirements
+
+Cross-platform mobile app (React Native with Expo preferred)
+
+TypeScript
+
+Clean architecture
+
+Local database (SQLite or MMKV for persistence)
+
+Modern UI (minimal, clean, smooth animations)
+
+Floating Action Button (FAB)
+
+Use good spacing, rounded cards, soft shadows
+
+App Overview
+
+This app is for recording weight measurements during poultry selling.
+
+1️⃣ Home Screen (Sales History)
+
+Main interface shows:
+
+List of previous sales (history)
+
+Each item shows:
+
+Date & time
+
+Total weight (Kg + grams format)
+
+Total pieces (PCS)
+
+Average weight
+
+Clean card-based layout
+
+Most recent sale at top
+
+Floating Action Button (FAB) at bottom right:
+
+"+" icon
+
+On press → Start New Measurement
+
+2️⃣ Measurement Screen (Main Logic Screen)
+
+This is the core screen.
+
+Top Section (Large Display – Stopwatch Style)
+
+At top center:
+
+BIG FONT: Total measured weight (live updating)
+
+Example: 125.450 KG
+
+Below it (small font):
+
+Average weight per piece
+
+Based on: totalWeight / totalPcs
+
+Example: Avg: 1.245 KG
+
+It should feel like a stopwatch or counter display.
+
+3️⃣ Add Measurement Section
+
+Below display:
+
+Button:
+➕ Add Row
+
+When pressed:
+Show input fields:
+
+Weight (KG)
+
+PCS (number of birds)
+
+Button: Add
+
+After clicking Add:
+
+Row is added to list
+
+Most recent row appears FIRST (reverse chronological order)
+
+Inputs clear automatically
+
+4️⃣ Row List Design
+
+Each row should show:
+
+Row number (auto increment)
+
+Weight (KG)
+
+PCS
+
+“X seconds/minutes ago” (live relative time)
+
+Card layout
+
+Subtle elevation
+
+Clean typography
+
+5️⃣ End Measurement Button
+
+At bottom:
+
+Button: "End Measurement"
+
+When clicked:
+
+Calculate:
+
+Total Weight (KG)
+
+Total Weight (Grams)
+
+Total PCS
+
+Average weight per piece (KG + grams)
+
+Navigate to Report Screen
+
+6️⃣ Report Screen
+
+Show:
+
+Total Weight:
+
+In KG
+
+In grams
+
+Total PCS
+
+Average Weight:
+
+In KG
+
+In grams
+
+Date & time
+
+Button: Save
+
+Button: Back to Home
+
+After Save:
+
+Store sale record in history
+
+Navigate back to Home
+
+Show updated history
+
+Functional Requirements
+
+Live calculation on every row add
+
+Average must update instantly
+
+Time ago should update automatically
+
+Data must persist even after app restart
+
+Clean state management
+
+No unnecessary re-renders
+
+UI / UX Style
+
+Modern farm-business aesthetic
+
+Dark mode + Light mode support
+
+Smooth animations when adding row
+
+Professional typography
+
+Large readable numbers (for real farm usage under sunlight)
+
+One-handed usage friendly
+
+Clean and distraction-free
+
+Extra Features (Optional but Recommended)
+
+Ability to delete last row
+
+Confirmation dialog before ending measurement
+
+Export report as PDF
+
+Search & filter history
+
+Generate:
+
+Full project structure
+
+All screens
+
+Components
+
+State management
+
+Data model
+
+Utility functions for kg/gram conversion
+
+Clean reusable components
+
+Production-ready code
