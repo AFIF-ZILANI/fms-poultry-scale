@@ -8,11 +8,10 @@ import {
   FlatList,
   Platform,
   Alert,
-  Keyboard,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router } from "expo-router";
-import { Ionicons, Feather } from "@expo/vector-icons";
+import { Ionicons, Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import * as Crypto from "expo-crypto";
 import Animated, { FadeInDown, FadeIn } from "react-native-reanimated";
@@ -21,7 +20,16 @@ import { useTheme } from "@/lib/useTheme";
 import { formatWeight, getRelativeTime } from "@/lib/utils";
 import type { MeasurementRow } from "@/lib/types";
 
-function MeasurementRowCard({
+function formatTimer(seconds: number): string {
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = seconds % 60;
+  const pad = (n: number) => n.toString().padStart(2, "0");
+  if (h > 0) return `${pad(h)}:${pad(m)}:${pad(s)}`;
+  return `${pad(m)}:${pad(s)}`;
+}
+
+function RowItem({
   row,
   rowNumber,
   theme,
@@ -41,57 +49,63 @@ function MeasurementRowCard({
 
   return (
     <Animated.View
-      entering={Platform.OS !== "web" ? FadeInDown.springify().damping(18) : undefined}
+      entering={
+        Platform.OS !== "web"
+          ? FadeInDown.springify().damping(18)
+          : undefined
+      }
     >
       <View
         style={[
           styles.rowCard,
-          {
-            backgroundColor: theme.surface,
-            borderColor: theme.borderLight,
-          },
+          { backgroundColor: theme.surface, borderColor: theme.borderLight },
         ]}
       >
-        <View
-          style={[styles.rowNumber, { backgroundColor: theme.accentLight }]}
-        >
+        <View style={[styles.rowNum, { backgroundColor: theme.accentLight }]}>
           <Text
             style={[
-              styles.rowNumberText,
+              styles.rowNumText,
               { color: theme.accent, fontFamily: "Outfit_700Bold" },
             ]}
           >
             {rowNumber}
           </Text>
         </View>
-        <View style={styles.rowContent}>
-          <View style={styles.rowMainInfo}>
-            <Text
-              style={[
-                styles.rowWeight,
-                { color: theme.text, fontFamily: "Outfit_600SemiBold" },
-              ]}
-            >
-              {formatWeight(row.weightKg)} KG
-            </Text>
-            <View style={styles.rowPcsBadge}>
-              <Text
-                style={[
-                  styles.rowPcsLabel,
-                  { color: theme.warm, fontFamily: "Outfit_600SemiBold" },
-                ]}
-              >
-                {row.pcs} PCS
-              </Text>
-            </View>
-          </View>
+        <View style={styles.rowInfo}>
           <Text
             style={[
-              styles.rowTime,
+              styles.rowWeight,
+              { color: theme.text, fontFamily: "Outfit_700Bold" },
+            ]}
+          >
+            {formatWeight(row.weightKg)}
+            <Text style={{ fontSize: 13, fontFamily: "Outfit_500Medium" }}>
+              {" "}
+              KG
+            </Text>
+          </Text>
+          <Text
+            style={[
+              styles.rowTimeText,
               { color: theme.textTertiary, fontFamily: "Outfit_400Regular" },
             ]}
           >
             {timeAgo}
+          </Text>
+        </View>
+        <View style={[styles.rowPcsBadge, { backgroundColor: theme.warmLight }]}>
+          <MaterialCommunityIcons
+            name="bird"
+            size={13}
+            color={theme.warm}
+          />
+          <Text
+            style={[
+              styles.rowPcsText,
+              { color: theme.warm, fontFamily: "Outfit_600SemiBold" },
+            ]}
+          >
+            {row.pcs}
           </Text>
         </View>
       </View>
@@ -105,9 +119,17 @@ export default function MeasurementScreen() {
   const [rows, setRows] = useState<MeasurementRow[]>([]);
   const [weightInput, setWeightInput] = useState("");
   const [pcsInput, setPcsInput] = useState("");
-  const [showInputs, setShowInputs] = useState(false);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const weightRef = useRef<TextInput>(null);
   const pcsRef = useRef<TextInput>(null);
+  const startTimeRef = useRef(Date.now());
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setElapsedSeconds(Math.floor((Date.now() - startTimeRef.current) / 1000));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   const totalWeight = rows.reduce((sum, r) => sum + r.weightKg, 0);
   const totalPcs = rows.reduce((sum, r) => sum + r.pcs, 0);
@@ -117,13 +139,7 @@ export default function MeasurementScreen() {
     const weight = parseFloat(weightInput);
     const pcs = parseInt(pcsInput, 10);
 
-    if (isNaN(weight) || weight <= 0) {
-      if (Platform.OS !== "web") {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      }
-      return;
-    }
-    if (isNaN(pcs) || pcs <= 0) {
+    if (isNaN(weight) || weight <= 0 || isNaN(pcs) || pcs <= 0) {
       if (Platform.OS !== "web") {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       }
@@ -133,14 +149,14 @@ export default function MeasurementScreen() {
     const newRow: MeasurementRow = {
       id: Crypto.randomUUID(),
       weightKg: weight,
-      pcs: pcs,
+      pcs,
       timestamp: Date.now(),
     };
 
     setRows((prev) => [newRow, ...prev]);
     setWeightInput("");
     setPcsInput("");
-    weightRef.current?.focus();
+    setTimeout(() => weightRef.current?.focus(), 100);
 
     if (Platform.OS !== "web") {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -152,10 +168,10 @@ export default function MeasurementScreen() {
     if (Platform.OS === "web") {
       setRows((prev) => prev.slice(1));
     } else {
-      Alert.alert("Delete Last Row", "Remove the most recent measurement?", [
+      Alert.alert("Undo Last", "Remove the most recent weighing?", [
         { text: "Cancel", style: "cancel" },
         {
-          text: "Delete",
+          text: "Remove",
           style: "destructive",
           onPress: () => {
             setRows((prev) => prev.slice(1));
@@ -169,7 +185,7 @@ export default function MeasurementScreen() {
   const handleEndMeasurement = () => {
     if (rows.length === 0) {
       if (Platform.OS === "web") return;
-      Alert.alert("No Data", "Add at least one measurement first.");
+      Alert.alert("No Data", "Add at least one weighing first.");
       return;
     }
 
@@ -186,24 +202,10 @@ export default function MeasurementScreen() {
     if (Platform.OS === "web") {
       doEnd();
     } else {
-      Alert.alert(
-        "End Measurement",
-        "Are you sure you want to finish this measurement session?",
-        [
-          { text: "Cancel", style: "cancel" },
-          { text: "End & View Report", style: "default", onPress: doEnd },
-        ]
-      );
-    }
-  };
-
-  const handleToggleInputs = () => {
-    setShowInputs((prev) => !prev);
-    if (!showInputs) {
-      setTimeout(() => weightRef.current?.focus(), 300);
-    }
-    if (Platform.OS !== "web") {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      Alert.alert("Finish Weighing?", "End this session and view report?", [
+        { text: "Cancel", style: "cancel" },
+        { text: "Finish", style: "default", onPress: doEnd },
+      ]);
     }
   };
 
@@ -213,18 +215,10 @@ export default function MeasurementScreen() {
         router.back();
         return;
       }
-      Alert.alert(
-        "Discard Measurements?",
-        "You have unsaved measurements. Going back will discard them.",
-        [
-          { text: "Stay", style: "cancel" },
-          {
-            text: "Discard",
-            style: "destructive",
-            onPress: () => router.back(),
-          },
-        ]
-      );
+      Alert.alert("Discard?", "All unsaved weighings will be lost.", [
+        { text: "Stay", style: "cancel" },
+        { text: "Discard", style: "destructive", onPress: () => router.back() },
+      ]);
     } else {
       router.back();
     }
@@ -232,6 +226,14 @@ export default function MeasurementScreen() {
 
   const webTopInset = Platform.OS === "web" ? 67 : 0;
   const webBottomInset = Platform.OS === "web" ? 34 : 0;
+
+  const canAdd =
+    weightInput.length > 0 &&
+    pcsInput.length > 0 &&
+    !isNaN(parseFloat(weightInput)) &&
+    parseFloat(weightInput) > 0 &&
+    !isNaN(parseInt(pcsInput, 10)) &&
+    parseInt(pcsInput, 10) > 0;
 
   return (
     <KeyboardAvoidingView
@@ -245,16 +247,19 @@ export default function MeasurementScreen() {
           {
             paddingTop: insets.top + webTopInset + 8,
             backgroundColor: theme.surface,
-            borderBottomColor: theme.borderLight,
+            borderBottomColor: theme.border,
           },
         ]}
       >
         <Pressable
           onPress={handleBack}
-          hitSlop={12}
-          style={({ pressed }) => ({ opacity: pressed ? 0.5 : 1 })}
+          hitSlop={16}
+          style={({ pressed }) => [
+            styles.navBtn,
+            { backgroundColor: theme.borderLight, opacity: pressed ? 0.6 : 1 },
+          ]}
         >
-          <Ionicons name="chevron-back" size={24} color={theme.text} />
+          <Ionicons name="chevron-back" size={20} color={theme.text} />
         </Pressable>
         <Text
           style={[
@@ -262,62 +267,58 @@ export default function MeasurementScreen() {
             { color: theme.text, fontFamily: "Outfit_600SemiBold" },
           ]}
         >
-          New Measurement
+          Weighing Session
         </Text>
         {rows.length > 0 ? (
           <Pressable
             onPress={handleDeleteLast}
             hitSlop={12}
-            style={({ pressed }) => ({ opacity: pressed ? 0.5 : 1 })}
+            style={({ pressed }) => [
+              styles.navBtn,
+              { backgroundColor: theme.dangerLight, opacity: pressed ? 0.6 : 1 },
+            ]}
           >
-            <Feather name="delete" size={20} color={theme.danger} />
+            <Feather name="rotate-ccw" size={16} color={theme.danger} />
           </Pressable>
         ) : (
-          <View style={{ width: 24 }} />
+          <View style={{ width: 36 }} />
         )}
       </View>
 
       <Animated.View
-        style={[styles.display, { backgroundColor: theme.surface }]}
+        style={[styles.displayPanel, { backgroundColor: theme.timerBg }]}
         entering={Platform.OS !== "web" ? FadeIn.delay(100) : undefined}
       >
+        <View style={styles.timerRow}>
+          <Feather name="clock" size={14} color="rgba(255,255,255,0.5)" />
+          <Text style={[styles.timerText, { fontFamily: "Outfit_600SemiBold" }]}>
+            {formatTimer(elapsedSeconds)}
+          </Text>
+        </View>
+
         <Text
           style={[
-            styles.displayLabel,
-            { color: theme.textTertiary, fontFamily: "Outfit_500Medium" },
-          ]}
-        >
-          TOTAL WEIGHT
-        </Text>
-        <Text
-          style={[
-            styles.displayValue,
-            { color: theme.accent, fontFamily: "Outfit_700Bold" },
+            styles.displayWeight,
+            { fontFamily: "Outfit_700Bold" },
           ]}
         >
           {formatWeight(totalWeight)}
         </Text>
-        <Text
-          style={[
-            styles.displayUnit,
-            { color: theme.textSecondary, fontFamily: "Outfit_500Medium" },
-          ]}
-        >
+        <Text style={[styles.displayKg, { fontFamily: "Outfit_500Medium" }]}>
           KG
         </Text>
 
-        <View style={styles.displayDivider}>
-          <View
-            style={[styles.displayDividerLine, { backgroundColor: theme.border }]}
-          />
-        </View>
-
-        <View style={styles.displayRow}>
-          <View style={styles.displayStat}>
+        <View style={styles.displayStats}>
+          <View style={styles.displayStatItem}>
+            <MaterialCommunityIcons
+              name="bird"
+              size={16}
+              color="rgba(255,255,255,0.5)"
+            />
             <Text
               style={[
-                styles.displayStatValue,
-                { color: theme.warm, fontFamily: "Outfit_700Bold" },
+                styles.displayStatVal,
+                { fontFamily: "Outfit_700Bold" },
               ]}
             >
               {totalPcs}
@@ -325,23 +326,23 @@ export default function MeasurementScreen() {
             <Text
               style={[
                 styles.displayStatLabel,
-                { color: theme.textTertiary, fontFamily: "Outfit_400Regular" },
+                { fontFamily: "Outfit_400Regular" },
               ]}
             >
-              Total PCS
+              birds
             </Text>
           </View>
-          <View
-            style={[
-              styles.displayVertDivider,
-              { backgroundColor: theme.border },
-            ]}
-          />
-          <View style={styles.displayStat}>
+          <View style={styles.displayStatDot} />
+          <View style={styles.displayStatItem}>
+            <Feather
+              name="trending-up"
+              size={14}
+              color="rgba(255,255,255,0.5)"
+            />
             <Text
               style={[
-                styles.displayStatValue,
-                { color: theme.text, fontFamily: "Outfit_700Bold" },
+                styles.displayStatVal,
+                { fontFamily: "Outfit_700Bold" },
               ]}
             >
               {formatWeight(avgWeight)}
@@ -349,136 +350,111 @@ export default function MeasurementScreen() {
             <Text
               style={[
                 styles.displayStatLabel,
-                { color: theme.textTertiary, fontFamily: "Outfit_400Regular" },
+                { fontFamily: "Outfit_400Regular" },
               ]}
             >
-              Avg KG/PCS
+              avg kg
             </Text>
           </View>
         </View>
       </Animated.View>
 
-      {showInputs && (
-        <Animated.View
-          style={[
-            styles.inputSection,
-            {
-              backgroundColor: theme.surface,
-              borderColor: theme.borderLight,
-            },
-          ]}
-          entering={Platform.OS !== "web" ? FadeInDown.springify().damping(18) : undefined}
-        >
-          <View style={styles.inputRow}>
-            <View style={styles.inputWrapper}>
-              <Text
-                style={[
-                  styles.inputLabel,
-                  { color: theme.textSecondary, fontFamily: "Outfit_500Medium" },
-                ]}
-              >
-                Weight (KG)
-              </Text>
-              <TextInput
-                ref={weightRef}
-                value={weightInput}
-                onChangeText={setWeightInput}
-                keyboardType="decimal-pad"
-                placeholder="0.000"
-                placeholderTextColor={theme.textTertiary}
-                returnKeyType="next"
-                onSubmitEditing={() => pcsRef.current?.focus()}
-                style={[
-                  styles.input,
-                  {
-                    backgroundColor: theme.background,
-                    color: theme.text,
-                    borderColor: theme.border,
-                    fontFamily: "Outfit_600SemiBold",
-                  },
-                ]}
-              />
-            </View>
-            <View style={styles.inputWrapper}>
-              <Text
-                style={[
-                  styles.inputLabel,
-                  { color: theme.textSecondary, fontFamily: "Outfit_500Medium" },
-                ]}
-              >
-                PCS
-              </Text>
-              <TextInput
-                ref={pcsRef}
-                value={pcsInput}
-                onChangeText={setPcsInput}
-                keyboardType="number-pad"
-                placeholder="0"
-                placeholderTextColor={theme.textTertiary}
-                returnKeyType="done"
-                onSubmitEditing={handleAddRow}
-                style={[
-                  styles.input,
-                  {
-                    backgroundColor: theme.background,
-                    color: theme.text,
-                    borderColor: theme.border,
-                    fontFamily: "Outfit_600SemiBold",
-                  },
-                ]}
-              />
-            </View>
-            <Pressable
-              onPress={handleAddRow}
-              style={({ pressed }) => [
-                styles.addButton,
-                {
-                  backgroundColor: theme.accent,
-                  opacity: pressed ? 0.85 : 1,
-                  transform: [{ scale: pressed ? 0.95 : 1 }],
-                },
-              ]}
-            >
-              <Ionicons name="checkmark" size={22} color="#FFF" />
-            </Pressable>
-          </View>
-        </Animated.View>
-      )}
-
-      <Pressable
-        onPress={handleToggleInputs}
-        style={({ pressed }) => [
-          styles.addRowButton,
+      <View
+        style={[
+          styles.inputBar,
           {
-            backgroundColor: showInputs ? theme.dangerLight : theme.accentLight,
-            borderColor: showInputs ? theme.danger : theme.accent,
-            opacity: pressed ? 0.85 : 1,
+            backgroundColor: theme.surface,
+            borderColor: theme.border,
           },
         ]}
       >
-        <Ionicons
-          name={showInputs ? "close" : "add"}
-          size={18}
-          color={showInputs ? theme.danger : theme.accent}
-        />
-        <Text
-          style={[
-            styles.addRowButtonText,
-            {
-              color: showInputs ? theme.danger : theme.accent,
-              fontFamily: "Outfit_600SemiBold",
-            },
-          ]}
-        >
-          {showInputs ? "Close" : "Add Row"}
-        </Text>
-      </Pressable>
+        <View style={styles.inputGroup}>
+          <View style={styles.inputCol}>
+            <Text
+              style={[
+                styles.inputLabel,
+                { color: theme.textTertiary, fontFamily: "Outfit_500Medium" },
+              ]}
+            >
+              Weight (KG)
+            </Text>
+            <TextInput
+              ref={weightRef}
+              value={weightInput}
+              onChangeText={setWeightInput}
+              keyboardType="decimal-pad"
+              placeholder="0.000"
+              placeholderTextColor={theme.textTertiary}
+              returnKeyType="next"
+              onSubmitEditing={() => pcsRef.current?.focus()}
+              style={[
+                styles.input,
+                {
+                  backgroundColor: theme.background,
+                  color: theme.text,
+                  borderColor: theme.border,
+                  fontFamily: "Outfit_600SemiBold",
+                },
+              ]}
+              testID="weight-input"
+            />
+          </View>
+          <View style={styles.inputColSmall}>
+            <Text
+              style={[
+                styles.inputLabel,
+                { color: theme.textTertiary, fontFamily: "Outfit_500Medium" },
+              ]}
+            >
+              Birds
+            </Text>
+            <TextInput
+              ref={pcsRef}
+              value={pcsInput}
+              onChangeText={setPcsInput}
+              keyboardType="number-pad"
+              placeholder="0"
+              placeholderTextColor={theme.textTertiary}
+              returnKeyType="done"
+              onSubmitEditing={handleAddRow}
+              style={[
+                styles.input,
+                {
+                  backgroundColor: theme.background,
+                  color: theme.text,
+                  borderColor: theme.border,
+                  fontFamily: "Outfit_600SemiBold",
+                },
+              ]}
+              testID="pcs-input"
+            />
+          </View>
+          <Pressable
+            onPress={handleAddRow}
+            disabled={!canAdd}
+            style={({ pressed }) => [
+              styles.addBtn,
+              {
+                backgroundColor: canAdd ? theme.accent : theme.border,
+                transform: [{ scale: pressed && canAdd ? 0.92 : 1 }],
+              },
+            ]}
+            testID="add-button"
+          >
+            <Ionicons
+              name="add"
+              size={24}
+              color={canAdd ? "#FFF" : theme.textTertiary}
+            />
+          </Pressable>
+        </View>
+      </View>
 
       <FlatList
         data={rows}
         keyExtractor={(item) => item.id}
         renderItem={({ item, index }) => (
-          <MeasurementRowCard
+          <RowItem
             row={item}
             rowNumber={rows.length - index}
             theme={theme}
@@ -486,22 +462,23 @@ export default function MeasurementScreen() {
         )}
         contentContainerStyle={{
           paddingHorizontal: 16,
-          paddingTop: 4,
-          paddingBottom: insets.bottom + webBottomInset + 80,
+          paddingTop: 8,
+          paddingBottom: insets.bottom + webBottomInset + 90,
         }}
         showsVerticalScrollIndicator={false}
         scrollEnabled={!!rows.length}
         keyboardDismissMode="interactive"
         keyboardShouldPersistTaps="handled"
         ListEmptyComponent={
-          <View style={styles.emptyList}>
+          <View style={styles.emptyRows}>
+            <Feather name="inbox" size={28} color={theme.textTertiary} />
             <Text
               style={[
-                styles.emptyListText,
+                styles.emptyRowsText,
                 { color: theme.textTertiary, fontFamily: "Outfit_400Regular" },
               ]}
             >
-              No measurements yet. Tap "Add Row" to begin.
+              Enter weight and bird count above to start
             </Text>
           </View>
         }
@@ -513,26 +490,46 @@ export default function MeasurementScreen() {
           {
             paddingBottom: insets.bottom + webBottomInset + 12,
             backgroundColor: theme.surface,
-            borderTopColor: theme.borderLight,
+            borderTopColor: theme.border,
           },
         ]}
       >
         <Pressable
           onPress={handleEndMeasurement}
+          disabled={rows.length === 0}
           style={({ pressed }) => [
-            styles.endButton,
+            styles.endBtn,
             {
-              backgroundColor: rows.length > 0 ? theme.warm : theme.textTertiary,
-              opacity: pressed ? 0.85 : 1,
-              transform: [{ scale: pressed ? 0.97 : 1 }],
+              backgroundColor:
+                rows.length > 0 ? theme.accent : theme.border,
+              transform: [{ scale: pressed && rows.length > 0 ? 0.97 : 1 }],
             },
           ]}
-          disabled={rows.length === 0}
+          testID="end-button"
         >
-          <Feather name="check-circle" size={20} color="#FFF" />
-          <Text style={[styles.endButtonText, { fontFamily: "Outfit_700Bold" }]}>
-            End Measurement
+          <Feather
+            name="check-circle"
+            size={20}
+            color={rows.length > 0 ? "#FFF" : theme.textTertiary}
+          />
+          <Text
+            style={[
+              styles.endBtnText,
+              {
+                color: rows.length > 0 ? "#FFF" : theme.textTertiary,
+                fontFamily: "Outfit_700Bold",
+              },
+            ]}
+          >
+            Finish Weighing
           </Text>
+          {rows.length > 0 && (
+            <View style={styles.endBtnBadge}>
+              <Text style={[styles.endBtnBadgeText, { fontFamily: "Outfit_600SemiBold" }]}>
+                {rows.length}
+              </Text>
+            </View>
+          )}
         </Pressable>
       </View>
     </KeyboardAvoidingView>
@@ -540,9 +537,7 @@ export default function MeasurementScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
+  container: { flex: 1 },
   topBar: {
     flexDirection: "row",
     alignItems: "center",
@@ -551,174 +546,164 @@ const styles = StyleSheet.create({
     paddingBottom: 12,
     borderBottomWidth: 1,
   },
-  topBarTitle: {
-    fontSize: 17,
-  },
-  display: {
+  navBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
     alignItems: "center",
-    paddingVertical: 20,
-    marginHorizontal: 16,
-    marginTop: 16,
-    borderRadius: 20,
+    justifyContent: "center",
   },
-  displayLabel: {
-    fontSize: 12,
-    letterSpacing: 1.5,
-    textTransform: "uppercase",
-    marginBottom: 4,
-  },
-  displayValue: {
-    fontSize: 48,
-    lineHeight: 56,
-  },
-  displayUnit: {
-    fontSize: 16,
-    marginTop: -2,
-  },
-  displayDivider: {
-    width: "80%",
-    paddingVertical: 10,
-  },
-  displayDividerLine: {
-    height: 1,
-  },
-  displayRow: {
-    flexDirection: "row",
+  topBarTitle: { fontSize: 16 },
+  displayPanel: {
     alignItems: "center",
-    width: "80%",
-  },
-  displayStat: {
-    flex: 1,
-    alignItems: "center",
-  },
-  displayStatValue: {
-    fontSize: 22,
-  },
-  displayStatLabel: {
-    fontSize: 11,
-    marginTop: 2,
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-  },
-  displayVertDivider: {
-    width: 1,
-    height: 32,
-  },
-  inputSection: {
+    paddingVertical: 18,
     marginHorizontal: 16,
     marginTop: 12,
-    borderRadius: 16,
-    padding: 14,
-    borderWidth: 1,
+    borderRadius: 22,
+    overflow: "hidden",
   },
-  inputRow: {
-    flexDirection: "row",
-    alignItems: "flex-end",
-    gap: 10,
-  },
-  inputWrapper: {
-    flex: 1,
-  },
-  inputLabel: {
-    fontSize: 12,
-    marginBottom: 6,
-    letterSpacing: 0.3,
-  },
-  input: {
-    height: 46,
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    fontSize: 18,
-    borderWidth: 1,
-  },
-  addButton: {
-    width: 46,
-    height: 46,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  addRowButton: {
+  timerRow: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
     gap: 6,
+    marginBottom: 6,
+    backgroundColor: "rgba(255,255,255,0.08)",
+    paddingHorizontal: 14,
+    paddingVertical: 5,
+    borderRadius: 20,
+  },
+  timerText: {
+    fontSize: 16,
+    color: "rgba(255,255,255,0.7)",
+    letterSpacing: 2,
+  },
+  displayWeight: {
+    fontSize: 52,
+    color: "#FFFFFF",
+    lineHeight: 60,
+    marginTop: 2,
+  },
+  displayKg: {
+    fontSize: 15,
+    color: "rgba(255,255,255,0.5)",
+    marginTop: -2,
+    letterSpacing: 2,
+  },
+  displayStats: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 14,
+    gap: 20,
+  },
+  displayStatItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+  },
+  displayStatVal: {
+    fontSize: 18,
+    color: "#FFFFFF",
+  },
+  displayStatLabel: {
+    fontSize: 12,
+    color: "rgba(255,255,255,0.4)",
+  },
+  displayStatDot: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: "rgba(255,255,255,0.2)",
+  },
+  inputBar: {
     marginHorizontal: 16,
     marginTop: 12,
     marginBottom: 8,
-    paddingVertical: 10,
-    borderRadius: 12,
-    borderWidth: 1.5,
+    borderRadius: 18,
+    padding: 12,
+    borderWidth: 1,
   },
-  addRowButtonText: {
-    fontSize: 14,
+  inputGroup: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    gap: 8,
+  },
+  inputCol: { flex: 1.4 },
+  inputColSmall: { flex: 0.8 },
+  inputLabel: {
+    fontSize: 11,
+    marginBottom: 5,
+    letterSpacing: 0.3,
+    textTransform: "uppercase",
+  },
+  input: {
+    height: 50,
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    fontSize: 20,
+    borderWidth: 1,
+  },
+  addBtn: {
+    width: 50,
+    height: 50,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
   },
   rowCard: {
     flexDirection: "row",
     alignItems: "center",
     padding: 14,
-    borderRadius: 14,
+    borderRadius: 16,
     marginBottom: 8,
     borderWidth: 1,
   },
-  rowNumber: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
+  rowNum: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
     marginRight: 12,
   },
-  rowNumberText: {
-    fontSize: 15,
-  },
-  rowContent: {
-    flex: 1,
+  rowNumText: { fontSize: 15 },
+  rowInfo: { flex: 1 },
+  rowWeight: { fontSize: 17 },
+  rowTimeText: { fontSize: 12, marginTop: 2 },
+  rowPcsBadge: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 10,
   },
-  rowMainInfo: {
-    flexDirection: "row",
+  rowPcsText: { fontSize: 14 },
+  emptyRows: {
+    paddingVertical: 48,
     alignItems: "center",
     gap: 10,
   },
-  rowWeight: {
-    fontSize: 16,
-  },
-  rowPcsBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-  },
-  rowPcsLabel: {
-    fontSize: 13,
-  },
-  rowTime: {
-    fontSize: 12,
-  },
-  emptyList: {
-    paddingVertical: 40,
-    alignItems: "center",
-  },
-  emptyListText: {
-    fontSize: 14,
-    textAlign: "center",
-  },
+  emptyRowsText: { fontSize: 14, textAlign: "center" },
   bottomBar: {
     paddingHorizontal: 16,
     paddingTop: 12,
     borderTopWidth: 1,
   },
-  endButton: {
+  endBtn: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
     paddingVertical: 16,
-    borderRadius: 14,
+    borderRadius: 16,
   },
-  endButtonText: {
-    color: "#FFF",
-    fontSize: 16,
+  endBtnText: { fontSize: 16 },
+  endBtnBadge: {
+    backgroundColor: "rgba(255,255,255,0.25)",
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
+    marginLeft: 2,
   },
+  endBtnBadgeText: { fontSize: 12, color: "#FFF" },
 });

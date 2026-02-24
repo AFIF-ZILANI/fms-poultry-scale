@@ -10,7 +10,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router, useFocusEffect } from "expo-router";
-import { Ionicons, Feather } from "@expo/vector-icons";
+import { Ionicons, Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import Animated, { FadeInDown, FadeIn } from "react-native-reanimated";
 import { useTheme } from "@/lib/useTheme";
@@ -33,7 +33,7 @@ function SaleCard({
     if (Platform.OS === "web") {
       onDelete(sale.id);
     } else {
-      Alert.alert("Delete Sale", "Are you sure you want to remove this record?", [
+      Alert.alert("Delete Sale", "Remove this record permanently?", [
         { text: "Cancel", style: "cancel" },
         {
           text: "Delete",
@@ -46,7 +46,11 @@ function SaleCard({
 
   return (
     <Animated.View
-      entering={Platform.OS !== "web" ? FadeInDown.delay(index * 60).springify() : undefined}
+      entering={
+        Platform.OS !== "web"
+          ? FadeInDown.delay(index * 50).springify()
+          : undefined
+      }
     >
       <View
         style={[
@@ -58,9 +62,13 @@ function SaleCard({
           },
         ]}
       >
-        <View style={styles.cardHeader}>
+        <View style={styles.cardTop}>
           <View style={styles.cardDateRow}>
-            <Feather name="calendar" size={14} color={theme.textTertiary} />
+            <View
+              style={[styles.dateBadge, { backgroundColor: theme.accentLight }]}
+            >
+              <Feather name="calendar" size={13} color={theme.accent} />
+            </View>
             <Text
               style={[
                 styles.cardDate,
@@ -72,15 +80,21 @@ function SaleCard({
           </View>
           <Pressable
             onPress={handleDelete}
-            hitSlop={12}
-            style={({ pressed }) => ({ opacity: pressed ? 0.5 : 1 })}
+            hitSlop={16}
+            style={({ pressed }) => [
+              styles.deleteBtn,
+              {
+                backgroundColor: theme.dangerLight,
+                opacity: pressed ? 0.6 : 1,
+              },
+            ]}
           >
-            <Feather name="trash-2" size={16} color={theme.textTertiary} />
+            <Feather name="trash-2" size={14} color={theme.danger} />
           </Pressable>
         </View>
 
         <View style={styles.cardStats}>
-          <View style={styles.statItem}>
+          <View style={styles.statBlock}>
             <Text
               style={[
                 styles.statValue,
@@ -92,16 +106,14 @@ function SaleCard({
             <Text
               style={[
                 styles.statLabel,
-                { color: theme.textTertiary, fontFamily: "Outfit_400Regular" },
+                { color: theme.textTertiary, fontFamily: "Outfit_500Medium" },
               ]}
             >
               Total KG
             </Text>
           </View>
-          <View
-            style={[styles.statDivider, { backgroundColor: theme.border }]}
-          />
-          <View style={styles.statItem}>
+          <View style={[styles.statSep, { backgroundColor: theme.border }]} />
+          <View style={styles.statBlock}>
             <Text
               style={[
                 styles.statValue,
@@ -113,16 +125,14 @@ function SaleCard({
             <Text
               style={[
                 styles.statLabel,
-                { color: theme.textTertiary, fontFamily: "Outfit_400Regular" },
+                { color: theme.textTertiary, fontFamily: "Outfit_500Medium" },
               ]}
             >
-              PCS
+              Birds
             </Text>
           </View>
-          <View
-            style={[styles.statDivider, { backgroundColor: theme.border }]}
-          />
-          <View style={styles.statItem}>
+          <View style={[styles.statSep, { backgroundColor: theme.border }]} />
+          <View style={styles.statBlock}>
             <Text
               style={[
                 styles.statValue,
@@ -134,7 +144,7 @@ function SaleCard({
             <Text
               style={[
                 styles.statLabel,
-                { color: theme.textTertiary, fontFamily: "Outfit_400Regular" },
+                { color: theme.textTertiary, fontFamily: "Outfit_500Medium" },
               ]}
             >
               Avg KG
@@ -143,23 +153,23 @@ function SaleCard({
         </View>
 
         <View
-          style={[styles.cardFooter, { borderTopColor: theme.borderLight }]}
+          style={[styles.cardBottom, { borderTopColor: theme.borderLight }]}
         >
-          <View style={styles.rowCount}>
-            <Feather name="layers" size={13} color={theme.textTertiary} />
+          <View style={styles.rowInfo}>
+            <Feather name="layers" size={12} color={theme.textTertiary} />
             <Text
               style={[
-                styles.rowCountText,
+                styles.rowInfoText,
                 { color: theme.textTertiary, fontFamily: "Outfit_400Regular" },
               ]}
             >
-              {sale.rows.length} measurement{sale.rows.length !== 1 ? "s" : ""}
+              {sale.rows.length} weighing{sale.rows.length !== 1 ? "s" : ""}
             </Text>
           </View>
           <Text
             style={[
-              styles.gramsText,
-              { color: theme.textTertiary, fontFamily: "Outfit_400Regular" },
+              styles.gramsInfo,
+              { color: theme.accentMuted, fontFamily: "Outfit_500Medium" },
             ]}
           >
             {sale.totalWeightGrams.toLocaleString()}g
@@ -209,45 +219,51 @@ export default function HomeScreen() {
         style={[
           styles.header,
           {
-            paddingTop: insets.top + webTopInset + 16,
+            paddingTop: insets.top + webTopInset + 12,
             backgroundColor: theme.surface,
-            borderBottomColor: theme.borderLight,
+            borderBottomColor: theme.border,
           },
         ]}
       >
-        <View>
-          <Text
-            style={[
-              styles.headerTitle,
-              { color: theme.text, fontFamily: "Outfit_700Bold" },
-            ]}
-          >
-            PoultryScale
-          </Text>
-          <Text
-            style={[
-              styles.headerSubtitle,
-              { color: theme.textSecondary, fontFamily: "Outfit_400Regular" },
-            ]}
-          >
-            Sales History
-          </Text>
-        </View>
-        <View
-          style={[
-            styles.headerBadge,
-            { backgroundColor: theme.accentLight },
-          ]}
-        >
-          <Ionicons name="scale-outline" size={20} color={theme.accent} />
+        <View style={styles.headerLeft}>
+          <View style={[styles.logoBadge, { backgroundColor: theme.accentLight }]}>
+            <MaterialCommunityIcons
+              name="bird"
+              size={22}
+              color={theme.accent}
+            />
+          </View>
+          <View>
+            <Text
+              style={[
+                styles.headerTitle,
+                { color: theme.text, fontFamily: "Outfit_700Bold" },
+              ]}
+            >
+              PoultryScale
+            </Text>
+            <Text
+              style={[
+                styles.headerSub,
+                {
+                  color: theme.textTertiary,
+                  fontFamily: "Outfit_400Regular",
+                },
+              ]}
+            >
+              {sales.length > 0
+                ? `${sales.length} sale${sales.length !== 1 ? "s" : ""} recorded`
+                : "Ready to weigh"}
+            </Text>
+          </View>
         </View>
       </View>
 
       {loading ? (
-        <View style={styles.emptyContainer}>
+        <View style={styles.emptyWrap}>
           <Text
             style={[
-              styles.emptyText,
+              styles.emptyMsg,
               { color: theme.textTertiary, fontFamily: "Outfit_400Regular" },
             ]}
           >
@@ -256,16 +272,17 @@ export default function HomeScreen() {
         </View>
       ) : sales.length === 0 ? (
         <Animated.View
-          style={styles.emptyContainer}
+          style={styles.emptyWrap}
           entering={Platform.OS !== "web" ? FadeIn.delay(200) : undefined}
         >
           <View
-            style={[
-              styles.emptyIcon,
-              { backgroundColor: theme.accentLight },
-            ]}
+            style={[styles.emptyIcon, { backgroundColor: theme.accentLight }]}
           >
-            <Ionicons name="scale-outline" size={40} color={theme.accent} />
+            <MaterialCommunityIcons
+              name="scale"
+              size={44}
+              color={theme.accent}
+            />
           </View>
           <Text
             style={[
@@ -273,15 +290,15 @@ export default function HomeScreen() {
               { color: theme.text, fontFamily: "Outfit_600SemiBold" },
             ]}
           >
-            No sales recorded yet
+            No sales yet
           </Text>
           <Text
             style={[
-              styles.emptyText,
+              styles.emptyMsg,
               { color: theme.textTertiary, fontFamily: "Outfit_400Regular" },
             ]}
           >
-            Tap the button below to start your first measurement
+            Tap the button below to start weighing your birds
           </Text>
         </Animated.View>
       ) : (
@@ -312,21 +329,18 @@ export default function HomeScreen() {
           {
             backgroundColor: theme.accent,
             bottom: insets.bottom + webBottomInset + 24,
-            transform: [{ scale: pressed ? 0.92 : 1 }],
-            shadowColor: theme.accent,
+            transform: [{ scale: pressed ? 0.9 : 1 }],
           },
         ]}
       >
-        <Ionicons name="add" size={28} color="#FFFFFF" />
+        <Ionicons name="add" size={30} color="#FFFFFF" />
       </Pressable>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
+  container: { flex: 1 },
   header: {
     paddingHorizontal: 20,
     paddingBottom: 16,
@@ -335,56 +349,47 @@ const styles = StyleSheet.create({
     alignItems: "flex-end",
     borderBottomWidth: 1,
   },
-  headerTitle: {
-    fontSize: 26,
-    lineHeight: 32,
+  headerLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
   },
-  headerSubtitle: {
-    fontSize: 14,
-    marginTop: 2,
-  },
-  headerBadge: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
+  logoBadge: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
     alignItems: "center",
     justifyContent: "center",
   },
-  emptyContainer: {
+  headerTitle: { fontSize: 22 },
+  headerSub: { fontSize: 13, marginTop: 1 },
+  emptyWrap: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: 40,
   },
   emptyIcon: {
-    width: 80,
-    height: 80,
-    borderRadius: 24,
+    width: 88,
+    height: 88,
+    borderRadius: 28,
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 20,
   },
-  emptyTitle: {
-    fontSize: 18,
-    marginBottom: 8,
-    textAlign: "center",
-  },
-  emptyText: {
-    fontSize: 14,
-    textAlign: "center",
-    lineHeight: 20,
-  },
+  emptyTitle: { fontSize: 20, marginBottom: 8, textAlign: "center" },
+  emptyMsg: { fontSize: 14, textAlign: "center", lineHeight: 21 },
   card: {
-    borderRadius: 16,
-    marginBottom: 12,
+    borderRadius: 18,
+    marginBottom: 14,
     borderWidth: 1,
     overflow: "hidden",
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 1,
-    shadowRadius: 8,
-    elevation: 3,
+    shadowRadius: 12,
+    elevation: 4,
   },
-  cardHeader: {
+  cardTop: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
@@ -392,38 +397,37 @@ const styles = StyleSheet.create({
     paddingTop: 14,
     paddingBottom: 10,
   },
-  cardDateRow: {
-    flexDirection: "row",
+  cardDateRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  dateBadge: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
     alignItems: "center",
-    gap: 6,
+    justifyContent: "center",
   },
-  cardDate: {
-    fontSize: 13,
+  cardDate: { fontSize: 13 },
+  deleteBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
   },
   cardStats: {
     flexDirection: "row",
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 14,
   },
-  statItem: {
-    flex: 1,
-    alignItems: "center",
-  },
-  statValue: {
-    fontSize: 20,
-  },
+  statBlock: { flex: 1, alignItems: "center" },
+  statValue: { fontSize: 22 },
   statLabel: {
     fontSize: 11,
     marginTop: 4,
     textTransform: "uppercase",
     letterSpacing: 0.5,
   },
-  statDivider: {
-    width: 1,
-    height: 36,
-    alignSelf: "center",
-  },
-  cardFooter: {
+  statSep: { width: 1, height: 36, alignSelf: "center" },
+  cardBottom: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
@@ -431,28 +435,21 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderTopWidth: 1,
   },
-  rowCount: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-  },
-  rowCountText: {
-    fontSize: 12,
-  },
-  gramsText: {
-    fontSize: 12,
-  },
+  rowInfo: { flexDirection: "row", alignItems: "center", gap: 5 },
+  rowInfoText: { fontSize: 12 },
+  gramsInfo: { fontSize: 12 },
   fab: {
     position: "absolute",
     right: 20,
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
     alignItems: "center",
     justifyContent: "center",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
-    shadowRadius: 12,
-    elevation: 8,
+    shadowColor: "#2563EB",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.35,
+    shadowRadius: 16,
+    elevation: 10,
   },
 });

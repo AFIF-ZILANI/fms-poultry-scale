@@ -9,7 +9,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router, useLocalSearchParams } from "expo-router";
-import { Ionicons, Feather } from "@expo/vector-icons";
+import { Ionicons, Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import * as Crypto from "expo-crypto";
 import Animated, { FadeInDown, FadeIn } from "react-native-reanimated";
@@ -72,16 +72,19 @@ export default function ReportScreen() {
           {
             paddingTop: insets.top + webTopInset + 8,
             backgroundColor: theme.surface,
-            borderBottomColor: theme.borderLight,
+            borderBottomColor: theme.border,
           },
         ]}
       >
         <Pressable
           onPress={handleBack}
-          hitSlop={12}
-          style={({ pressed }) => ({ opacity: pressed ? 0.5 : 1 })}
+          hitSlop={16}
+          style={({ pressed }) => [
+            styles.navBtn,
+            { backgroundColor: theme.borderLight, opacity: pressed ? 0.6 : 1 },
+          ]}
         >
-          <Ionicons name="chevron-back" size={24} color={theme.text} />
+          <Ionicons name="chevron-back" size={20} color={theme.text} />
         </Pressable>
         <Text
           style={[
@@ -89,9 +92,9 @@ export default function ReportScreen() {
             { color: theme.text, fontFamily: "Outfit_600SemiBold" },
           ]}
         >
-          Report
+          Sale Report
         </Text>
-        <View style={{ width: 24 }} />
+        <View style={{ width: 36 }} />
       </View>
 
       <ScrollView
@@ -103,204 +106,187 @@ export default function ReportScreen() {
       >
         <Animated.View
           entering={Platform.OS !== "web" ? FadeIn.delay(100) : undefined}
-          style={[
-            styles.summaryCard,
-            { backgroundColor: theme.accent, shadowColor: theme.accent },
-          ]}
+          style={[styles.heroCard, { backgroundColor: theme.timerBg }]}
         >
-          <View style={styles.summaryHeader}>
-            <Ionicons name="checkmark-circle" size={28} color="#FFF" />
-            <Text style={[styles.summaryTitle, { fontFamily: "Outfit_700Bold" }]}>
-              Measurement Complete
+          <View style={styles.heroTop}>
+            <View style={styles.heroCheck}>
+              <Ionicons name="checkmark" size={24} color="#FFF" />
+            </View>
+            <Text
+              style={[styles.heroTitle, { fontFamily: "Outfit_700Bold" }]}
+            >
+              Weighing Complete
             </Text>
           </View>
-          <Text style={[styles.summaryDate, { fontFamily: "Outfit_400Regular" }]}>
+          <Text style={[styles.heroDate, { fontFamily: "Outfit_400Regular" }]}>
             {formatDateTime(now)}
           </Text>
-        </Animated.View>
 
-        <Animated.View
-          entering={Platform.OS !== "web" ? FadeInDown.delay(150).springify() : undefined}
-        >
-          <Text
-            style={[
-              styles.sectionTitle,
-              { color: theme.textSecondary, fontFamily: "Outfit_600SemiBold" },
-            ]}
-          >
-            TOTAL WEIGHT
-          </Text>
-          <View
-            style={[
-              styles.dataCard,
-              { backgroundColor: theme.surface, borderColor: theme.borderLight },
-            ]}
-          >
-            <View style={styles.dataRow}>
-              <View style={styles.dataItem}>
-                <Text
-                  style={[
-                    styles.dataValue,
-                    { color: theme.accent, fontFamily: "Outfit_700Bold" },
-                  ]}
-                >
-                  {formatWeight(totalWeightKg)}
-                </Text>
-                <Text
-                  style={[
-                    styles.dataUnit,
-                    { color: theme.textTertiary, fontFamily: "Outfit_400Regular" },
-                  ]}
-                >
-                  Kilograms
-                </Text>
-              </View>
-              <View
-                style={[styles.dataDivider, { backgroundColor: theme.border }]}
-              />
-              <View style={styles.dataItem}>
-                <Text
-                  style={[
-                    styles.dataValue,
-                    { color: theme.accent, fontFamily: "Outfit_700Bold" },
-                  ]}
-                >
-                  {formatGrams(totalWeightGrams)}
-                </Text>
-                <Text
-                  style={[
-                    styles.dataUnit,
-                    { color: theme.textTertiary, fontFamily: "Outfit_400Regular" },
-                  ]}
-                >
-                  Grams
-                </Text>
-              </View>
-            </View>
-          </View>
-        </Animated.View>
-
-        <Animated.View
-          entering={Platform.OS !== "web" ? FadeInDown.delay(250).springify() : undefined}
-        >
-          <Text
-            style={[
-              styles.sectionTitle,
-              { color: theme.textSecondary, fontFamily: "Outfit_600SemiBold" },
-            ]}
-          >
-            TOTAL PIECES
-          </Text>
-          <View
-            style={[
-              styles.dataCard,
-              { backgroundColor: theme.surface, borderColor: theme.borderLight },
-            ]}
-          >
-            <View style={styles.pcsCenter}>
+          <View style={styles.heroStats}>
+            <View style={styles.heroStatItem}>
+              <Text
+                style={[styles.heroStatVal, { fontFamily: "Outfit_700Bold" }]}
+              >
+                {formatWeight(totalWeightKg)}
+              </Text>
               <Text
                 style={[
-                  styles.pcsValue,
-                  { color: theme.warm, fontFamily: "Outfit_700Bold" },
+                  styles.heroStatUnit,
+                  { fontFamily: "Outfit_400Regular" },
                 ]}
+              >
+                Total KG
+              </Text>
+            </View>
+            <View style={styles.heroDot} />
+            <View style={styles.heroStatItem}>
+              <Text
+                style={[styles.heroStatVal, { fontFamily: "Outfit_700Bold" }]}
               >
                 {totalPcs}
               </Text>
               <Text
                 style={[
-                  styles.pcsLabel,
-                  { color: theme.textTertiary, fontFamily: "Outfit_400Regular" },
+                  styles.heroStatUnit,
+                  { fontFamily: "Outfit_400Regular" },
                 ]}
               >
                 Birds
+              </Text>
+            </View>
+            <View style={styles.heroDot} />
+            <View style={styles.heroStatItem}>
+              <Text
+                style={[styles.heroStatVal, { fontFamily: "Outfit_700Bold" }]}
+              >
+                {formatWeight(avgWeightKg)}
+              </Text>
+              <Text
+                style={[
+                  styles.heroStatUnit,
+                  { fontFamily: "Outfit_400Regular" },
+                ]}
+              >
+                Avg KG
               </Text>
             </View>
           </View>
         </Animated.View>
 
         <Animated.View
-          entering={Platform.OS !== "web" ? FadeInDown.delay(350).springify() : undefined}
+          entering={
+            Platform.OS !== "web"
+              ? FadeInDown.delay(150).springify()
+              : undefined
+          }
         >
-          <Text
-            style={[
-              styles.sectionTitle,
-              { color: theme.textSecondary, fontFamily: "Outfit_600SemiBold" },
-            ]}
-          >
-            AVERAGE WEIGHT
-          </Text>
-          <View
-            style={[
-              styles.dataCard,
-              { backgroundColor: theme.surface, borderColor: theme.borderLight },
-            ]}
-          >
-            <View style={styles.dataRow}>
-              <View style={styles.dataItem}>
-                <Text
-                  style={[
-                    styles.dataValue,
-                    { color: theme.text, fontFamily: "Outfit_700Bold" },
-                  ]}
-                >
-                  {formatWeight(avgWeightKg)}
-                </Text>
-                <Text
-                  style={[
-                    styles.dataUnit,
-                    { color: theme.textTertiary, fontFamily: "Outfit_400Regular" },
-                  ]}
-                >
-                  KG per bird
-                </Text>
-              </View>
+          <View style={styles.detailGrid}>
+            <View
+              style={[
+                styles.detailCard,
+                {
+                  backgroundColor: theme.surface,
+                  borderColor: theme.borderLight,
+                },
+              ]}
+            >
               <View
-                style={[styles.dataDivider, { backgroundColor: theme.border }]}
-              />
-              <View style={styles.dataItem}>
-                <Text
-                  style={[
-                    styles.dataValue,
-                    { color: theme.text, fontFamily: "Outfit_700Bold" },
-                  ]}
-                >
-                  {formatGrams(avgWeightGrams)}
-                </Text>
-                <Text
-                  style={[
-                    styles.dataUnit,
-                    { color: theme.textTertiary, fontFamily: "Outfit_400Regular" },
-                  ]}
-                >
-                  Grams per bird
-                </Text>
+                style={[
+                  styles.detailIcon,
+                  { backgroundColor: theme.accentLight },
+                ]}
+              >
+                <Ionicons name="scale-outline" size={18} color={theme.accent} />
               </View>
+              <Text
+                style={[
+                  styles.detailVal,
+                  { color: theme.accent, fontFamily: "Outfit_700Bold" },
+                ]}
+              >
+                {formatGrams(totalWeightGrams)}
+              </Text>
+              <Text
+                style={[
+                  styles.detailLabel,
+                  {
+                    color: theme.textTertiary,
+                    fontFamily: "Outfit_400Regular",
+                  },
+                ]}
+              >
+                Total Grams
+              </Text>
+            </View>
+            <View
+              style={[
+                styles.detailCard,
+                {
+                  backgroundColor: theme.surface,
+                  borderColor: theme.borderLight,
+                },
+              ]}
+            >
+              <View
+                style={[
+                  styles.detailIcon,
+                  { backgroundColor: theme.warmLight },
+                ]}
+              >
+                <Feather name="trending-up" size={18} color={theme.warm} />
+              </View>
+              <Text
+                style={[
+                  styles.detailVal,
+                  { color: theme.warm, fontFamily: "Outfit_700Bold" },
+                ]}
+              >
+                {formatGrams(avgWeightGrams)}
+              </Text>
+              <Text
+                style={[
+                  styles.detailLabel,
+                  {
+                    color: theme.textTertiary,
+                    fontFamily: "Outfit_400Regular",
+                  },
+                ]}
+              >
+                Avg Grams/Bird
+              </Text>
             </View>
           </View>
         </Animated.View>
 
         <Animated.View
-          entering={Platform.OS !== "web" ? FadeInDown.delay(450).springify() : undefined}
+          entering={
+            Platform.OS !== "web"
+              ? FadeInDown.delay(250).springify()
+              : undefined
+          }
         >
           <Text
             style={[
-              styles.sectionTitle,
-              { color: theme.textSecondary, fontFamily: "Outfit_600SemiBold" },
+              styles.sectionLabel,
+              { color: theme.textTertiary, fontFamily: "Outfit_600SemiBold" },
             ]}
           >
-            MEASUREMENTS ({rows.length})
+            WEIGHING LOG ({rows.length})
           </Text>
           <View
             style={[
-              styles.dataCard,
-              { backgroundColor: theme.surface, borderColor: theme.borderLight },
+              styles.logCard,
+              {
+                backgroundColor: theme.surface,
+                borderColor: theme.borderLight,
+              },
             ]}
           >
             {rows.map((row, idx) => (
               <View
                 key={row.id}
                 style={[
-                  styles.measurementItem,
+                  styles.logItem,
                   idx < rows.length - 1 && {
                     borderBottomWidth: 1,
                     borderBottomColor: theme.borderLight,
@@ -309,13 +295,13 @@ export default function ReportScreen() {
               >
                 <View
                   style={[
-                    styles.measurementNum,
+                    styles.logNum,
                     { backgroundColor: theme.accentLight },
                   ]}
                 >
                   <Text
                     style={[
-                      styles.measurementNumText,
+                      styles.logNumText,
                       { color: theme.accent, fontFamily: "Outfit_700Bold" },
                     ]}
                   >
@@ -324,20 +310,27 @@ export default function ReportScreen() {
                 </View>
                 <Text
                   style={[
-                    styles.measurementWeight,
+                    styles.logWeight,
                     { color: theme.text, fontFamily: "Outfit_600SemiBold" },
                   ]}
                 >
                   {formatWeight(row.weightKg)} KG
                 </Text>
-                <Text
-                  style={[
-                    styles.measurementPcs,
-                    { color: theme.warm, fontFamily: "Outfit_500Medium" },
-                  ]}
-                >
-                  {row.pcs} PCS
-                </Text>
+                <View style={styles.logPcs}>
+                  <MaterialCommunityIcons
+                    name="bird"
+                    size={13}
+                    color={theme.warm}
+                  />
+                  <Text
+                    style={[
+                      styles.logPcsText,
+                      { color: theme.warm, fontFamily: "Outfit_500Medium" },
+                    ]}
+                  >
+                    {row.pcs}
+                  </Text>
+                </View>
               </View>
             ))}
           </View>
@@ -350,40 +343,37 @@ export default function ReportScreen() {
           {
             paddingBottom: insets.bottom + webBottomInset + 12,
             backgroundColor: theme.surface,
-            borderTopColor: theme.borderLight,
+            borderTopColor: theme.border,
           },
         ]}
       >
-        <View style={styles.buttonRow}>
+        <View style={styles.btnRow}>
           <Pressable
             onPress={handleBack}
             style={({ pressed }) => [
-              styles.secondaryButton,
+              styles.backBtn,
               {
                 borderColor: theme.border,
-                opacity: pressed ? 0.7 : 1,
+                opacity: pressed ? 0.6 : 1,
               },
             ]}
           >
-            <Ionicons name="arrow-back" size={18} color={theme.text} />
+            <Ionicons name="arrow-back" size={20} color={theme.text} />
           </Pressable>
           <Pressable
             onPress={handleSave}
             style={({ pressed }) => [
-              styles.saveButton,
+              styles.saveBtn,
               {
                 backgroundColor: theme.accent,
-                opacity: pressed ? 0.85 : 1,
                 transform: [{ scale: pressed ? 0.97 : 1 }],
               },
             ]}
+            testID="save-button"
           >
             <Feather name="save" size={18} color="#FFF" />
             <Text
-              style={[
-                styles.saveButtonText,
-                { fontFamily: "Outfit_700Bold" },
-              ]}
+              style={[styles.saveBtnText, { fontFamily: "Outfit_700Bold" }]}
             >
               Save to History
             </Text>
@@ -395,9 +385,7 @@ export default function ReportScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
+  container: { flex: 1 },
   topBar: {
     flexDirection: "row",
     alignItems: "center",
@@ -406,126 +394,132 @@ const styles = StyleSheet.create({
     paddingBottom: 12,
     borderBottomWidth: 1,
   },
-  topBarTitle: {
-    fontSize: 17,
+  navBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
   },
-  summaryCard: {
-    borderRadius: 20,
-    padding: 20,
-    marginBottom: 24,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
-    elevation: 6,
+  topBarTitle: { fontSize: 16 },
+  heroCard: {
+    borderRadius: 22,
+    padding: 22,
+    marginBottom: 16,
   },
-  summaryHeader: {
+  heroTop: {
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
-    marginBottom: 6,
+    marginBottom: 4,
   },
-  summaryTitle: {
-    fontSize: 20,
-    color: "#FFF",
+  heroCheck: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "rgba(255,255,255,0.15)",
+    alignItems: "center",
+    justifyContent: "center",
   },
-  summaryDate: {
+  heroTitle: { fontSize: 20, color: "#FFF" },
+  heroDate: {
     fontSize: 13,
-    color: "rgba(255, 255, 255, 0.8)",
-    marginLeft: 38,
+    color: "rgba(255,255,255,0.6)",
+    marginLeft: 42,
   },
-  sectionTitle: {
+  heroStats: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 20,
+    gap: 16,
+  },
+  heroStatItem: { alignItems: "center" },
+  heroStatVal: { fontSize: 24, color: "#FFF" },
+  heroStatUnit: { fontSize: 11, color: "rgba(255,255,255,0.5)", marginTop: 2 },
+  heroDot: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: "rgba(255,255,255,0.2)",
+  },
+  detailGrid: {
+    flexDirection: "row",
+    gap: 12,
+    marginBottom: 20,
+  },
+  detailCard: {
+    flex: 1,
+    borderRadius: 18,
+    padding: 16,
+    alignItems: "center",
+    borderWidth: 1,
+  },
+  detailIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 10,
+  },
+  detailVal: { fontSize: 22 },
+  detailLabel: { fontSize: 11, marginTop: 4, textTransform: "uppercase" },
+  sectionLabel: {
     fontSize: 12,
     letterSpacing: 1,
     marginBottom: 8,
     marginLeft: 4,
   },
-  dataCard: {
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 20,
+  logCard: {
+    borderRadius: 18,
+    paddingHorizontal: 14,
     borderWidth: 1,
   },
-  dataRow: {
+  logItem: {
     flexDirection: "row",
     alignItems: "center",
-  },
-  dataItem: {
-    flex: 1,
-    alignItems: "center",
-  },
-  dataValue: {
-    fontSize: 26,
-  },
-  dataUnit: {
-    fontSize: 12,
-    marginTop: 4,
-  },
-  dataDivider: {
-    width: 1,
-    height: 40,
-  },
-  pcsCenter: {
-    alignItems: "center",
-    paddingVertical: 4,
-  },
-  pcsValue: {
-    fontSize: 38,
-  },
-  pcsLabel: {
-    fontSize: 14,
-    marginTop: 2,
-  },
-  measurementItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 10,
+    paddingVertical: 12,
     gap: 12,
   },
-  measurementNum: {
+  logNum: {
     width: 30,
     height: 30,
-    borderRadius: 8,
+    borderRadius: 9,
     alignItems: "center",
     justifyContent: "center",
   },
-  measurementNumText: {
-    fontSize: 13,
-  },
-  measurementWeight: {
-    flex: 1,
-    fontSize: 15,
-  },
-  measurementPcs: {
-    fontSize: 13,
-  },
+  logNumText: { fontSize: 13 },
+  logWeight: { flex: 1, fontSize: 15 },
+  logPcs: { flexDirection: "row", alignItems: "center", gap: 4 },
+  logPcsText: { fontSize: 13 },
   bottomBar: {
     paddingHorizontal: 16,
     paddingTop: 12,
     borderTopWidth: 1,
   },
-  buttonRow: {
-    flexDirection: "row",
-    gap: 10,
-  },
-  secondaryButton: {
-    width: 50,
-    height: 50,
-    borderRadius: 14,
+  btnRow: { flexDirection: "row", gap: 10 },
+  backBtn: {
+    width: 52,
+    height: 52,
+    borderRadius: 16,
     borderWidth: 1.5,
     alignItems: "center",
     justifyContent: "center",
   },
-  saveButton: {
+  saveBtn: {
     flex: 1,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
-    height: 50,
-    borderRadius: 14,
+    height: 52,
+    borderRadius: 16,
+    shadowColor: "#2563EB",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
+    elevation: 6,
   },
-  saveButtonText: {
-    color: "#FFF",
-    fontSize: 16,
-  },
+  saveBtnText: { color: "#FFF", fontSize: 16 },
 });
