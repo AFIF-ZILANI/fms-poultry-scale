@@ -1,12 +1,50 @@
-// template
-const tintColorLight = "#2f95dc";
-
-export default {
+const Colors = {
   light: {
-    text: "#000",
-    background: "#fff",
-    tint: tintColorLight,
-    tabIconDefault: "#ccc",
-    tabIconSelected: tintColorLight,
+    background: "#F5F2ED",
+    surface: "#FFFFFF",
+    surfaceElevated: "#FEFEFE",
+    text: "#1A1A1A",
+    textSecondary: "#6B6B6B",
+    textTertiary: "#9E9E9E",
+    accent: "#2D7A4F",
+    accentLight: "#E8F5EC",
+    accentDark: "#1B5A36",
+    warm: "#D4A653",
+    warmLight: "#FFF8EB",
+    danger: "#D94F4F",
+    dangerLight: "#FDE8E8",
+    border: "#E8E4DF",
+    borderLight: "#F0EDE8",
+    tint: "#2D7A4F",
+    tabIconDefault: "#9E9E9E",
+    tabIconSelected: "#2D7A4F",
+    cardShadow: "rgba(0, 0, 0, 0.06)",
+    overlay: "rgba(0, 0, 0, 0.4)",
+  },
+  dark: {
+    background: "#0F1A14",
+    surface: "#1A2B21",
+    surfaceElevated: "#223A2D",
+    text: "#F0EDE8",
+    textSecondary: "#A3A3A3",
+    textTertiary: "#6B6B6B",
+    accent: "#4CAF72",
+    accentLight: "#1A3326",
+    accentDark: "#6BD590",
+    warm: "#E0B866",
+    warmLight: "#2B2517",
+    danger: "#EF6B6B",
+    dangerLight: "#2B1717",
+    border: "#2A3D30",
+    borderLight: "#1F2D25",
+    tint: "#4CAF72",
+    tabIconDefault: "#6B6B6B",
+    tabIconSelected: "#4CAF72",
+    cardShadow: "rgba(0, 0, 0, 0.3)",
+    overlay: "rgba(0, 0, 0, 0.6)",
   },
 };
+
+export default Colors;
+
+export type ThemeColors = typeof Colors.light;
