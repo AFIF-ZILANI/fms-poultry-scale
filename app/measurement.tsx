@@ -8,6 +8,7 @@ import {
   FlatList,
   Platform,
   Alert,
+  Keyboard,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router } from "expo-router";
@@ -15,7 +16,6 @@ import { Ionicons, Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import * as Crypto from "expo-crypto";
 import Animated, { FadeInDown, FadeIn } from "react-native-reanimated";
-import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { useTheme } from "@/lib/useTheme";
 import { formatWeight, getRelativeTime } from "@/lib/utils";
 import type { MeasurementRow } from "@/lib/types";
@@ -94,11 +94,7 @@ function RowItem({
           </Text>
         </View>
         <View style={[styles.rowPcsBadge, { backgroundColor: theme.warmLight }]}>
-          <MaterialCommunityIcons
-            name="bird"
-            size={13}
-            color={theme.warm}
-          />
+          <MaterialCommunityIcons name="bird" size={13} color={theme.warm} />
           <Text
             style={[
               styles.rowPcsText,
@@ -156,7 +152,7 @@ export default function MeasurementScreen() {
     setRows((prev) => [newRow, ...prev]);
     setWeightInput("");
     setPcsInput("");
-    setTimeout(() => weightRef.current?.focus(), 100);
+    Keyboard.dismiss();
 
     if (Platform.OS !== "web") {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -236,11 +232,7 @@ export default function MeasurementScreen() {
     parseInt(pcsInput, 10) > 0;
 
   return (
-    <KeyboardAvoidingView
-      style={[styles.container, { backgroundColor: theme.background }]}
-      behavior="padding"
-      keyboardVerticalOffset={0}
-    >
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
       <View
         style={[
           styles.topBar,
@@ -296,12 +288,7 @@ export default function MeasurementScreen() {
           </Text>
         </View>
 
-        <Text
-          style={[
-            styles.displayWeight,
-            { fontFamily: "Outfit_700Bold" },
-          ]}
-        >
+        <Text style={[styles.displayWeight, { fontFamily: "Outfit_700Bold" }]}>
           {formatWeight(totalWeight)}
         </Text>
         <Text style={[styles.displayKg, { fontFamily: "Outfit_500Medium" }]}>
@@ -316,10 +303,7 @@ export default function MeasurementScreen() {
               color="rgba(255,255,255,0.5)"
             />
             <Text
-              style={[
-                styles.displayStatVal,
-                { fontFamily: "Outfit_700Bold" },
-              ]}
+              style={[styles.displayStatVal, { fontFamily: "Outfit_700Bold" }]}
             >
               {totalPcs}
             </Text>
@@ -340,10 +324,7 @@ export default function MeasurementScreen() {
               color="rgba(255,255,255,0.5)"
             />
             <Text
-              style={[
-                styles.displayStatVal,
-                { fontFamily: "Outfit_700Bold" },
-              ]}
+              style={[styles.displayStatVal, { fontFamily: "Outfit_700Bold" }]}
             >
               {formatWeight(avgWeight)}
             </Text>
@@ -362,10 +343,7 @@ export default function MeasurementScreen() {
       <View
         style={[
           styles.inputBar,
-          {
-            backgroundColor: theme.surface,
-            borderColor: theme.border,
-          },
+          { backgroundColor: theme.surface, borderColor: theme.border },
         ]}
       >
         <View style={styles.inputGroup}>
@@ -383,7 +361,7 @@ export default function MeasurementScreen() {
               value={weightInput}
               onChangeText={setWeightInput}
               keyboardType="decimal-pad"
-              placeholder="0.000"
+              placeholder="0.00"
               placeholderTextColor={theme.textTertiary}
               returnKeyType="next"
               onSubmitEditing={() => pcsRef.current?.focus()}
@@ -463,11 +441,11 @@ export default function MeasurementScreen() {
         contentContainerStyle={{
           paddingHorizontal: 16,
           paddingTop: 8,
-          paddingBottom: insets.bottom + webBottomInset + 90,
+          paddingBottom: 20,
         }}
         showsVerticalScrollIndicator={false}
         scrollEnabled={!!rows.length}
-        keyboardDismissMode="interactive"
+        keyboardDismissMode="on-drag"
         keyboardShouldPersistTaps="handled"
         ListEmptyComponent={
           <View style={styles.emptyRows}>
@@ -500,8 +478,7 @@ export default function MeasurementScreen() {
           style={({ pressed }) => [
             styles.endBtn,
             {
-              backgroundColor:
-                rows.length > 0 ? theme.accent : theme.border,
+              backgroundColor: rows.length > 0 ? theme.accent : theme.border,
               transform: [{ scale: pressed && rows.length > 0 ? 0.97 : 1 }],
             },
           ]}
@@ -525,14 +502,19 @@ export default function MeasurementScreen() {
           </Text>
           {rows.length > 0 && (
             <View style={styles.endBtnBadge}>
-              <Text style={[styles.endBtnBadgeText, { fontFamily: "Outfit_600SemiBold" }]}>
+              <Text
+                style={[
+                  styles.endBtnBadgeText,
+                  { fontFamily: "Outfit_600SemiBold" },
+                ]}
+              >
                 {rows.length}
               </Text>
             </View>
           )}
         </Pressable>
       </View>
-    </KeyboardAvoidingView>
+    </View>
   );
 }
 
@@ -600,14 +582,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 5,
   },
-  displayStatVal: {
-    fontSize: 18,
-    color: "#FFFFFF",
-  },
-  displayStatLabel: {
-    fontSize: 12,
-    color: "rgba(255,255,255,0.4)",
-  },
+  displayStatVal: { fontSize: 18, color: "#FFFFFF" },
+  displayStatLabel: { fontSize: 12, color: "rgba(255,255,255,0.4)" },
   displayStatDot: {
     width: 4,
     height: 4,

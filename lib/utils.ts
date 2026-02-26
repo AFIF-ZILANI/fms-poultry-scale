@@ -1,5 +1,5 @@
 export function formatWeight(kg: number): string {
-  return kg.toFixed(3);
+  return kg.toFixed(2);
 }
 
 export function kgToGrams(kg: number): number {
