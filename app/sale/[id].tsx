@@ -301,7 +301,7 @@ export default function SaleDetailScreen() {
               />
               <DholtaRow
                 label="Price per KG"
-                value={`₨ ${dholta.price_per_kg.toFixed(2)}`}
+                value={`Tk ${dholta.price_per_kg.toFixed(2)}`}
                 theme={theme}
               />
               <View
@@ -324,7 +324,7 @@ export default function SaleDetailScreen() {
                     { color: theme.accent, fontFamily: "Outfit_700Bold" },
                   ]}
                 >
-                  ₨{" "}
+                  Tk{" "}
                   {dholta.final_amount.toLocaleString("en-PK", {
                     maximumFractionDigits: 2,
                   })}
@@ -413,7 +413,7 @@ export default function SaleDetailScreen() {
 
                   <View style={styles.logPcs}>
                     <MaterialCommunityIcons
-                      name="bird"
+                      name="food-turkey"
                       size={13}
                       color={theme.warm}
                     />

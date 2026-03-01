@@ -149,7 +149,7 @@ function RowItem({
         <View
           style={[styles.rowPcsBadge, { backgroundColor: theme.warmLight }]}
         >
-          <MaterialCommunityIcons name="bird" size={13} color={theme.warm} />
+          <MaterialCommunityIcons name="food-turkey" size={13} color={theme.warm} />
           <Text
             style={[
               styles.rowPcsText,
@@ -594,7 +594,7 @@ function DholtaModal({
               />
               <SummaryRow
                 label="Price per KG"
-                value={`₨ ${pricePerKgNum.toFixed(2)}`}
+                value={`Tk ${pricePerKgNum.toFixed(2)}`}
                 theme={theme}
               />
 
@@ -618,7 +618,7 @@ function DholtaModal({
                     { color: theme.accent, fontFamily: "Outfit_700Bold" },
                   ]}
                 >
-                  ₨{" "}
+                  Tk{" "}
                   {finalAmount.toLocaleString("en-PK", {
                     maximumFractionDigits: 2,
                   })}
@@ -975,7 +975,7 @@ export default function MeasurementScreen() {
         <View style={styles.displayStats}>
           <View style={styles.displayStatItem}>
             <MaterialCommunityIcons
-              name="bird"
+              name="food-turkey"
               size={16}
               color="rgba(255,255,255,0.5)"
             />

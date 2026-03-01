@@ -324,7 +324,7 @@ export default function ReportScreen() {
                 </Text>
                 <View style={styles.logPcs}>
                   <MaterialCommunityIcons
-                    name="bird"
+                    name="food-turkey"
                     size={13}
                     color={theme.warm}
                   />

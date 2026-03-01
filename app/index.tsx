@@ -212,7 +212,7 @@ function SaleCard({
                 { color: theme.accent, fontFamily: "Outfit_700Bold" },
               ]}
             >
-              ₨{" "}
+              Tk{" "}
               {dholta.final_amount.toLocaleString("en-PK", {
                 maximumFractionDigits: 0,
               })}
@@ -305,7 +305,7 @@ export default function HomeScreen() {
             style={[styles.logoBadge, { backgroundColor: theme.accentLight }]}
           >
             <MaterialCommunityIcons
-              name="bird"
+              name="food-turkey"
               size={22}
               color={theme.accent}
             />
