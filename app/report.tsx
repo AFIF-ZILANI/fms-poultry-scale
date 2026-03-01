@@ -118,7 +118,9 @@ export default function ReportScreen() {
               Weighing Complete
             </Text>
           </View>
-          <Text style={[styles.heroDate, { fontFamily: "Outfit_400Regular" }]}>
+          <Text
+            style={[styles.heroDate, { fontFamily: "Outfit_400Regular" }]}
+          >
             {formatDateTime(now)}
           </Text>
 
@@ -196,7 +198,11 @@ export default function ReportScreen() {
                   { backgroundColor: theme.accentLight },
                 ]}
               >
-                <Ionicons name="scale-outline" size={18} color={theme.accent} />
+                <Ionicons
+                  name="scale-outline"
+                  size={18}
+                  color={theme.accent}
+                />
               </View>
               <Text
                 style={[
@@ -402,11 +408,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   topBarTitle: { fontSize: 16 },
-  heroCard: {
-    borderRadius: 22,
-    padding: 22,
-    marginBottom: 16,
-  },
+  heroCard: { borderRadius: 22, padding: 22, marginBottom: 16 },
   heroTop: {
     flexDirection: "row",
     alignItems: "center",
@@ -443,11 +445,7 @@ const styles = StyleSheet.create({
     borderRadius: 2,
     backgroundColor: "rgba(255,255,255,0.2)",
   },
-  detailGrid: {
-    flexDirection: "row",
-    gap: 12,
-    marginBottom: 20,
-  },
+  detailGrid: { flexDirection: "row", gap: 12, marginBottom: 20 },
   detailCard: {
     flex: 1,
     borderRadius: 18,
@@ -471,11 +469,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     marginLeft: 4,
   },
-  logCard: {
-    borderRadius: 18,
-    paddingHorizontal: 14,
-    borderWidth: 1,
-  },
+  logCard: { borderRadius: 18, paddingHorizontal: 14, borderWidth: 1 },
   logItem: {
     flexDirection: "row",
     alignItems: "center",
@@ -493,11 +487,7 @@ const styles = StyleSheet.create({
   logWeight: { flex: 1, fontSize: 15 },
   logPcs: { flexDirection: "row", alignItems: "center", gap: 4 },
   logPcsText: { fontSize: 13 },
-  bottomBar: {
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    borderTopWidth: 1,
-  },
+  bottomBar: { paddingHorizontal: 16, paddingTop: 12, borderTopWidth: 1 },
   btnRow: { flexDirection: "row", gap: 10 },
   backBtn: {
     width: 52,

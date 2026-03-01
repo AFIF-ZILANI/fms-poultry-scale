@@ -29,6 +29,8 @@ function SaleCard({
   theme: ReturnType<typeof useTheme>;
   onDelete: (id: string) => void;
 }) {
+  const { dholta } = sale;
+
   const handleDelete = () => {
     if (Platform.OS === "web") {
       onDelete(sale.id);
@@ -72,7 +74,10 @@ function SaleCard({
             <Text
               style={[
                 styles.cardDate,
-                { color: theme.textSecondary, fontFamily: "Outfit_400Regular" },
+                {
+                  color: theme.textSecondary,
+                  fontFamily: "Outfit_400Regular",
+                },
               ]}
             >
               {formatDateTime(sale.createdAt)}
@@ -109,7 +114,7 @@ function SaleCard({
                 { color: theme.textTertiary, fontFamily: "Outfit_500Medium" },
               ]}
             >
-              Total KG
+              Gross KG
             </Text>
           </View>
           <View style={[styles.statSep, { backgroundColor: theme.border }]} />
@@ -139,7 +144,9 @@ function SaleCard({
                 { color: theme.text, fontFamily: "Outfit_700Bold" },
               ]}
             >
-              {formatWeight(sale.averageWeightKg)}
+              {dholta
+                ? formatWeight(dholta.net_weight)
+                : formatWeight(sale.averageWeightKg)}
             </Text>
             <Text
               style={[
@@ -147,34 +154,80 @@ function SaleCard({
                 { color: theme.textTertiary, fontFamily: "Outfit_500Medium" },
               ]}
             >
-              Avg KG
+              {dholta ? "Net KG" : "Avg KG"}
             </Text>
           </View>
         </View>
 
-        <View
-          style={[styles.cardBottom, { borderTopColor: theme.borderLight }]}
-        >
-          <View style={styles.rowInfo}>
-            <Feather name="layers" size={12} color={theme.textTertiary} />
-            <Text
-              style={[
-                styles.rowInfoText,
-                { color: theme.textTertiary, fontFamily: "Outfit_400Regular" },
-              ]}
-            >
-              {sale.rows.length} weighing{sale.rows.length !== 1 ? "s" : ""}
-            </Text>
-          </View>
-          <Text
+        {dholta ? (
+          <View
             style={[
-              styles.gramsInfo,
-              { color: theme.accentMuted, fontFamily: "Outfit_500Medium" },
+              styles.dholtaStrip,
+              { backgroundColor: theme.accentLight, borderTopColor: theme.borderLight },
             ]}
           >
-            {sale.totalWeightGrams.toLocaleString()}g
-          </Text>
-        </View>
+            <View style={styles.dholtaLeft}>
+              <Feather name="minus-circle" size={13} color={theme.accent} />
+              <Text
+                style={[
+                  styles.dholtaDeduction,
+                  { color: theme.textSecondary, fontFamily: "Outfit_400Regular" },
+                ]}
+              >
+                Dholta{" "}
+                <Text style={{ fontFamily: "Outfit_600SemiBold", color: theme.danger }}>
+                  -{formatWeight(dholta.total_deduction_kg)} KG
+                </Text>
+                {"  "}
+                <Text style={{ color: theme.textTertiary }}>
+                  ({dholta.total_crates % 1 === 0
+                    ? dholta.total_crates
+                    : dholta.total_crates.toFixed(2)}{" "}
+                  crates)
+                </Text>
+              </Text>
+            </View>
+            <Text
+              style={[
+                styles.dholtaAmount,
+                { color: theme.accent, fontFamily: "Outfit_700Bold" },
+              ]}
+            >
+              ₨{" "}
+              {dholta.final_amount.toLocaleString("en-PK", {
+                maximumFractionDigits: 0,
+              })}
+            </Text>
+          </View>
+        ) : (
+          <View
+            style={[styles.cardBottom, { borderTopColor: theme.borderLight }]}
+          >
+            <View style={styles.rowInfo}>
+              <Feather name="layers" size={12} color={theme.textTertiary} />
+              <Text
+                style={[
+                  styles.rowInfoText,
+                  {
+                    color: theme.textTertiary,
+                    fontFamily: "Outfit_400Regular",
+                  },
+                ]}
+              >
+                {sale.rows.length} weighing
+                {sale.rows.length !== 1 ? "s" : ""}
+              </Text>
+            </View>
+            <Text
+              style={[
+                styles.gramsInfo,
+                { color: theme.accentMuted, fontFamily: "Outfit_500Medium" },
+              ]}
+            >
+              {sale.totalWeightGrams.toLocaleString()}g
+            </Text>
+          </View>
+        )}
       </View>
     </Animated.View>
   );
@@ -226,7 +279,9 @@ export default function HomeScreen() {
         ]}
       >
         <View style={styles.headerLeft}>
-          <View style={[styles.logoBadge, { backgroundColor: theme.accentLight }]}>
+          <View
+            style={[styles.logoBadge, { backgroundColor: theme.accentLight }]}
+          >
             <MaterialCommunityIcons
               name="bird"
               size={22}
@@ -349,11 +404,7 @@ const styles = StyleSheet.create({
     alignItems: "flex-end",
     borderBottomWidth: 1,
   },
-  headerLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-  },
+  headerLeft: { flexDirection: "row", alignItems: "center", gap: 12 },
   logoBadge: {
     width: 44,
     height: 44,
@@ -438,6 +489,17 @@ const styles = StyleSheet.create({
   rowInfo: { flexDirection: "row", alignItems: "center", gap: 5 },
   rowInfoText: { fontSize: 12 },
   gramsInfo: { fontSize: 12 },
+  dholtaStrip: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderTopWidth: 1,
+  },
+  dholtaLeft: { flexDirection: "row", alignItems: "center", gap: 6, flex: 1 },
+  dholtaDeduction: { fontSize: 12, flexShrink: 1 },
+  dholtaAmount: { fontSize: 16, marginLeft: 8 },
   fab: {
     position: "absolute",
     right: 20,
