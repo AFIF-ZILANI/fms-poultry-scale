@@ -1,8 +1,18 @@
+export interface RowEditEntry {
+  id: string;
+  timestamp: number;
+  previousWeightKg: number;
+  previousPcs: number;
+  newWeightKg: number;
+  newPcs: number;
+}
+
 export interface MeasurementRow {
   id: string;
   weightKg: number;
   pcs: number;
   timestamp: number;
+  editHistory?: RowEditEntry[];
 }
 
 export interface SaleRecord {

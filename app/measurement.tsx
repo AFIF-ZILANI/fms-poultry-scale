@@ -30,6 +30,7 @@ import {
   loadLastDeductionG,
   saveLastDeductionG,
 } from "@/lib/storage";
+import { EditRowModal } from "@/components/EditRowModal";
 import type { MeasurementRow, SaleRecord, DholtaDetails } from "@/lib/types";
 
 function formatTimer(seconds: number): string {
@@ -58,19 +59,26 @@ function RowItem({
   row,
   rowNumber,
   theme,
+  onEdit,
 }: {
   row: MeasurementRow;
   rowNumber: number;
   theme: ReturnType<typeof useTheme>;
+  onEdit: (row: MeasurementRow) => void;
 }) {
   const [timeAgo, setTimeAgo] = useState(getRelativeTime(row.timestamp));
+  const lastEdit = row.editHistory?.[0];
+  const [editAgo, setEditAgo] = useState(
+    lastEdit ? getRelativeTime(lastEdit.timestamp) : ""
+  );
 
   useEffect(() => {
     const interval = setInterval(() => {
       setTimeAgo(getRelativeTime(row.timestamp));
+      if (lastEdit) setEditAgo(getRelativeTime(lastEdit.timestamp));
     }, 5000);
     return () => clearInterval(interval);
-  }, [row.timestamp]);
+  }, [row.timestamp, lastEdit]);
 
   return (
     <Animated.View
@@ -94,6 +102,7 @@ function RowItem({
             {rowNumber}
           </Text>
         </View>
+
         <View style={styles.rowInfo}>
           <Text
             style={[
@@ -107,15 +116,36 @@ function RowItem({
               KG
             </Text>
           </Text>
-          <Text
-            style={[
-              styles.rowTimeText,
-              { color: theme.textTertiary, fontFamily: "Outfit_400Regular" },
-            ]}
-          >
-            {timeAgo}
-          </Text>
+          <View style={styles.rowMeta}>
+            <Text
+              style={[
+                styles.rowTimeText,
+                { color: theme.textTertiary, fontFamily: "Outfit_400Regular" },
+              ]}
+            >
+              {timeAgo}
+            </Text>
+            {lastEdit && (
+              <>
+                <View
+                  style={[
+                    styles.metaDot,
+                    { backgroundColor: theme.textTertiary },
+                  ]}
+                />
+                <Text
+                  style={[
+                    styles.editedText,
+                    { color: theme.accent, fontFamily: "Outfit_400Regular" },
+                  ]}
+                >
+                  edited {editAgo}
+                </Text>
+              </>
+            )}
+          </View>
         </View>
+
         <View
           style={[styles.rowPcsBadge, { backgroundColor: theme.warmLight }]}
         >
@@ -129,6 +159,21 @@ function RowItem({
             {row.pcs}
           </Text>
         </View>
+
+        <Pressable
+          onPress={() => onEdit(row)}
+          hitSlop={8}
+          style={({ pressed }) => [
+            styles.rowEditBtn,
+            {
+              backgroundColor: theme.accentLight,
+              opacity: pressed ? 0.6 : 1,
+            },
+          ]}
+          testID={`edit-row-${rowNumber}`}
+        >
+          <Feather name="edit-2" size={13} color={theme.accent} />
+        </Pressable>
       </View>
     </Animated.View>
   );
@@ -258,10 +303,7 @@ function DholtaModal({
       onRequestClose={onCancel}
     >
       <View
-        style={[
-          styles.modalContainer,
-          { backgroundColor: theme.background },
-        ]}
+        style={[styles.modalContainer, { backgroundColor: theme.background }]}
       >
         <View
           style={[
@@ -309,18 +351,12 @@ function DholtaModal({
             style={[styles.grossBanner, { backgroundColor: theme.timerBg }]}
           >
             <Text
-              style={[
-                styles.grossLabel,
-                { fontFamily: "Outfit_400Regular" },
-              ]}
+              style={[styles.grossLabel, { fontFamily: "Outfit_400Regular" }]}
             >
               Gross Weight
             </Text>
             <Text
-              style={[
-                styles.grossValue,
-                { fontFamily: "Outfit_700Bold" },
-              ]}
+              style={[styles.grossValue, { fontFamily: "Outfit_700Bold" }]}
             >
               {formatWeight(totalWeight)}{" "}
               <Text style={styles.grossUnit}>KG</Text>
@@ -476,9 +512,7 @@ function DholtaModal({
                 styles.checkbox,
                 {
                   borderColor: fullCratesOnly ? theme.accent : theme.border,
-                  backgroundColor: fullCratesOnly
-                    ? theme.accent
-                    : "transparent",
+                  backgroundColor: fullCratesOnly ? theme.accent : "transparent",
                 },
               ]}
             >
@@ -584,7 +618,10 @@ function DholtaModal({
                     { color: theme.accent, fontFamily: "Outfit_700Bold" },
                   ]}
                 >
-                  ₨ {finalAmount.toLocaleString("en-PK", { maximumFractionDigits: 2 })}
+                  ₨{" "}
+                  {finalAmount.toLocaleString("en-PK", {
+                    maximumFractionDigits: 2,
+                  })}
                 </Text>
               </View>
             </View>
@@ -625,9 +662,7 @@ function DholtaModal({
                 styles.confirmBtn,
                 {
                   backgroundColor: isValid ? theme.accent : theme.border,
-                  transform: [
-                    { scale: pressed && isValid ? 0.97 : 1 },
-                  ],
+                  transform: [{ scale: pressed && isValid ? 0.97 : 1 }],
                 },
               ]}
               testID="confirm-save-button"
@@ -710,6 +745,7 @@ export default function MeasurementScreen() {
   const [pcsInput, setPcsInput] = useState("");
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [showDholta, setShowDholta] = useState(false);
+  const [editingRow, setEditingRow] = useState<MeasurementRow | null>(null);
   const weightRef = useRef<TextInput>(null);
   const pcsRef = useRef<TextInput>(null);
   const startTimeRef = useRef(Date.now());
@@ -806,6 +842,29 @@ export default function MeasurementScreen() {
     }
   };
 
+  const handleEditSave = (updatedRow: MeasurementRow) => {
+    setRows((prev) => prev.map((r) => (r.id === updatedRow.id ? updatedRow : r)));
+    setEditingRow(null);
+    if (Platform.OS !== "web") {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    }
+  };
+
+  const handleViewHistory = (row: MeasurementRow) => {
+    setEditingRow(null);
+    const rowIdx = rows.findIndex((r) => r.id === row.id);
+    const rowNumber = rows.length - rowIdx;
+    router.push({
+      pathname: "/row-history",
+      params: {
+        rowNumber: String(rowNumber),
+        history: JSON.stringify(row.editHistory ?? []),
+        currentWeightKg: String(row.weightKg),
+        currentPcs: String(row.pcs),
+      },
+    });
+  };
+
   const webTopInset = Platform.OS === "web" ? 67 : 0;
   const webBottomInset = Platform.OS === "web" ? 34 : 0;
 
@@ -817,8 +876,21 @@ export default function MeasurementScreen() {
     !isNaN(parseInt(pcsInput, 10)) &&
     parseInt(pcsInput, 10) > 0;
 
+  const editingRowNumber = editingRow
+    ? rows.length - rows.findIndex((r) => r.id === editingRow.id)
+    : 1;
+
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
+      <EditRowModal
+        visible={editingRow !== null}
+        row={editingRow}
+        rowNumber={editingRowNumber}
+        onClose={() => setEditingRow(null)}
+        onSave={handleEditSave}
+        onViewHistory={handleViewHistory}
+      />
+
       <DholtaModal
         visible={showDholta}
         totalWeight={totalWeight}
@@ -1043,7 +1115,12 @@ export default function MeasurementScreen() {
         data={rows}
         keyExtractor={(item) => item.id}
         renderItem={({ item, index }) => (
-          <RowItem row={item} rowNumber={rows.length - index} theme={theme} />
+          <RowItem
+            row={item}
+            rowNumber={rows.length - index}
+            theme={theme}
+            onEdit={setEditingRow}
+          />
         )}
         contentContainerStyle={{
           paddingHorizontal: 16,
@@ -1234,6 +1311,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     marginBottom: 8,
     borderWidth: 1,
+    gap: 8,
   },
   rowNum: {
     width: 38,
@@ -1241,12 +1319,14 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
-    marginRight: 12,
   },
   rowNumText: { fontSize: 15 },
   rowInfo: { flex: 1 },
   rowWeight: { fontSize: 17 },
-  rowTimeText: { fontSize: 12, marginTop: 2 },
+  rowMeta: { flexDirection: "row", alignItems: "center", marginTop: 2, gap: 5 },
+  rowTimeText: { fontSize: 12 },
+  metaDot: { width: 3, height: 3, borderRadius: 1.5 },
+  editedText: { fontSize: 11 },
   rowPcsBadge: {
     flexDirection: "row",
     alignItems: "center",
@@ -1256,6 +1336,13 @@ const styles = StyleSheet.create({
     borderRadius: 10,
   },
   rowPcsText: { fontSize: 14 },
+  rowEditBtn: {
+    width: 30,
+    height: 30,
+    borderRadius: 9,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   emptyRows: { paddingVertical: 48, alignItems: "center", gap: 10 },
   emptyRowsText: { fontSize: 14, textAlign: "center" },
   bottomBar: { paddingHorizontal: 16, paddingTop: 12, borderTopWidth: 1 },
@@ -1333,7 +1420,12 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderBottomWidth: 1,
   },
-  inputLabelWrap: { flexDirection: "row", alignItems: "center", gap: 8, flex: 1 },
+  inputLabelWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    flex: 1,
+  },
   inputFieldLabel: { fontSize: 14 },
   inputField: {
     height: 42,

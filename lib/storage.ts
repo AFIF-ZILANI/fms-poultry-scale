@@ -1,5 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import type { SaleRecord } from "./types";
+import type { MeasurementRow, SaleRecord } from "./types";
 
 const SALES_KEY = "poultry_sales_history";
 const LAST_PRICE_KEY = "poultry_last_price_per_kg";
@@ -22,6 +22,32 @@ export async function deleteSale(id: string): Promise<void> {
   const sales = await loadSales();
   const filtered = sales.filter((s) => s.id !== id);
   await AsyncStorage.setItem(SALES_KEY, JSON.stringify(filtered));
+}
+
+export async function updateSale(
+  saleId: string,
+  updatedRows: MeasurementRow[]
+): Promise<void> {
+  const sales = await loadSales();
+  const idx = sales.findIndex((s) => s.id === saleId);
+  if (idx === -1) return;
+
+  const sale = sales[idx];
+  const totalWeightKg = updatedRows.reduce((sum, r) => sum + r.weightKg, 0);
+  const totalPcs = updatedRows.reduce((sum, r) => sum + r.pcs, 0);
+  const avgWeightKg = totalPcs > 0 ? totalWeightKg / totalPcs : 0;
+
+  sales[idx] = {
+    ...sale,
+    rows: updatedRows,
+    totalWeightKg,
+    totalWeightGrams: Math.round(totalWeightKg * 1000),
+    totalPcs,
+    averageWeightKg: avgWeightKg,
+    averageWeightGrams: Math.round(avgWeightKg * 1000),
+  };
+
+  await AsyncStorage.setItem(SALES_KEY, JSON.stringify(sales));
 }
 
 export async function loadLastPricePerKg(): Promise<string> {

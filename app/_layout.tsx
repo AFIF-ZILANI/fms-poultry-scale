@@ -22,6 +22,8 @@ function RootLayoutNav() {
       <Stack.Screen name="index" />
       <Stack.Screen name="measurement" options={{ gestureEnabled: false }} />
       <Stack.Screen name="report" options={{ gestureEnabled: false }} />
+      <Stack.Screen name="sale/[id]" />
+      <Stack.Screen name="row-history" />
     </Stack>
   );
 }

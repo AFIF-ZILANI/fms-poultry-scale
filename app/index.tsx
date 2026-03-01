@@ -46,6 +46,10 @@ function SaleCard({
     }
   };
 
+  const handlePress = () => {
+    router.push({ pathname: "/sale/[id]", params: { id: sale.id } });
+  };
+
   return (
     <Animated.View
       entering={
@@ -54,15 +58,18 @@ function SaleCard({
           : undefined
       }
     >
-      <View
-        style={[
+      <Pressable
+        onPress={handlePress}
+        style={({ pressed }) => [
           styles.card,
           {
             backgroundColor: theme.surface,
             borderColor: theme.borderLight,
             shadowColor: theme.cardShadow,
+            opacity: pressed ? 0.92 : 1,
           },
         ]}
+        testID={`sale-card-${index}`}
       >
         <View style={styles.cardTop}>
           <View style={styles.cardDateRow}>
@@ -163,7 +170,10 @@ function SaleCard({
           <View
             style={[
               styles.dholtaStrip,
-              { backgroundColor: theme.accentLight, borderTopColor: theme.borderLight },
+              {
+                backgroundColor: theme.accentLight,
+                borderTopColor: theme.borderLight,
+              },
             ]}
           >
             <View style={styles.dholtaLeft}>
@@ -171,16 +181,25 @@ function SaleCard({
               <Text
                 style={[
                   styles.dholtaDeduction,
-                  { color: theme.textSecondary, fontFamily: "Outfit_400Regular" },
+                  {
+                    color: theme.textSecondary,
+                    fontFamily: "Outfit_400Regular",
+                  },
                 ]}
               >
                 Dholta{" "}
-                <Text style={{ fontFamily: "Outfit_600SemiBold", color: theme.danger }}>
+                <Text
+                  style={{
+                    fontFamily: "Outfit_600SemiBold",
+                    color: theme.danger,
+                  }}
+                >
                   -{formatWeight(dholta.total_deduction_kg)} KG
                 </Text>
                 {"  "}
                 <Text style={{ color: theme.textTertiary }}>
-                  ({dholta.total_crates % 1 === 0
+                  (
+                  {dholta.total_crates % 1 === 0
                     ? dholta.total_crates
                     : dholta.total_crates.toFixed(2)}{" "}
                   crates)
@@ -218,17 +237,20 @@ function SaleCard({
                 {sale.rows.length !== 1 ? "s" : ""}
               </Text>
             </View>
-            <Text
-              style={[
-                styles.gramsInfo,
-                { color: theme.accentMuted, fontFamily: "Outfit_500Medium" },
-              ]}
-            >
-              {sale.totalWeightGrams.toLocaleString()}g
-            </Text>
+            <View style={styles.viewDetailRow}>
+              <Text
+                style={[
+                  styles.viewDetailText,
+                  { color: theme.accent, fontFamily: "Outfit_500Medium" },
+                ]}
+              >
+                View detail
+              </Text>
+              <Feather name="chevron-right" size={13} color={theme.accent} />
+            </View>
           </View>
         )}
-      </View>
+      </Pressable>
     </Animated.View>
   );
 }
@@ -488,7 +510,8 @@ const styles = StyleSheet.create({
   },
   rowInfo: { flexDirection: "row", alignItems: "center", gap: 5 },
   rowInfoText: { fontSize: 12 },
-  gramsInfo: { fontSize: 12 },
+  viewDetailRow: { flexDirection: "row", alignItems: "center", gap: 2 },
+  viewDetailText: { fontSize: 12 },
   dholtaStrip: {
     flexDirection: "row",
     alignItems: "center",
