@@ -305,7 +305,7 @@ export default function HomeScreen() {
             style={[styles.logoBadge, { backgroundColor: theme.accentLight }]}
           >
             <MaterialCommunityIcons
-              name="food-turkey"
+              name="bird"
               size={22}
               color={theme.accent}
             />
