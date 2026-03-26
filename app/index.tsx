@@ -65,7 +65,7 @@ function SaleCard({
           {
             backgroundColor: theme.surface,
             borderColor: theme.borderLight,
-            shadowColor: theme.cardShadow,
+            ...(Platform.OS !== "web" ? { shadowColor: theme.cardShadow } : {}),
             opacity: pressed ? 0.92 : 1,
           },
         ]}
@@ -457,10 +457,15 @@ const styles = StyleSheet.create({
     marginBottom: 14,
     borderWidth: 1,
     overflow: "hidden",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 1,
-    shadowRadius: 12,
-    elevation: 4,
+    ...Platform.select({
+      web: { boxShadow: "0px 4px 12px rgba(0,0,0,0.08)" } as object,
+      default: {
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 1,
+        shadowRadius: 12,
+        elevation: 4,
+      },
+    }),
   },
   cardTop: {
     flexDirection: "row",
@@ -531,10 +536,15 @@ const styles = StyleSheet.create({
     borderRadius: 32,
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: "#2563EB",
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.35,
-    shadowRadius: 16,
-    elevation: 10,
+    ...Platform.select({
+      web: { boxShadow: "0px 6px 16px rgba(37,99,235,0.35)" } as object,
+      default: {
+        shadowColor: "#2563EB",
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.35,
+        shadowRadius: 16,
+        elevation: 10,
+      },
+    }),
   },
 });

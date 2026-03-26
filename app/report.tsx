@@ -505,11 +505,16 @@ const styles = StyleSheet.create({
     gap: 8,
     height: 52,
     borderRadius: 16,
-    shadowColor: "#2563EB",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 12,
-    elevation: 6,
+    ...Platform.select({
+      web: { boxShadow: "0px 4px 12px rgba(37,99,235,0.25)" } as object,
+      default: {
+        shadowColor: "#2563EB",
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.25,
+        shadowRadius: 12,
+        elevation: 6,
+      },
+    }),
   },
   saveBtnText: { color: "#FFF", fontSize: 16 },
 });

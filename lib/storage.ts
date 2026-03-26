@@ -1,43 +1,44 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { getDb } from "./database";
 import type { MeasurementRow, SaleRecord } from "./types";
 
-const SALES_KEY = "poultry_sales_history";
-const LAST_PRICE_KEY = "poultry_last_price_per_kg";
-const LAST_KG_PER_CRATE_KEY = "poultry_last_kg_per_crate";
-const LAST_DEDUCTION_G_KEY = "poultry_last_deduction_per_crate_g";
-
 export async function loadSales(): Promise<SaleRecord[]> {
-  const data = await AsyncStorage.getItem(SALES_KEY);
-  if (!data) return [];
-  return JSON.parse(data) as SaleRecord[];
+  const db = await getDb();
+  const rows = await db.getAllAsync<{ data: string }>(
+    "SELECT data FROM sales ORDER BY created_at DESC"
+  );
+  return rows.map((r) => JSON.parse(r.data) as SaleRecord);
 }
 
 export async function saveSale(sale: SaleRecord): Promise<void> {
-  const sales = await loadSales();
-  sales.unshift(sale);
-  await AsyncStorage.setItem(SALES_KEY, JSON.stringify(sales));
+  const db = await getDb();
+  await db.runAsync(
+    "INSERT OR REPLACE INTO sales (id, data, created_at) VALUES (?, ?, ?)",
+    [sale.id, JSON.stringify(sale), sale.createdAt]
+  );
 }
 
 export async function deleteSale(id: string): Promise<void> {
-  const sales = await loadSales();
-  const filtered = sales.filter((s) => s.id !== id);
-  await AsyncStorage.setItem(SALES_KEY, JSON.stringify(filtered));
+  const db = await getDb();
+  await db.runAsync("DELETE FROM sales WHERE id = ?", [id]);
 }
 
 export async function updateSale(
   saleId: string,
   updatedRows: MeasurementRow[]
 ): Promise<void> {
-  const sales = await loadSales();
-  const idx = sales.findIndex((s) => s.id === saleId);
-  if (idx === -1) return;
+  const db = await getDb();
+  const row = await db.getFirstAsync<{ data: string }>(
+    "SELECT data FROM sales WHERE id = ?",
+    [saleId]
+  );
+  if (!row) return;
 
-  const sale = sales[idx];
-  const totalWeightKg = updatedRows.reduce((sum, r) => sum + r.weightKg, 0);
-  const totalPcs = updatedRows.reduce((sum, r) => sum + r.pcs, 0);
+  const sale: SaleRecord = JSON.parse(row.data);
+  const totalWeightKg = updatedRows.reduce((s, r) => s + r.weightKg, 0);
+  const totalPcs = updatedRows.reduce((s, r) => s + r.pcs, 0);
   const avgWeightKg = totalPcs > 0 ? totalWeightKg / totalPcs : 0;
 
-  sales[idx] = {
+  const updated: SaleRecord = {
     ...sale,
     rows: updatedRows,
     totalWeightKg,
@@ -47,32 +48,37 @@ export async function updateSale(
     averageWeightGrams: Math.round(avgWeightKg * 1000),
   };
 
-  await AsyncStorage.setItem(SALES_KEY, JSON.stringify(sales));
+  await db.runAsync("UPDATE sales SET data = ? WHERE id = ?", [
+    JSON.stringify(updated),
+    saleId,
+  ]);
 }
 
-export async function loadLastPricePerKg(): Promise<string> {
-  const val = await AsyncStorage.getItem(LAST_PRICE_KEY);
-  return val ?? "";
+async function getPref(key: string): Promise<string> {
+  const db = await getDb();
+  const row = await db.getFirstAsync<{ value: string }>(
+    "SELECT value FROM prefs WHERE key = ?",
+    [key]
+  );
+  return row?.value ?? "";
 }
 
-export async function saveLastPricePerKg(price: string): Promise<void> {
-  await AsyncStorage.setItem(LAST_PRICE_KEY, price);
+async function setPref(key: string, value: string): Promise<void> {
+  const db = await getDb();
+  await db.runAsync(
+    "INSERT OR REPLACE INTO prefs (key, value) VALUES (?, ?)",
+    [key, value]
+  );
 }
 
-export async function loadLastKgPerCrate(): Promise<string> {
-  const val = await AsyncStorage.getItem(LAST_KG_PER_CRATE_KEY);
-  return val ?? "";
-}
+export const loadLastPricePerKg = () => getPref("last_price_per_kg");
+export const saveLastPricePerKg = (v: string) =>
+  setPref("last_price_per_kg", v);
 
-export async function saveLastKgPerCrate(val: string): Promise<void> {
-  await AsyncStorage.setItem(LAST_KG_PER_CRATE_KEY, val);
-}
+export const loadLastKgPerCrate = () => getPref("last_kg_per_crate");
+export const saveLastKgPerCrate = (v: string) =>
+  setPref("last_kg_per_crate", v);
 
-export async function loadLastDeductionG(): Promise<string> {
-  const val = await AsyncStorage.getItem(LAST_DEDUCTION_G_KEY);
-  return val ?? "";
-}
-
-export async function saveLastDeductionG(val: string): Promise<void> {
-  await AsyncStorage.setItem(LAST_DEDUCTION_G_KEY, val);
-}
+export const loadLastDeductionG = () => getPref("last_deduction_g");
+export const saveLastDeductionG = (v: string) =>
+  setPref("last_deduction_g", v);
