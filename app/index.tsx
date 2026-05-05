@@ -14,9 +14,9 @@ import { Ionicons, Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import Animated, { FadeInDown, FadeIn } from "react-native-reanimated";
 import { useTheme } from "@/lib/useTheme";
-import { loadSales, deleteSale } from "@/lib/storage";
+import { loadSales, deleteSale, loadDrafts } from "@/lib/storage";
 import { formatWeight, formatDateTime } from "@/lib/utils";
-import type { SaleRecord } from "@/lib/types";
+import type { SaleRecord, DraftSession } from "@/lib/types";
 
 function SaleCard({
   sale,
@@ -259,12 +259,14 @@ export default function HomeScreen() {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const [sales, setSales] = useState<SaleRecord[]>([]);
+  const [drafts, setDrafts] = useState<DraftSession[]>([]);
   const [loading, setLoading] = useState(true);
 
   useFocusEffect(
     useCallback(() => {
-      loadSales().then((data) => {
-        setSales(data);
+      Promise.all([loadSales(), loadDrafts()]).then(([salesData, draftsData]) => {
+        setSales(salesData);
+        setDrafts(draftsData);
         setLoading(false);
       });
     }, [])
@@ -283,6 +285,13 @@ export default function HomeScreen() {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     }
     router.push("/measurement");
+  };
+
+  const handleOpenDrafts = () => {
+    if (Platform.OS !== "web") {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+    router.push("/drafts");
   };
 
   const webTopInset = Platform.OS === "web" ? 67 : 0;
@@ -335,6 +344,45 @@ export default function HomeScreen() {
           </View>
         </View>
       </View>
+
+      {drafts.length > 0 && (
+        <Pressable
+          onPress={handleOpenDrafts}
+          style={({ pressed }) => [
+            styles.draftBanner,
+            {
+              backgroundColor: theme.warmLight,
+              borderColor: theme.warm,
+              opacity: pressed ? 0.85 : 1,
+            },
+          ]}
+        >
+          <View style={styles.draftBannerLeft}>
+            <View
+              style={[
+                styles.draftBannerIcon,
+                { backgroundColor: theme.warm },
+              ]}
+            >
+              <MaterialCommunityIcons
+                name="progress-clock"
+                size={15}
+                color="#FFF"
+              />
+            </View>
+            <Text
+              style={[
+                styles.draftBannerText,
+                { color: theme.warm, fontFamily: "Outfit_600SemiBold" },
+              ]}
+            >
+              {drafts.length} draft session
+              {drafts.length !== 1 ? "s" : ""} — tap to continue
+            </Text>
+          </View>
+          <Feather name="chevron-right" size={16} color={theme.warm} />
+        </Pressable>
+      )}
 
       {loading ? (
         <View style={styles.emptyWrap}>
@@ -426,6 +474,26 @@ const styles = StyleSheet.create({
     alignItems: "flex-end",
     borderBottomWidth: 1,
   },
+  draftBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginHorizontal: 16,
+    marginTop: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+    borderRadius: 14,
+    borderWidth: 1.5,
+  },
+  draftBannerLeft: { flexDirection: "row", alignItems: "center", gap: 10, flex: 1 },
+  draftBannerIcon: {
+    width: 26,
+    height: 26,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  draftBannerText: { fontSize: 13, flex: 1 },
   headerLeft: { flexDirection: "row", alignItems: "center", gap: 12 },
   logoBadge: {
     width: 44,

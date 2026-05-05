@@ -25,6 +25,12 @@ async function initDb(): Promise<SQLite.SQLiteDatabase> {
       key TEXT PRIMARY KEY,
       value TEXT NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS drafts (
+      id TEXT PRIMARY KEY,
+      data TEXT NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
   `);
 
   return db;

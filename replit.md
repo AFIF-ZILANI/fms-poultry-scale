@@ -1,64 +1,69 @@
 # PoultryScale - Poultry Farm Weight Tracker
 
-## Overview
-Mobile application for recording bird weight measurements during poultry selling day. Built with Expo + React Native (TypeScript).
+## Run & Operate
+- Frontend: `npm run expo:dev` (port 8081 — Expo dev server)
+- Backend: `npm run server:dev` (port 5000 — Express)
+- Scan QR from Replit URL bar to preview on device via Expo Go
 
-## Architecture
-- **Frontend**: Expo Router (file-based routing), React Native
-- **Backend**: Express.js (serves landing page + API placeholder)
-- **Storage**: AsyncStorage for local data persistence
-- **State**: useState for local state, no global state needed
-- **Fonts**: Outfit (Google Fonts)
+## Stack
+- **Frontend**: Expo Router 6, React Native (TypeScript), Expo SDK 54
+- **Backend**: Express.js + TypeScript
+- **Fonts**: Outfit (Google Fonts via @expo-google-fonts/outfit)
+- **Storage**: expo-sqlite ~16.0.10 (native) + AsyncStorage fallback (web via `lib/database.web.ts`)
+- **State**: useState + useFocusEffect (no global state needed)
 
-## Project Structure
+## Where things live
 ```
 app/
-  _layout.tsx        - Root layout with fonts, providers
-  index.tsx          - Home screen (sales history + FAB)
-  measurement.tsx    - Core measurement screen (weight input, row list)
-  report.tsx         - Report summary screen (save to history)
-  +not-found.tsx     - 404 handler
-
+  _layout.tsx        - Root layout (fonts, providers, routes)
+  index.tsx          - Home screen (sales history, draft banner, FAB)
+  measurement.tsx    - Weighing session (auto-saves draft on every row change)
+  drafts.tsx         - Draft sessions list (resume or delete)
+  report.tsx         - Report/summary screen
+  sale/[id].tsx      - Sale detail with row editing
+  row-history.tsx    - Row edit history
 lib/
-  types.ts           - TypeScript interfaces (MeasurementRow, SaleRecord)
-  storage.ts         - AsyncStorage CRUD for sales data
-  utils.ts           - Formatting utilities (weight, time, date)
-  useTheme.ts        - Theme hook (dark/light mode)
-  query-client.ts    - React Query client setup
-
-constants/
-  colors.ts          - Theme colors (light + dark, earthy green/gold palette)
-
+  types.ts           - TypeScript interfaces
+  database.ts        - SQLite singleton (native)
+  database.web.ts    - AsyncStorage-based DB shim (web only, Metro platform extension)
+  storage.ts         - CRUD for sales, drafts, preferences
+  useTheme.ts        - Dark/light theme hook
+  utils.ts           - Formatting utilities
+constants/colors.ts  - Theme palette (navy/blue/white)
 components/
-  ErrorBoundary.tsx  - Error boundary wrapper
-  ErrorFallback.tsx  - Error fallback UI
-
-server/
-  index.ts           - Express server
-  routes.ts          - API routes
-  storage.ts         - Server-side storage
+  EditRowModal.tsx   - Shared row edit modal
+  ErrorBoundary.tsx  - Error boundary
+metro.config.js      - Blocks .local/skills/.tmp-* from watchman
 ```
 
-## App Flow
-1. **Home** - View sales history, tap FAB (+) to start new measurement
-2. **Measurement** - Add weight rows (KG + PCS), see live totals, end measurement
-3. **Report** - View summary, save to history, return to home
+## Architecture decisions
+- **SQLite via singleton promise** (`getDb()`) — initializes once, reused across calls; tables created on first open
+- **Web DB shim** — `lib/database.web.ts` mirrors the SQLiteDatabase interface using AsyncStorage + in-memory cache; Metro automatically picks it up for web platform builds
+- **Draft auto-save** — `useEffect` in measurement screen watches `rows` state and calls `saveDraft()` on every change; draft is deleted when sale is saved
+- **Platform shadow fix** — `Platform.select` with `boxShadow` on web, native shadow props on iOS/Android
+- **Metro blockList** — prevents crash when Replit cleans up temporary skill files in `.local/skills/`
 
-## Key Features
-- Live weight calculation as rows are added
-- Auto-updating relative timestamps on rows
-- Dark/Light mode support
-- Confirmation dialogs before destructive actions
-- Delete last row, delete sales from history
-- Data persists across app restarts via AsyncStorage
+## Product
+- Start a weighing session → add rows (KG + birds) → session auto-saves as draft on every change
+- Go back anytime; session is preserved as a draft
+- Home screen shows amber banner with draft count → tap to open Drafts page → resume any session
+- Finishing a session opens the Trade Deduction (Dholta) modal → calculates net weight/amount → saves as completed sale
+- Sales history with detail view, row editing with full edit history per row
+- Dark/light mode, Tk currency, food-turkey icons throughout
 
-## Dependencies
-- expo-crypto (UUIDs), expo-haptics (feedback)
-- @expo-google-fonts/outfit (typography)
-- @react-native-async-storage/async-storage (persistence)
-- react-native-reanimated (animations)
-- react-native-keyboard-controller (keyboard handling)
+## User preferences
+- Always Tk currency (not $)
+- MaterialCommunityIcons `food-turkey` for bird counts
+- Outfit font, dark navy (#1E3A5F/#0D1B30) panels
+- No emojis, always @expo/vector-icons
+- Weight always 2 decimal places
 
-## Ports
-- Frontend: 8081 (Expo dev server)
-- Backend: 5000 (Express)
+## Gotchas
+- Never run `npx expo start` directly — use `restart_workflow` (env vars injected by workflow)
+- expo-sqlite@~16.0.10 for Expo SDK 54 — do NOT upgrade to v55+ (different architecture, WASM issues on web)
+- Metro cache lives at `/tmp/metro-cache` — delete and restart frontend if bundling issues persist
+- `lib/database.web.ts` is a Metro platform extension (auto-selected for web builds); keep it in sync with the native `lib/database.ts` interface
+
+## Pointers
+- Expo skill: `.local/skills/expo/SKILL.md`
+- Package management: `.local/skills/package-management/SKILL.md`

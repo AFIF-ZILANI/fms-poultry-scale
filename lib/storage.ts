@@ -1,5 +1,7 @@
 import { getDb } from "./database";
-import type { MeasurementRow, SaleRecord } from "./types";
+import type { MeasurementRow, SaleRecord, DraftSession } from "./types";
+
+// ─── Sales ────────────────────────────────────────────────────────────────────
 
 export async function loadSales(): Promise<SaleRecord[]> {
   const db = await getDb();
@@ -53,6 +55,40 @@ export async function updateSale(
     saleId,
   ]);
 }
+
+// ─── Drafts ───────────────────────────────────────────────────────────────────
+
+export async function loadDrafts(): Promise<DraftSession[]> {
+  const db = await getDb();
+  const rows = await db.getAllAsync<{ data: string }>(
+    "SELECT data FROM drafts ORDER BY updated_at DESC"
+  );
+  return rows.map((r) => JSON.parse(r.data) as DraftSession);
+}
+
+export async function loadDraft(id: string): Promise<DraftSession | null> {
+  const db = await getDb();
+  const row = await db.getFirstAsync<{ data: string }>(
+    "SELECT data FROM drafts WHERE id = ?",
+    [id]
+  );
+  return row ? (JSON.parse(row.data) as DraftSession) : null;
+}
+
+export async function saveDraft(draft: DraftSession): Promise<void> {
+  const db = await getDb();
+  await db.runAsync(
+    "INSERT OR REPLACE INTO drafts (id, data, updated_at) VALUES (?, ?, ?)",
+    [draft.id, JSON.stringify(draft), draft.updatedAt]
+  );
+}
+
+export async function deleteDraft(id: string): Promise<void> {
+  const db = await getDb();
+  await db.runAsync("DELETE FROM drafts WHERE id = ?", [id]);
+}
+
+// ─── Preferences ──────────────────────────────────────────────────────────────
 
 async function getPref(key: string): Promise<string> {
   const db = await getDb();

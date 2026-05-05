@@ -38,3 +38,12 @@ export interface DholtaDetails {
   price_per_kg: number;
   final_amount: number;
 }
+
+export interface DraftSession {
+  id: string;
+  rows: MeasurementRow[];
+  createdAt: number;
+  updatedAt: number;
+  totalWeightKg: number;
+  totalPcs: number;
+}

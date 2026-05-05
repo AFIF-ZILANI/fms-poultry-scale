@@ -14,7 +14,7 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { Ionicons, Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import * as Crypto from "expo-crypto";
@@ -29,9 +29,17 @@ import {
   saveLastKgPerCrate,
   loadLastDeductionG,
   saveLastDeductionG,
+  loadDraft,
+  saveDraft,
+  deleteDraft,
 } from "@/lib/storage";
 import { EditRowModal } from "@/components/EditRowModal";
-import type { MeasurementRow, SaleRecord, DholtaDetails } from "@/lib/types";
+import type {
+  MeasurementRow,
+  SaleRecord,
+  DholtaDetails,
+  DraftSession,
+} from "@/lib/types";
 
 function formatTimer(seconds: number): string {
   const h = Math.floor(seconds / 3600);
@@ -740,6 +748,7 @@ function SummaryRow({
 export default function MeasurementScreen() {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
+  const { draftId: draftIdParam } = useLocalSearchParams<{ draftId?: string }>();
   const [rows, setRows] = useState<MeasurementRow[]>([]);
   const [weightInput, setWeightInput] = useState("");
   const [pcsInput, setPcsInput] = useState("");
@@ -749,6 +758,44 @@ export default function MeasurementScreen() {
   const weightRef = useRef<TextInput>(null);
   const pcsRef = useRef<TextInput>(null);
   const startTimeRef = useRef(Date.now());
+  const sessionDraftId = useRef<string>(
+    typeof draftIdParam === "string" && draftIdParam.length > 0
+      ? draftIdParam
+      : Crypto.randomUUID()
+  );
+  const hasEverHadRows = useRef(
+    typeof draftIdParam === "string" && draftIdParam.length > 0
+  );
+  const draftLoaded = useRef(false);
+
+  // Load rows from existing draft
+  useEffect(() => {
+    if (draftLoaded.current) return;
+    const id = typeof draftIdParam === "string" ? draftIdParam : "";
+    if (!id) return;
+    draftLoaded.current = true;
+    loadDraft(id).then((draft) => {
+      if (draft && draft.rows.length > 0) {
+        setRows(draft.rows);
+        startTimeRef.current = draft.createdAt;
+      }
+    });
+  }, [draftIdParam]);
+
+  // Auto-save draft whenever rows change
+  useEffect(() => {
+    if (rows.length > 0) hasEverHadRows.current = true;
+    if (!hasEverHadRows.current) return;
+    const draft: DraftSession = {
+      id: sessionDraftId.current,
+      rows,
+      createdAt: startTimeRef.current,
+      updatedAt: Date.now(),
+      totalWeightKg: rows.reduce((s, r) => s + r.weightKg, 0),
+      totalPcs: rows.reduce((s, r) => s + r.pcs, 0),
+    };
+    saveDraft(draft);
+  }, [rows]);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -824,22 +871,7 @@ export default function MeasurementScreen() {
   };
 
   const handleBack = () => {
-    if (rows.length > 0) {
-      if (Platform.OS === "web") {
-        router.back();
-        return;
-      }
-      Alert.alert("Discard?", "All unsaved weighings will be lost.", [
-        { text: "Stay", style: "cancel" },
-        {
-          text: "Discard",
-          style: "destructive",
-          onPress: () => router.back(),
-        },
-      ]);
-    } else {
-      router.back();
-    }
+    router.back();
   };
 
   const handleEditSave = (updatedRow: MeasurementRow) => {
@@ -899,8 +931,9 @@ export default function MeasurementScreen() {
         theme={theme}
         insets={insets}
         onCancel={() => setShowDholta(false)}
-        onSaved={() => {
+        onSaved={async () => {
           setShowDholta(false);
+          await deleteDraft(sessionDraftId.current);
           router.dismissAll();
         }}
       />
