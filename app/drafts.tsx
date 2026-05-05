@@ -109,7 +109,7 @@ function DraftCard({
             </Text>
             <View style={styles.cardMeta}>
               <MaterialCommunityIcons
-                name="food-turkey"
+                name="bird"
                 size={12}
                 color={theme.warm}
               />

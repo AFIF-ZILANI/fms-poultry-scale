@@ -157,7 +157,7 @@ function RowItem({
         <View
           style={[styles.rowPcsBadge, { backgroundColor: theme.warmLight }]}
         >
-          <MaterialCommunityIcons name="food-turkey" size={13} color={theme.warm} />
+          <MaterialCommunityIcons name="bird" size={13} color={theme.warm} />
           <Text
             style={[
               styles.rowPcsText,
@@ -1008,7 +1008,7 @@ export default function MeasurementScreen() {
         <View style={styles.displayStats}>
           <View style={styles.displayStatItem}>
             <MaterialCommunityIcons
-              name="food-turkey"
+              name="bird"
               size={16}
               color="rgba(255,255,255,0.5)"
             />
