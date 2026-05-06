@@ -20,7 +20,7 @@ export default function SignInPage() {
   const signIn = useSignIn();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { theme } = useTheme();
+  const theme = useTheme();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -42,10 +42,10 @@ export default function SignInPage() {
         await signIn.finalize({
           navigate: ({ decorateUrl }) => {
             const url = decorateUrl("/");
-            if (url.startsWith("http")) {
+            if (url.startsWith("http") && Platform.OS === "web") {
               if (typeof window !== "undefined") window.location.href = url;
             } else {
-              router.replace(url as Href);
+              router.replace("/");
             }
           },
         });
@@ -69,14 +69,14 @@ export default function SignInPage() {
         contentContainerStyle={[
           styles.container,
           {
-            paddingTop: insets.top + 24,
+            paddingTop: insets.top + 32,
             paddingBottom: insets.bottom + 24,
           },
         ]}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        {/* Logo / Branding */}
+        {/* Logo */}
         <View style={styles.brandRow}>
           <View style={[styles.iconCircle, { backgroundColor: theme.accent }]}>
             <MaterialCommunityIcons name="scale-balance" size={32} color="#fff" />
@@ -109,6 +109,7 @@ export default function SignInPage() {
               keyboardType="email-address"
               autoCapitalize="none"
               autoCorrect={false}
+              testID="sign-in-email"
             />
           </View>
         </View>
@@ -127,8 +128,9 @@ export default function SignInPage() {
               placeholder="Enter password"
               placeholderTextColor={theme.textTertiary}
               secureTextEntry={!showPassword}
+              testID="sign-in-password"
             />
-            <Pressable onPress={() => setShowPassword((p) => !p)} style={styles.eyeBtn}>
+            <Pressable onPress={() => setShowPassword((p) => !p)} style={styles.eyeBtn} hitSlop={8}>
               <MaterialCommunityIcons
                 name={showPassword ? "eye-off-outline" : "eye-outline"}
                 size={20}
@@ -157,6 +159,7 @@ export default function SignInPage() {
           ]}
           onPress={handleSignIn}
           disabled={isLoading || !email || !password}
+          testID="sign-in-btn"
         >
           {isLoading ? (
             <ActivityIndicator color="#fff" size="small" />

@@ -36,7 +36,7 @@ export default function OnboardingScreen() {
   const { user } = useUser();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { theme } = useTheme();
+  const theme = useTheme();
 
   const [step, setStep] = useState(0);
   const [saving, setSaving] = useState(false);

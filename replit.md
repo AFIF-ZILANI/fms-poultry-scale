@@ -50,7 +50,7 @@ babel.config.js      - React Compiler DISABLED (react-compiler: false) — requi
 - **Web DB shim** — `lib/database.web.ts` mirrors the SQLiteDatabase interface using AsyncStorage + in-memory cache; Metro automatically picks it up for web platform builds
 - **Draft auto-save** — `useEffect` in measurement screen watches `rows` state and calls `saveDraft()` on every change; draft is deleted when sale is saved
 - **Clerk v3 signals API** — `useSignIn()` / `useSignUp()` return the signal object directly (NOT `{ signIn }` wrapper). Use `const signIn = useSignIn()` then `signIn.password()`, `signIn.finalize()`, `signIn.errors`, `signIn.fetchStatus`
-- **React Compiler disabled** — `babel-plugin-react-compiler` is installed but must be disabled via `babel.config.js`. When enabled, it emits `c()` calls from `react/compiler-runtime` which check `ReactSharedInternals.H` — this is null in the Clerk context, causing "Invalid hook call". Fix: `"react-compiler": false` in babel-preset-expo options
+- **React Compiler disabled** — Must be disabled in TWO places: `"react-compiler": false` in `babel.config.js` babel-preset-expo options, AND `"reactCompiler": false` in `app.json` experiments. The `app.json` flag controls the Metro `transform.reactCompiler` query param; if `true`, it overrides babel.config.js and causes `ReactSharedInternals.H` null crash in Clerk context
 - **Metro blockList** — blocks `.local/skills` temp files AND `.local/state` workflow logs to prevent FallbackWatcher ENOENT crashes
 - **onboarding_complete_{userId}** stored in AsyncStorage — checked after sign-in; if missing → redirect to /onboarding; if present → redirect to /
 
@@ -77,7 +77,8 @@ babel.config.js      - React Compiler DISABLED (react-compiler: false) — requi
 - Metro cache lives at `/tmp/metro-cache` — delete and restart frontend if bundling issues persist
 - `lib/database.web.ts` is a Metro platform extension (auto-selected for web builds); keep it in sync with the native `lib/database.ts` interface
 - expo-secure-store@55.0.13 is installed (wrong version for SDK 54, expected ~15.0.8) — works for Expo Go but may cause issues in production builds
-- React Compiler MUST stay disabled — see Architecture decisions above
+- React Compiler MUST stay disabled in BOTH `babel.config.js` AND `app.json` experiments — disabling only babel.config.js is not enough; app.json sets the Metro `transform.reactCompiler` flag independently
+- `useTheme()` returns colors directly — use `const theme = useTheme()`, NOT `const { theme } = useTheme()`
 
 ## Pointers
 - Expo skill: `.local/skills/expo/SKILL.md`

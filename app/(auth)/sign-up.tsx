@@ -20,7 +20,7 @@ export default function SignUpPage() {
   const signUp = useSignUp();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { theme } = useTheme();
+  const theme = useTheme();
 
   const [step, setStep] = useState<"register" | "verify">("register");
   const [email, setEmail] = useState("");
@@ -56,10 +56,10 @@ export default function SignUpPage() {
         await signUp.finalize({
           navigate: ({ decorateUrl }) => {
             const url = decorateUrl("/");
-            if (url.startsWith("http")) {
+            if (url.startsWith("http") && Platform.OS === "web") {
               if (typeof window !== "undefined") window.location.href = url;
             } else {
-              router.replace(url as Href);
+              router.replace("/");
             }
           },
         });
@@ -91,16 +91,16 @@ export default function SignUpPage() {
         <ScrollView
           contentContainerStyle={[
             styles.container,
-            { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 24 },
+            { paddingTop: insets.top + 32, paddingBottom: insets.bottom + 24 },
           ]}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          <Pressable onPress={() => setStep("register")} style={styles.backBtn}>
+          <Pressable onPress={() => setStep("register")} style={styles.backBtn} hitSlop={12}>
             <MaterialCommunityIcons name="arrow-left" size={24} color={theme.text} />
           </Pressable>
 
-          <View style={[styles.iconCircle, { backgroundColor: theme.accentLight, alignSelf: "flex-start", marginBottom: 4 }]}>
+          <View style={[styles.iconCircleSm, { backgroundColor: theme.accentLight, marginBottom: 8 }]}>
             <MaterialCommunityIcons name="email-check-outline" size={28} color={theme.accent} />
           </View>
 
@@ -132,6 +132,7 @@ export default function SignUpPage() {
               placeholderTextColor={theme.textTertiary}
               keyboardType="number-pad"
               maxLength={6}
+              testID="verify-code-input"
             />
           </View>
 
@@ -152,6 +153,7 @@ export default function SignUpPage() {
             ]}
             onPress={handleVerify}
             disabled={isLoading || code.length < 6}
+            testID="verify-btn"
           >
             {isLoading ? (
               <ActivityIndicator color="#fff" size="small" />
@@ -180,14 +182,14 @@ export default function SignUpPage() {
       <ScrollView
         contentContainerStyle={[
           styles.container,
-          { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 24 },
+          { paddingTop: insets.top + 32, paddingBottom: insets.bottom + 24 },
         ]}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
         {/* Branding */}
         <View style={styles.brandRow}>
-          <View style={[styles.iconCircleSm, { backgroundColor: theme.accent }]}>
+          <View style={[styles.iconCircle, { backgroundColor: theme.accent }]}>
             <MaterialCommunityIcons name="scale-balance" size={32} color="#fff" />
           </View>
           <Text style={[styles.brandName, { color: theme.text, fontFamily: "Outfit_700Bold" }]}>
@@ -218,6 +220,7 @@ export default function SignUpPage() {
               keyboardType="email-address"
               autoCapitalize="none"
               autoCorrect={false}
+              testID="sign-up-email"
             />
           </View>
         </View>
@@ -236,8 +239,9 @@ export default function SignUpPage() {
               placeholder="Min. 8 characters"
               placeholderTextColor={theme.textTertiary}
               secureTextEntry={!showPassword}
+              testID="sign-up-password"
             />
-            <Pressable onPress={() => setShowPassword((p) => !p)} style={styles.eyeBtn}>
+            <Pressable onPress={() => setShowPassword((p) => !p)} style={styles.eyeBtn} hitSlop={8}>
               <MaterialCommunityIcons
                 name={showPassword ? "eye-off-outline" : "eye-outline"}
                 size={20}
@@ -266,6 +270,7 @@ export default function SignUpPage() {
           ]}
           onPress={handleSignUp}
           disabled={isLoading || !email || !password}
+          testID="sign-up-btn"
         >
           {isLoading ? (
             <ActivityIndicator color="#fff" size="small" />
@@ -290,7 +295,6 @@ export default function SignUpPage() {
           </Link>
         </View>
 
-        {/* Required for Clerk bot protection */}
         <View nativeID="clerk-captcha" />
       </ScrollView>
     </KeyboardAvoidingView>
@@ -320,13 +324,13 @@ const styles = StyleSheet.create({
   iconCircle: {
     width: 52,
     height: 52,
-    borderRadius: 14,
+    borderRadius: 16,
     alignItems: "center",
     justifyContent: "center",
   },
   iconCircleSm: {
-    width: 52,
-    height: 52,
+    width: 56,
+    height: 56,
     borderRadius: 16,
     alignItems: "center",
     justifyContent: "center",
