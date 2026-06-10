@@ -14,6 +14,7 @@ import * as Haptics from "expo-haptics";
 import * as Crypto from "expo-crypto";
 import Animated, { FadeInDown, FadeIn } from "react-native-reanimated";
 import { useTheme } from "@/lib/useTheme";
+import { useSettings } from "@/lib/SettingsContext";
 import {
   formatWeight,
   kgToGrams,
@@ -26,6 +27,7 @@ import type { MeasurementRow, SaleRecord } from "@/lib/types";
 export default function ReportScreen() {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
+  const { t } = useSettings();
   const params = useLocalSearchParams<{ rows: string }>();
 
   const rows: MeasurementRow[] = params.rows ? JSON.parse(params.rows) : [];
@@ -92,7 +94,7 @@ export default function ReportScreen() {
             { color: theme.text, fontFamily: "Outfit_600SemiBold" },
           ]}
         >
-          Sale Report
+          {t.reportTitle}
         </Text>
         <View style={{ width: 36 }} />
       </View>
@@ -115,7 +117,7 @@ export default function ReportScreen() {
             <Text
               style={[styles.heroTitle, { fontFamily: "Outfit_700Bold" }]}
             >
-              Weighing Complete
+              {t.weighingComplete}
             </Text>
           </View>
           <Text
@@ -137,7 +139,7 @@ export default function ReportScreen() {
                   { fontFamily: "Outfit_400Regular" },
                 ]}
               >
-                Total KG
+                {t.totalKg}
               </Text>
             </View>
             <View style={styles.heroDot} />
@@ -153,7 +155,7 @@ export default function ReportScreen() {
                   { fontFamily: "Outfit_400Regular" },
                 ]}
               >
-                Birds
+                {t.birds}
               </Text>
             </View>
             <View style={styles.heroDot} />
@@ -169,7 +171,7 @@ export default function ReportScreen() {
                   { fontFamily: "Outfit_400Regular" },
                 ]}
               >
-                Avg KG
+                {t.avgKg}
               </Text>
             </View>
           </View>
@@ -221,7 +223,7 @@ export default function ReportScreen() {
                   },
                 ]}
               >
-                Total Grams
+                {t.totalGrams}
               </Text>
             </View>
             <View
@@ -258,7 +260,7 @@ export default function ReportScreen() {
                   },
                 ]}
               >
-                Avg Grams/Bird
+                {t.avgGramsPerBird}
               </Text>
             </View>
           </View>
@@ -277,7 +279,7 @@ export default function ReportScreen() {
               { color: theme.textTertiary, fontFamily: "Outfit_600SemiBold" },
             ]}
           >
-            WEIGHING LOG ({rows.length})
+            {t.weighingLog(rows.length)}
           </Text>
           <View
             style={[
@@ -381,7 +383,7 @@ export default function ReportScreen() {
             <Text
               style={[styles.saveBtnText, { fontFamily: "Outfit_700Bold" }]}
             >
-              Save to History
+              {t.saveToHistory}
             </Text>
           </Pressable>
         </View>

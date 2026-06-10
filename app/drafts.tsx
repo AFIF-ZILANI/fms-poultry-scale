@@ -14,6 +14,7 @@ import { Ionicons, Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { useTheme } from "@/lib/useTheme";
+import { useSettings } from "@/lib/SettingsContext";
 import { loadDrafts, deleteDraft } from "@/lib/storage";
 import { formatWeight } from "@/lib/utils";
 import type { DraftSession } from "@/lib/types";
@@ -32,12 +33,14 @@ function DraftCard({
   draft,
   index,
   theme,
+  t,
   onDelete,
   onResume,
 }: {
   draft: DraftSession;
   index: number;
   theme: ReturnType<typeof useTheme>;
+  t: ReturnType<typeof useSettings>["t"];
   onDelete: (id: string) => void;
   onResume: (id: string) => void;
 }) {
@@ -45,10 +48,10 @@ function DraftCard({
     if (Platform.OS === "web") {
       onDelete(draft.id);
     } else {
-      Alert.alert("Discard Draft", "Delete this draft session permanently?", [
-        { text: "Cancel", style: "cancel" },
+      Alert.alert(t.discardDraft, t.discardDraftMessage, [
+        { text: t.cancel, style: "cancel" },
         {
-          text: "Discard",
+          text: t.discard,
           style: "destructive",
           onPress: () => onDelete(draft.id),
         },
@@ -119,7 +122,7 @@ function DraftCard({
                   { color: theme.textTertiary, fontFamily: "Outfit_400Regular" },
                 ]}
               >
-                {draft.totalPcs} birds
+                {draft.totalPcs} {t.birds.toLowerCase()}
               </Text>
               <View
                 style={[styles.dot, { backgroundColor: theme.textTertiary }]}
@@ -176,6 +179,7 @@ function DraftCard({
 export default function DraftsScreen() {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
+  const { t } = useSettings();
   const [drafts, setDrafts] = useState<DraftSession[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -236,7 +240,7 @@ export default function DraftsScreen() {
               { color: theme.text, fontFamily: "Outfit_700Bold" },
             ]}
           >
-            Draft Sessions
+            {t.draftsTitle}
           </Text>
           <Text
             style={[
@@ -248,8 +252,8 @@ export default function DraftsScreen() {
             ]}
           >
             {drafts.length > 0
-              ? `${drafts.length} session${drafts.length !== 1 ? "s" : ""} paused`
-              : "No drafts saved"}
+              ? t.draftsPaused(drafts.length)
+              : t.noDraftsSaved}
           </Text>
         </View>
         <View style={{ width: 36 }} />
@@ -263,7 +267,7 @@ export default function DraftsScreen() {
               { color: theme.textTertiary, fontFamily: "Outfit_400Regular" },
             ]}
           >
-            Loading...
+            {t.loading}
           </Text>
         </View>
       ) : drafts.length === 0 ? (
@@ -279,7 +283,7 @@ export default function DraftsScreen() {
               { color: theme.text, fontFamily: "Outfit_600SemiBold" },
             ]}
           >
-            No draft sessions
+            {t.noDraftSessions}
           </Text>
           <Text
             style={[
@@ -287,7 +291,7 @@ export default function DraftsScreen() {
               { color: theme.textTertiary, fontFamily: "Outfit_400Regular" },
             ]}
           >
-            Sessions are saved automatically when you go back
+            {t.draftsAutoSave}
           </Text>
         </View>
       ) : (
@@ -299,6 +303,7 @@ export default function DraftsScreen() {
               draft={item}
               index={index}
               theme={theme}
+              t={t}
               onDelete={handleDelete}
               onResume={handleResume}
             />

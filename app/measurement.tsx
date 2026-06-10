@@ -20,6 +20,7 @@ import * as Haptics from "expo-haptics";
 import * as Crypto from "expo-crypto";
 import Animated, { FadeInDown, FadeIn } from "react-native-reanimated";
 import { useTheme } from "@/lib/useTheme";
+import { useSettings } from "@/lib/SettingsContext";
 import { formatWeight, getRelativeTime } from "@/lib/utils";
 import {
   saveSale,
@@ -74,6 +75,7 @@ function RowItem({
   theme: ReturnType<typeof useTheme>;
   onEdit: (row: MeasurementRow) => void;
 }) {
+  const { t } = useSettings();
   const [timeAgo, setTimeAgo] = useState(getRelativeTime(row.timestamp));
   const lastEdit = row.editHistory?.[0];
   const [editAgo, setEditAgo] = useState(
@@ -147,7 +149,7 @@ function RowItem({
                     { color: theme.accent, fontFamily: "Outfit_400Regular" },
                   ]}
                 >
-                  edited {editAgo}
+                  {t.edited} {editAgo}
                 </Text>
               </>
             )}
@@ -187,6 +189,46 @@ function RowItem({
   );
 }
 
+function SummaryRow({
+  label,
+  value,
+  theme,
+  isNegative,
+  isHighlight,
+}: {
+  label: string;
+  value: string;
+  theme: ReturnType<typeof useTheme>;
+  isNegative?: boolean;
+  isHighlight?: boolean;
+}) {
+  const valueColor = isNegative
+    ? theme.danger
+    : isHighlight
+    ? theme.success
+    : theme.text;
+  return (
+    <View style={styles.summaryRow}>
+      <Text
+        style={[
+          styles.summaryLabel,
+          { color: theme.textTertiary, fontFamily: "Outfit_400Regular" },
+        ]}
+      >
+        {label}
+      </Text>
+      <Text
+        style={[
+          styles.summaryValue,
+          { color: valueColor, fontFamily: "Outfit_600SemiBold" },
+        ]}
+      >
+        {value}
+      </Text>
+    </View>
+  );
+}
+
 function DholtaModal({
   visible,
   totalWeight,
@@ -206,6 +248,7 @@ function DholtaModal({
   onCancel: () => void;
   onSaved: () => void;
 }) {
+  const { t } = useSettings();
   const [kgPerCrate, setKgPerCrate] = useState("");
   const [deductionG, setDeductionG] = useState("");
   const [pricePerKg, setPricePerKg] = useState("");
@@ -342,7 +385,7 @@ function DholtaModal({
               { color: theme.text, fontFamily: "Outfit_700Bold" },
             ]}
           >
-            Trade Deduction
+            {t.tradeDeduction}
           </Text>
           <View style={{ width: 36 }} />
         </View>
@@ -361,7 +404,7 @@ function DholtaModal({
             <Text
               style={[styles.grossLabel, { fontFamily: "Outfit_400Regular" }]}
             >
-              Gross Weight
+              {t.grossWeight}
             </Text>
             <Text
               style={[styles.grossValue, { fontFamily: "Outfit_700Bold" }]}
@@ -377,7 +420,7 @@ function DholtaModal({
               { color: theme.textTertiary, fontFamily: "Outfit_600SemiBold" },
             ]}
           >
-            DEDUCTION PARAMETERS
+            {t.deductionParams}
           </Text>
 
           <View
@@ -407,7 +450,7 @@ function DholtaModal({
                     { color: theme.text, fontFamily: "Outfit_500Medium" },
                   ]}
                 >
-                  KG per Crate
+                  {t.kgPerCrate}
                 </Text>
               </View>
               <TextInput
@@ -445,7 +488,7 @@ function DholtaModal({
                     { color: theme.text, fontFamily: "Outfit_500Medium" },
                   ]}
                 >
-                  Dholta per Crate (g)
+                  {t.dholtaPerCrate}
                 </Text>
               </View>
               <TextInput
@@ -479,7 +522,7 @@ function DholtaModal({
                     { color: theme.text, fontFamily: "Outfit_500Medium" },
                   ]}
                 >
-                  Price per KG
+                  {t.pricePerKg}
                 </Text>
               </View>
               <TextInput
@@ -535,7 +578,7 @@ function DholtaModal({
                   { color: theme.text, fontFamily: "Outfit_600SemiBold" },
                 ]}
               >
-                Full crates only (floor logic)
+                {t.fullCratesOnly}
               </Text>
               <Text
                 style={[
@@ -546,7 +589,7 @@ function DholtaModal({
                   },
                 ]}
               >
-                Deduct only on complete crates, ignore partial
+                {t.fullCratesOnlyHint}
               </Text>
             </View>
           </Pressable>
@@ -571,16 +614,16 @@ function DholtaModal({
                   },
                 ]}
               >
-                CALCULATION SUMMARY
+                {t.calcSummary}
               </Text>
 
               <SummaryRow
-                label="Gross Weight"
+                label={t.grossWeight}
                 value={`${formatWeight(totalWeight)} KG`}
                 theme={theme}
               />
               <SummaryRow
-                label={`Total Crates${fullCratesOnly ? " (floored)" : ""}`}
+                label={fullCratesOnly ? t.totalCratesFloored : t.totalCrates}
                 value={
                   fullCratesOnly
                     ? `${calc.totalCrates}`
@@ -589,19 +632,19 @@ function DholtaModal({
                 theme={theme}
               />
               <SummaryRow
-                label="Total Deduction"
+                label={t.totalDeduction}
                 value={`${formatWeight(calc.totalDeductionKg)} KG`}
                 theme={theme}
                 isNegative
               />
               <SummaryRow
-                label="Payable Weight"
+                label={t.payableWeight}
                 value={`${formatWeight(calc.netWeight)} KG`}
                 theme={theme}
                 isHighlight
               />
               <SummaryRow
-                label="Price per KG"
+                label={t.pricePerKg}
                 value={`Tk ${pricePerKgNum.toFixed(2)}`}
                 theme={theme}
               />
@@ -618,7 +661,7 @@ function DholtaModal({
                     { color: theme.accent, fontFamily: "Outfit_600SemiBold" },
                   ]}
                 >
-                  Final Amount
+                  {t.finalAmount}
                 </Text>
                 <Text
                   style={[
@@ -660,7 +703,7 @@ function DholtaModal({
                   { color: theme.text, fontFamily: "Outfit_600SemiBold" },
                 ]}
               >
-                Cancel
+                {t.cancel}
               </Text>
             </Pressable>
             <Pressable
@@ -693,7 +736,7 @@ function DholtaModal({
                       },
                     ]}
                   >
-                    Confirm & Save Sale
+                    {t.confirmSave}
                   </Text>
                 </>
               )}
@@ -705,49 +748,10 @@ function DholtaModal({
   );
 }
 
-function SummaryRow({
-  label,
-  value,
-  theme,
-  isNegative,
-  isHighlight,
-}: {
-  label: string;
-  value: string;
-  theme: ReturnType<typeof useTheme>;
-  isNegative?: boolean;
-  isHighlight?: boolean;
-}) {
-  const valueColor = isNegative
-    ? theme.danger
-    : isHighlight
-    ? theme.success
-    : theme.text;
-  return (
-    <View style={styles.summaryRow}>
-      <Text
-        style={[
-          styles.summaryLabel,
-          { color: theme.textTertiary, fontFamily: "Outfit_400Regular" },
-        ]}
-      >
-        {label}
-      </Text>
-      <Text
-        style={[
-          styles.summaryValue,
-          { color: valueColor, fontFamily: "Outfit_600SemiBold" },
-        ]}
-      >
-        {value}
-      </Text>
-    </View>
-  );
-}
-
 export default function MeasurementScreen() {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
+  const { t } = useSettings();
   const { draftId: draftIdParam } = useLocalSearchParams<{ draftId?: string }>();
   const [rows, setRows] = useState<MeasurementRow[]>([]);
   const [weightInput, setWeightInput] = useState("");
@@ -768,7 +772,6 @@ export default function MeasurementScreen() {
   );
   const draftLoaded = useRef(false);
 
-  // Load rows from existing draft
   useEffect(() => {
     if (draftLoaded.current) return;
     const id = typeof draftIdParam === "string" ? draftIdParam : "";
@@ -782,7 +785,6 @@ export default function MeasurementScreen() {
     });
   }, [draftIdParam]);
 
-  // Auto-save draft whenever rows change
   useEffect(() => {
     if (rows.length > 0) hasEverHadRows.current = true;
     if (!hasEverHadRows.current) return;
@@ -843,10 +845,10 @@ export default function MeasurementScreen() {
     if (Platform.OS === "web") {
       setRows((prev) => prev.slice(1));
     } else {
-      Alert.alert("Undo Last", "Remove the most recent weighing?", [
-        { text: "Cancel", style: "cancel" },
+      Alert.alert(t.undoLast, t.undoLastMessage, [
+        { text: t.cancel, style: "cancel" },
         {
-          text: "Remove",
+          text: t.remove,
           style: "destructive",
           onPress: () => {
             setRows((prev) => prev.slice(1));
@@ -860,7 +862,7 @@ export default function MeasurementScreen() {
   const handleEndMeasurement = () => {
     if (rows.length === 0) {
       if (Platform.OS !== "web") {
-        Alert.alert("No Data", "Add at least one weighing first.");
+        Alert.alert(t.noDataTitle, t.noDataMessage);
       }
       return;
     }
@@ -964,7 +966,7 @@ export default function MeasurementScreen() {
             { color: theme.text, fontFamily: "Outfit_600SemiBold" },
           ]}
         >
-          Weighing Session
+          {t.measurementTitle}
         </Text>
         {rows.length > 0 ? (
           <Pressable
@@ -1026,7 +1028,7 @@ export default function MeasurementScreen() {
                 { fontFamily: "Outfit_400Regular" },
               ]}
             >
-              birds
+              {t.birds.toLowerCase()}
             </Text>
           </View>
           <View style={styles.displayStatDot} />
@@ -1050,7 +1052,7 @@ export default function MeasurementScreen() {
                 { fontFamily: "Outfit_400Regular" },
               ]}
             >
-              avg kg
+              {t.avgPerBird}
             </Text>
           </View>
         </View>
@@ -1070,7 +1072,7 @@ export default function MeasurementScreen() {
                 { color: theme.textTertiary, fontFamily: "Outfit_500Medium" },
               ]}
             >
-              Weight (KG)
+              {t.weightKg}
             </Text>
             <TextInput
               ref={weightRef}
@@ -1100,7 +1102,7 @@ export default function MeasurementScreen() {
                 { color: theme.textTertiary, fontFamily: "Outfit_500Medium" },
               ]}
             >
-              Birds
+              {t.pcs}
             </Text>
             <TextInput
               ref={pcsRef}
@@ -1176,7 +1178,7 @@ export default function MeasurementScreen() {
                 },
               ]}
             >
-              Enter weight and bird count above to start
+              {t.noRowsYet}
             </Text>
           </View>
         }
@@ -1218,7 +1220,7 @@ export default function MeasurementScreen() {
               },
             ]}
           >
-            Finish Weighing
+            {t.finishSession}
           </Text>
           {rows.length > 0 && (
             <View style={styles.endBtnBadge}>

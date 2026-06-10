@@ -118,3 +118,9 @@ export const saveLastKgPerCrate = (v: string) =>
 export const loadLastDeductionG = () => getPref("last_deduction_g");
 export const saveLastDeductionG = (v: string) =>
   setPref("last_deduction_g", v);
+
+export const loadLanguagePref = () => getPref("language");
+export const saveLanguagePref = (v: string) => setPref("language", v);
+
+export const loadThemePref = () => getPref("theme_preference");
+export const saveThemePref = (v: string) => setPref("theme_preference", v);

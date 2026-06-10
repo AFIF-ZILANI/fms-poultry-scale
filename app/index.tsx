@@ -14,6 +14,7 @@ import { Ionicons, Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import Animated, { FadeInDown, FadeIn } from "react-native-reanimated";
 import { useTheme } from "@/lib/useTheme";
+import { useSettings } from "@/lib/SettingsContext";
 import { loadSales, deleteSale, loadDrafts } from "@/lib/storage";
 import { formatWeight, formatDateTime } from "@/lib/utils";
 import type { SaleRecord, DraftSession } from "@/lib/types";
@@ -23,11 +24,13 @@ function SaleCard({
   index,
   theme,
   onDelete,
+  t,
 }: {
   sale: SaleRecord;
   index: number;
   theme: ReturnType<typeof useTheme>;
   onDelete: (id: string) => void;
+  t: ReturnType<typeof useSettings>["t"];
 }) {
   const { dholta } = sale;
 
@@ -35,10 +38,10 @@ function SaleCard({
     if (Platform.OS === "web") {
       onDelete(sale.id);
     } else {
-      Alert.alert("Delete Sale", "Remove this record permanently?", [
-        { text: "Cancel", style: "cancel" },
+      Alert.alert(t.homeDeleteTitle, t.homeDeleteMessage, [
+        { text: t.cancel, style: "cancel" },
         {
-          text: "Delete",
+          text: t.delete,
           style: "destructive",
           onPress: () => onDelete(sale.id),
         },
@@ -121,7 +124,7 @@ function SaleCard({
                 { color: theme.textTertiary, fontFamily: "Outfit_500Medium" },
               ]}
             >
-              Gross KG
+              {t.grossKg}
             </Text>
           </View>
           <View style={[styles.statSep, { backgroundColor: theme.border }]} />
@@ -140,7 +143,7 @@ function SaleCard({
                 { color: theme.textTertiary, fontFamily: "Outfit_500Medium" },
               ]}
             >
-              Birds
+              {t.birds}
             </Text>
           </View>
           <View style={[styles.statSep, { backgroundColor: theme.border }]} />
@@ -161,7 +164,7 @@ function SaleCard({
                 { color: theme.textTertiary, fontFamily: "Outfit_500Medium" },
               ]}
             >
-              {dholta ? "Net KG" : "Avg KG"}
+              {dholta ? t.netKg : t.avgKg}
             </Text>
           </View>
         </View>
@@ -187,7 +190,7 @@ function SaleCard({
                   },
                 ]}
               >
-                Dholta{" "}
+                {t.dholta}{" "}
                 <Text
                   style={{
                     fontFamily: "Outfit_600SemiBold",
@@ -233,8 +236,7 @@ function SaleCard({
                   },
                 ]}
               >
-                {sale.rows.length} weighing
-                {sale.rows.length !== 1 ? "s" : ""}
+                {t.weighings(sale.rows.length)}
               </Text>
             </View>
             <View style={styles.viewDetailRow}>
@@ -244,7 +246,7 @@ function SaleCard({
                   { color: theme.accent, fontFamily: "Outfit_500Medium" },
                 ]}
               >
-                View detail
+                {t.viewDetail}
               </Text>
               <Feather name="chevron-right" size={13} color={theme.accent} />
             </View>
@@ -258,6 +260,7 @@ function SaleCard({
 export default function HomeScreen() {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
+  const { t } = useSettings();
   const [sales, setSales] = useState<SaleRecord[]>([]);
   const [drafts, setDrafts] = useState<DraftSession[]>([]);
   const [loading, setLoading] = useState(true);
@@ -294,6 +297,13 @@ export default function HomeScreen() {
     router.push("/drafts");
   };
 
+  const handleOpenSettings = () => {
+    if (Platform.OS !== "web") {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+    router.push("/settings");
+  };
+
   const webTopInset = Platform.OS === "web" ? 67 : 0;
   const webBottomInset = Platform.OS === "web" ? 34 : 0;
 
@@ -326,7 +336,7 @@ export default function HomeScreen() {
                 { color: theme.text, fontFamily: "Outfit_700Bold" },
               ]}
             >
-              PoultryScale
+              {t.appName}
             </Text>
             <Text
               style={[
@@ -338,11 +348,21 @@ export default function HomeScreen() {
               ]}
             >
               {sales.length > 0
-                ? `${sales.length} sale${sales.length !== 1 ? "s" : ""} recorded`
-                : "Ready to weigh"}
+                ? t.homeSalesRecorded(sales.length)
+                : t.homeReadyToWeigh}
             </Text>
           </View>
         </View>
+        <Pressable
+          onPress={handleOpenSettings}
+          hitSlop={12}
+          style={({ pressed }) => [
+            styles.settingsBtn,
+            { backgroundColor: theme.borderLight, opacity: pressed ? 0.6 : 1 },
+          ]}
+        >
+          <Ionicons name="settings-outline" size={20} color={theme.text} />
+        </Pressable>
       </View>
 
       {drafts.length > 0 && (
@@ -376,8 +396,7 @@ export default function HomeScreen() {
                 { color: theme.warm, fontFamily: "Outfit_600SemiBold" },
               ]}
             >
-              {drafts.length} draft session
-              {drafts.length !== 1 ? "s" : ""} — tap to continue
+              {t.homeDraftBanner(drafts.length)}
             </Text>
           </View>
           <Feather name="chevron-right" size={16} color={theme.warm} />
@@ -392,7 +411,7 @@ export default function HomeScreen() {
               { color: theme.textTertiary, fontFamily: "Outfit_400Regular" },
             ]}
           >
-            Loading...
+            {t.loading}
           </Text>
         </View>
       ) : sales.length === 0 ? (
@@ -415,7 +434,7 @@ export default function HomeScreen() {
               { color: theme.text, fontFamily: "Outfit_600SemiBold" },
             ]}
           >
-            No sales yet
+            {t.homeNoSales}
           </Text>
           <Text
             style={[
@@ -423,7 +442,7 @@ export default function HomeScreen() {
               { color: theme.textTertiary, fontFamily: "Outfit_400Regular" },
             ]}
           >
-            Tap the button below to start weighing your birds
+            {t.homeNoSalesHint}
           </Text>
         </Animated.View>
       ) : (
@@ -436,6 +455,7 @@ export default function HomeScreen() {
               index={index}
               theme={theme}
               onDelete={handleDelete}
+              t={t}
             />
           )}
           contentContainerStyle={{
@@ -504,6 +524,13 @@ const styles = StyleSheet.create({
   },
   headerTitle: { fontSize: 22 },
   headerSub: { fontSize: 13, marginTop: 1 },
+  settingsBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   emptyWrap: {
     flex: 1,
     alignItems: "center",

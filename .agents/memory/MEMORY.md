@@ -1,0 +1,1 @@
+- [i18n + Settings system](i18n-settings.md) — language (EN/BN) + theme override via SettingsContext; useTheme() reads isDark from context not system

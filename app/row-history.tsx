@@ -12,12 +12,14 @@ import { router, useLocalSearchParams } from "expo-router";
 import { Ionicons, Feather } from "@expo/vector-icons";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { useTheme } from "@/lib/useTheme";
+import { useSettings } from "@/lib/SettingsContext";
 import { formatWeight, formatDateTime } from "@/lib/utils";
 import type { RowEditEntry } from "@/lib/types";
 
 export default function RowHistoryScreen() {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
+  const { t } = useSettings();
   const params = useLocalSearchParams<{
     rowNumber: string;
     history: string;
@@ -76,7 +78,7 @@ export default function RowHistoryScreen() {
               { color: theme.text, fontFamily: "Outfit_600SemiBold" },
             ]}
           >
-            Edit History
+            {t.editHistoryTitle}
           </Text>
         </View>
         <View style={{ width: 36 }} />
@@ -95,7 +97,7 @@ export default function RowHistoryScreen() {
           <Text
             style={[styles.currentLabel, { fontFamily: "Outfit_400Regular" }]}
           >
-            Current
+            {t.current}
           </Text>
           <Text
             style={[styles.currentVal, { fontFamily: "Outfit_700Bold" }]}
@@ -108,7 +110,7 @@ export default function RowHistoryScreen() {
               { fontFamily: "Outfit_400Regular" },
             ]}
           >
-            {currentPcs} birds
+            {currentPcs} {t.birds.toLowerCase()}
           </Text>
         </View>
 
@@ -124,7 +126,7 @@ export default function RowHistoryScreen() {
                 },
               ]}
             >
-              No edits recorded for this row
+              {t.noEditsRecorded}
             </Text>
           </View>
         ) : (
@@ -138,8 +140,7 @@ export default function RowHistoryScreen() {
                 },
               ]}
             >
-              {history.length} EDIT{history.length !== 1 ? "S" : ""} — NEWEST
-              FIRST
+              {t.editsNewestFirst(history.length)}
             </Text>
 
             {history.map((entry, idx) => (
@@ -210,7 +211,7 @@ export default function RowHistoryScreen() {
                           },
                         ]}
                       >
-                        Before
+                        {t.before}
                       </Text>
                       <Text
                         style={[
@@ -232,7 +233,7 @@ export default function RowHistoryScreen() {
                           },
                         ]}
                       >
-                        {entry.previousPcs} birds
+                        {entry.previousPcs} {t.birds.toLowerCase()}
                       </Text>
                     </View>
 
@@ -254,7 +255,7 @@ export default function RowHistoryScreen() {
                           },
                         ]}
                       >
-                        After
+                        {t.after}
                       </Text>
                       <Text
                         style={[
@@ -276,7 +277,7 @@ export default function RowHistoryScreen() {
                           },
                         ]}
                       >
-                        {entry.newPcs} birds
+                        {entry.newPcs} {t.birds.toLowerCase()}
                       </Text>
                     </View>
                   </View>
@@ -308,7 +309,7 @@ export default function RowHistoryScreen() {
                       {formatWeight(entry.newWeightKg - entry.previousWeightKg)}{" "}
                       KG
                       {entry.newPcs !== entry.previousPcs
-                        ? `, ${entry.newPcs > entry.previousPcs ? "+" : ""}${entry.newPcs - entry.previousPcs} birds`
+                        ? `, ${entry.newPcs > entry.previousPcs ? "+" : ""}${entry.newPcs - entry.previousPcs} ${t.birds.toLowerCase()}`
                         : ""}
                     </Text>
                   </View>

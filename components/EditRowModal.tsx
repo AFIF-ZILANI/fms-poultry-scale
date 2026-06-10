@@ -13,6 +13,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons, Feather } from "@expo/vector-icons";
 import * as Crypto from "expo-crypto";
 import { useTheme } from "@/lib/useTheme";
+import { useSettings } from "@/lib/SettingsContext";
 import { formatWeight } from "@/lib/utils";
 import type { MeasurementRow, RowEditEntry } from "@/lib/types";
 
@@ -35,6 +36,7 @@ export function EditRowModal({
 }: Props) {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
+  const { t } = useSettings();
   const [weightInput, setWeightInput] = useState("");
   const [pcsInput, setPcsInput] = useState("");
   const pcsRef = useRef<TextInput>(null);
@@ -142,7 +144,7 @@ export function EditRowModal({
                 { color: theme.text, fontFamily: "Outfit_700Bold" },
               ]}
             >
-              Edit Row
+              {t.editRow}
             </Text>
           </View>
           <View style={{ width: 36 }} />
@@ -163,7 +165,7 @@ export function EditRowModal({
                 { fontFamily: "Outfit_400Regular" },
               ]}
             >
-              Current values
+              {t.currentValues}
             </Text>
             <Text
               style={[
@@ -171,7 +173,7 @@ export function EditRowModal({
                 { fontFamily: "Outfit_700Bold" },
               ]}
             >
-              {formatWeight(row.weightKg)} KG — {row.pcs} birds
+              {formatWeight(row.weightKg)} KG — {row.pcs} {t.birds.toLowerCase()}
             </Text>
           </View>
 
@@ -199,7 +201,7 @@ export function EditRowModal({
                   },
                 ]}
               >
-                Weight (KG)
+                {t.weightKg}
               </Text>
               <TextInput
                 value={weightInput}
@@ -229,7 +231,7 @@ export function EditRowModal({
                   },
                 ]}
               >
-                Birds (Pcs)
+                {t.pcs}
               </Text>
               <TextInput
                 ref={pcsRef}
@@ -279,7 +281,7 @@ export function EditRowModal({
                   { color: theme.text, fontFamily: "Outfit_500Medium" },
                 ]}
               >
-                View edit history
+                {t.viewEditHistory}
               </Text>
               <View
                 style={[
@@ -329,7 +331,7 @@ export function EditRowModal({
                   { color: theme.text, fontFamily: "Outfit_600SemiBold" },
                 ]}
               >
-                Cancel
+                {t.cancel}
               </Text>
             </Pressable>
             <Pressable
@@ -358,7 +360,7 @@ export function EditRowModal({
                   },
                 ]}
               >
-                Save Changes
+                {t.saveChanges}
               </Text>
             </Pressable>
           </View>

@@ -14,6 +14,7 @@ import { Ionicons, Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import Animated, { FadeInDown, FadeIn } from "react-native-reanimated";
 import { useTheme } from "@/lib/useTheme";
+import { useSettings } from "@/lib/SettingsContext";
 import { formatWeight, formatDateTime, formatGrams } from "@/lib/utils";
 import { loadSales, updateSale } from "@/lib/storage";
 import { EditRowModal } from "@/components/EditRowModal";
@@ -22,6 +23,7 @@ import type { MeasurementRow, SaleRecord } from "@/lib/types";
 export default function SaleDetailScreen() {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
+  const { t } = useSettings();
   const { id } = useLocalSearchParams<{ id: string }>();
 
   const [sale, setSale] = useState<SaleRecord | null>(null);
@@ -116,7 +118,7 @@ export default function SaleDetailScreen() {
             { color: theme.textTertiary, fontFamily: "Outfit_400Regular" },
           ]}
         >
-          Sale not found
+          {t.saleNotFound}
         </Text>
       </View>
     );
@@ -161,7 +163,7 @@ export default function SaleDetailScreen() {
             { color: theme.text, fontFamily: "Outfit_600SemiBold" },
           ]}
         >
-          Sale Detail
+          {t.saleDetail}
         </Text>
         <View style={{ width: 36 }} />
       </View>
@@ -200,7 +202,7 @@ export default function SaleDetailScreen() {
                   { fontFamily: "Outfit_400Regular" },
                 ]}
               >
-                Gross KG
+                {t.grossKg}
               </Text>
             </View>
             <View style={styles.heroDot} />
@@ -216,7 +218,7 @@ export default function SaleDetailScreen() {
                   { fontFamily: "Outfit_400Regular" },
                 ]}
               >
-                Birds
+                {t.birds}
               </Text>
             </View>
             <View style={styles.heroDot} />
@@ -232,7 +234,7 @@ export default function SaleDetailScreen() {
                   { fontFamily: "Outfit_400Regular" },
                 ]}
               >
-                Avg KG
+                {t.avgKg}
               </Text>
             </View>
           </View>
@@ -252,7 +254,7 @@ export default function SaleDetailScreen() {
                 { color: theme.textTertiary, fontFamily: "Outfit_600SemiBold" },
               ]}
             >
-              TRADE DEDUCTION (DHOLTA)
+              {t.tradeDeductionDholta}
             </Text>
             <View
               style={[
@@ -264,22 +266,22 @@ export default function SaleDetailScreen() {
               ]}
             >
               <DholtaRow
-                label="Gross Weight"
+                label={t.grossWeight}
                 value={`${formatWeight(dholta.gross_weight)} KG`}
                 theme={theme}
               />
               <DholtaRow
-                label="KG per Crate"
+                label={t.kgPerCrate}
                 value={`${dholta.kg_per_crate} KG`}
                 theme={theme}
               />
               <DholtaRow
-                label="Dholta per Crate"
+                label={t.deductionPerCrate}
                 value={`${dholta.deduction_per_crate_g} g`}
                 theme={theme}
               />
               <DholtaRow
-                label={`Total Crates${dholta.full_crates_only ? " (full)" : ""}`}
+                label={dholta.full_crates_only ? t.totalCratesFull : t.totalCrates}
                 value={
                   dholta.total_crates % 1 === 0
                     ? `${dholta.total_crates}`
@@ -288,19 +290,19 @@ export default function SaleDetailScreen() {
                 theme={theme}
               />
               <DholtaRow
-                label="Total Deduction"
+                label={t.totalDeduction}
                 value={`-${formatWeight(dholta.total_deduction_kg)} KG`}
                 theme={theme}
                 isNegative
               />
               <DholtaRow
-                label="Net Weight"
+                label={t.netWeight}
                 value={`${formatWeight(dholta.net_weight)} KG`}
                 theme={theme}
                 isHighlight
               />
               <DholtaRow
-                label="Price per KG"
+                label={t.pricePerKg}
                 value={`Tk ${dholta.price_per_kg.toFixed(2)}`}
                 theme={theme}
               />
@@ -316,7 +318,7 @@ export default function SaleDetailScreen() {
                     { color: theme.accent, fontFamily: "Outfit_600SemiBold" },
                   ]}
                 >
-                  Final Amount
+                  {t.finalAmount}
                 </Text>
                 <Text
                   style={[
@@ -347,7 +349,7 @@ export default function SaleDetailScreen() {
               { color: theme.textTertiary, fontFamily: "Outfit_600SemiBold" },
             ]}
           >
-            WEIGHING LOG ({sale.rows.length})
+            {t.weighingLog(sale.rows.length)}
           </Text>
 
           <View
@@ -405,8 +407,7 @@ export default function SaleDetailScreen() {
                           },
                         ]}
                       >
-                        edited · {(row.editHistory?.length ?? 0)} change
-                        {(row.editHistory?.length ?? 0) !== 1 ? "s" : ""}
+                        {t.edited} · {t.changes(row.editHistory?.length ?? 0)}
                       </Text>
                     )}
                   </View>

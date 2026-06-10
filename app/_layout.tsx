@@ -6,6 +6,7 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { queryClient } from "@/lib/query-client";
+import { SettingsProvider } from "@/lib/SettingsContext";
 import {
   useFonts,
   Outfit_400Regular,
@@ -25,6 +26,9 @@ function AppLayout() {
       <Stack.Screen name="sale/[id]" />
       <Stack.Screen name="row-history" />
       <Stack.Screen name="drafts" />
+      <Stack.Screen name="settings" />
+      <Stack.Screen name="onboarding" />
+      <Stack.Screen name="(auth)" />
     </Stack>
   );
 }
@@ -48,11 +52,13 @@ export default function RootLayout() {
   return (
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
-        <GestureHandlerRootView style={{ flex: 1 }}>
-          <KeyboardProvider>
-            <AppLayout />
-          </KeyboardProvider>
-        </GestureHandlerRootView>
+        <SettingsProvider>
+          <GestureHandlerRootView style={{ flex: 1 }}>
+            <KeyboardProvider>
+              <AppLayout />
+            </KeyboardProvider>
+          </GestureHandlerRootView>
+        </SettingsProvider>
       </QueryClientProvider>
     </ErrorBoundary>
   );
