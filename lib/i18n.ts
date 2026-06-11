@@ -70,6 +70,9 @@ const en = {
   totalGrams: "Total Grams",
   avgGramsPerBird: "Avg Grams/Bird",
   weighingLog: (n: number) => `WEIGHING LOG (${n})`,
+  weighingLogs: "WEIGHING LOGS",
+  sessionRows: (n: number) => `${n} row${n !== 1 ? "s" : ""}`,
+  noLogsFound: "No entries recorded",
   saveToHistory: "Save to History",
 
   draftsTitle: "Draft Sessions",
@@ -191,6 +194,9 @@ const bn: typeof en = {
   totalGrams: "মোট গ্রাম",
   avgGramsPerBird: "গড় গ্রাম/মুরগি",
   weighingLog: (n: number) => `ওজনের তালিকা (${n})`,
+  weighingLogs: "ওজন লগ",
+  sessionRows: (n: number) => `${n}টি পরিমাপ`,
+  noLogsFound: "কোনো রেকর্ড নেই",
   saveToHistory: "ইতিহাসে সেভ করুন",
 
   draftsTitle: "অসম্পূর্ণ সেশন",

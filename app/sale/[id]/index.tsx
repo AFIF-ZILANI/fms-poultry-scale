@@ -11,14 +11,12 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router, useLocalSearchParams, useFocusEffect } from "expo-router";
 import { Ionicons, Feather, MaterialCommunityIcons } from "@expo/vector-icons";
-import * as Haptics from "expo-haptics";
 import Animated, { FadeInDown, FadeIn } from "react-native-reanimated";
 import { useTheme } from "@/lib/useTheme";
 import { useSettings } from "@/lib/SettingsContext";
-import { formatWeight, formatDateTime, formatGrams } from "@/lib/utils";
-import { loadSales, updateSale } from "@/lib/storage";
-import { EditRowModal } from "@/components/EditRowModal";
-import type { MeasurementRow, SaleRecord } from "@/lib/types";
+import { formatWeight, formatDateTime } from "@/lib/utils";
+import { loadSales } from "@/lib/storage";
+import type { SaleRecord } from "@/lib/types";
 
 export default function SaleDetailScreen() {
   const theme = useTheme();
@@ -28,7 +26,6 @@ export default function SaleDetailScreen() {
 
   const [sale, setSale] = useState<SaleRecord | null>(null);
   const [loading, setLoading] = useState(true);
-  const [editingRow, setEditingRow] = useState<MeasurementRow | null>(null);
 
   useFocusEffect(
     useCallback(() => {
@@ -39,52 +36,6 @@ export default function SaleDetailScreen() {
       });
     }, [id])
   );
-
-  const getRowNumber = (rowId: string) => {
-    if (!sale) return 1;
-    const idx = sale.rows.findIndex((r) => r.id === rowId);
-    return sale.rows.length - idx;
-  };
-
-  const handleEditSave = async (updatedRow: MeasurementRow) => {
-    if (!sale) return;
-    const updatedRows = sale.rows.map((r) =>
-      r.id === updatedRow.id ? updatedRow : r
-    );
-    await updateSale(sale.id, updatedRows);
-
-    const totalWeightKg = updatedRows.reduce((s, r) => s + r.weightKg, 0);
-    const totalPcs = updatedRows.reduce((s, r) => s + r.pcs, 0);
-    const avgWeightKg = totalPcs > 0 ? totalWeightKg / totalPcs : 0;
-
-    setSale({
-      ...sale,
-      rows: updatedRows,
-      totalWeightKg,
-      totalWeightGrams: Math.round(totalWeightKg * 1000),
-      totalPcs,
-      averageWeightKg: avgWeightKg,
-      averageWeightGrams: Math.round(avgWeightKg * 1000),
-    });
-    setEditingRow(null);
-
-    if (Platform.OS !== "web") {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    }
-  };
-
-  const handleViewHistory = (row: MeasurementRow) => {
-    setEditingRow(null);
-    router.push({
-      pathname: "/row-history",
-      params: {
-        rowNumber: String(getRowNumber(row.id)),
-        history: JSON.stringify(row.editHistory ?? []),
-        currentWeightKg: String(row.weightKg),
-        currentPcs: String(row.pcs),
-      },
-    });
-  };
 
   const webTopInset = Platform.OS === "web" ? 67 : 0;
   const webBottomInset = Platform.OS === "web" ? 34 : 0;
@@ -125,18 +76,16 @@ export default function SaleDetailScreen() {
   }
 
   const { dholta } = sale;
+  const hasCull = (sale.cullRows?.length ?? 0) > 0;
+  const cullTotalKg = hasCull
+    ? (sale.cullRows ?? []).reduce((s, r) => s + r.weightKg, 0)
+    : 0;
+  const cullTotalPcs = hasCull
+    ? (sale.cullRows ?? []).reduce((s, r) => s + r.pcs, 0)
+    : 0;
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      <EditRowModal
-        visible={editingRow !== null}
-        row={editingRow}
-        rowNumber={editingRow ? getRowNumber(editingRow.id) : 1}
-        onClose={() => setEditingRow(null)}
-        onSave={handleEditSave}
-        onViewHistory={handleViewHistory}
-      />
-
       <View
         style={[
           styles.topBar,
@@ -295,8 +244,16 @@ export default function SaleDetailScreen() {
                 theme={theme}
                 isNegative
               />
+              {dholta.cull_weight_kg > 0 && (
+                <DholtaRow
+                  label={t.cullWeight}
+                  value={`-${formatWeight(dholta.cull_weight_kg)} KG`}
+                  theme={theme}
+                  isNegative
+                />
+              )}
               <DholtaRow
-                label={t.netWeight}
+                label={dholta.cull_weight_kg > 0 ? t.payableWeight : t.netWeight}
                 value={`${formatWeight(dholta.net_weight)} KG`}
                 theme={theme}
                 isHighlight
@@ -332,6 +289,34 @@ export default function SaleDetailScreen() {
                   })}
                 </Text>
               </View>
+              {sale.receivedAmount != null && sale.receivedAmount > 0 && (
+                <View
+                  style={[
+                    styles.receivedRow,
+                    { backgroundColor: theme.successLight },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.finalLabel,
+                      { color: theme.success, fontFamily: "Outfit_600SemiBold" },
+                    ]}
+                  >
+                    {t.receivedAmount}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.finalValue,
+                      { color: theme.success, fontFamily: "Outfit_700Bold" },
+                    ]}
+                  >
+                    Tk{" "}
+                    {sale.receivedAmount.toLocaleString("en-PK", {
+                      maximumFractionDigits: 2,
+                    })}
+                  </Text>
+                </View>
+              )}
             </View>
           </Animated.View>
         )}
@@ -349,7 +334,7 @@ export default function SaleDetailScreen() {
               { color: theme.textTertiary, fontFamily: "Outfit_600SemiBold" },
             ]}
           >
-            {t.weighingLog(sale.rows.length)}
+            {t.weighingLogs}
           </Text>
 
           <View
@@ -358,97 +343,132 @@ export default function SaleDetailScreen() {
               { backgroundColor: theme.surface, borderColor: theme.borderLight },
             ]}
           >
-            {sale.rows.map((row, idx) => {
-              const rowNum = sale.rows.length - idx;
-              const lastEdit = row.editHistory?.[0];
-              return (
+            <LogEntryRow
+              label={t.mainSession}
+              totalKg={sale.totalWeightKg}
+              totalPcs={sale.totalPcs}
+              rowCount={sale.rows.length}
+              isCull={false}
+              theme={theme}
+              t={t}
+              onPress={() => router.push(`/sale/${id}/logs/main`)}
+            />
+            {hasCull && (
+              <>
                 <View
-                  key={row.id}
                   style={[
-                    styles.logItem,
-                    idx < sale.rows.length - 1 && {
-                      borderBottomWidth: 1,
-                      borderBottomColor: theme.borderLight,
-                    },
+                    styles.logDivider,
+                    { backgroundColor: theme.borderLight },
                   ]}
-                >
-                  <View
-                    style={[
-                      styles.logNum,
-                      { backgroundColor: theme.accentLight },
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.logNumText,
-                        { color: theme.accent, fontFamily: "Outfit_700Bold" },
-                      ]}
-                    >
-                      {rowNum}
-                    </Text>
-                  </View>
-
-                  <View style={styles.logInfo}>
-                    <Text
-                      style={[
-                        styles.logWeight,
-                        { color: theme.text, fontFamily: "Outfit_600SemiBold" },
-                      ]}
-                    >
-                      {formatWeight(row.weightKg)} KG
-                    </Text>
-                    {lastEdit && (
-                      <Text
-                        style={[
-                          styles.logEdited,
-                          {
-                            color: theme.accent,
-                            fontFamily: "Outfit_400Regular",
-                          },
-                        ]}
-                      >
-                        {t.edited} · {t.changes(row.editHistory?.length ?? 0)}
-                      </Text>
-                    )}
-                  </View>
-
-                  <View style={styles.logPcs}>
-                    <MaterialCommunityIcons
-                      name="food-turkey"
-                      size={13}
-                      color={theme.warm}
-                    />
-                    <Text
-                      style={[
-                        styles.logPcsText,
-                        { color: theme.warm, fontFamily: "Outfit_500Medium" },
-                      ]}
-                    >
-                      {row.pcs}
-                    </Text>
-                  </View>
-
-                  <Pressable
-                    onPress={() => setEditingRow(row)}
-                    hitSlop={10}
-                    style={({ pressed }) => [
-                      styles.editBtn,
-                      {
-                        backgroundColor: theme.accentLight,
-                        opacity: pressed ? 0.6 : 1,
-                      },
-                    ]}
-                    testID={`edit-row-${rowNum}`}
-                  >
-                    <Feather name="edit-2" size={13} color={theme.accent} />
-                  </Pressable>
-                </View>
-              );
-            })}
+                />
+                <LogEntryRow
+                  label={t.cullSession}
+                  totalKg={cullTotalKg}
+                  totalPcs={cullTotalPcs}
+                  rowCount={sale.cullRows!.length}
+                  isCull
+                  theme={theme}
+                  t={t}
+                  onPress={() => router.push(`/sale/${id}/logs/cull`)}
+                />
+              </>
+            )}
           </View>
         </Animated.View>
       </ScrollView>
     </View>
+  );
+}
+
+function LogEntryRow({
+  label,
+  totalKg,
+  totalPcs,
+  rowCount,
+  isCull,
+  theme,
+  t,
+  onPress,
+}: {
+  label: string;
+  totalKg: number;
+  totalPcs: number;
+  rowCount: number;
+  isCull: boolean;
+  theme: ReturnType<typeof useTheme>;
+  t: ReturnType<typeof useSettings>["t"];
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.logEntry,
+        { opacity: pressed ? 0.65 : 1 },
+      ]}
+    >
+      <View
+        style={[
+          styles.logEntryIcon,
+          {
+            backgroundColor: isCull ? theme.warmLight : theme.accentLight,
+          },
+        ]}
+      >
+        <MaterialCommunityIcons
+          name="food-turkey"
+          size={18}
+          color={isCull ? theme.warm : theme.accent}
+        />
+      </View>
+
+      <View style={styles.logEntryInfo}>
+        <Text
+          style={[
+            styles.logEntryLabel,
+            { color: theme.text, fontFamily: "Outfit_600SemiBold" },
+          ]}
+        >
+          {label}
+        </Text>
+        <Text
+          style={[
+            styles.logEntrySub,
+            { color: theme.textTertiary, fontFamily: "Outfit_400Regular" },
+          ]}
+        >
+          {t.sessionRows(rowCount)}
+        </Text>
+      </View>
+
+      <View style={styles.logEntryRight}>
+        <Text
+          style={[
+            styles.logEntryKg,
+            { color: theme.text, fontFamily: "Outfit_700Bold" },
+          ]}
+        >
+          {formatWeight(totalKg)} KG
+        </Text>
+        <View style={styles.logEntryPcsRow}>
+          <MaterialCommunityIcons
+            name="food-turkey"
+            size={11}
+            color={theme.warm}
+          />
+          <Text
+            style={[
+              styles.logEntryPcs,
+              { color: theme.warm, fontFamily: "Outfit_500Medium" },
+            ]}
+          >
+            {totalPcs}
+          </Text>
+        </View>
+      </View>
+
+      <Ionicons name="chevron-forward" size={18} color={theme.textTertiary} />
+    </Pressable>
   );
 }
 
@@ -573,38 +593,46 @@ const styles = StyleSheet.create({
     padding: 12,
     borderRadius: 10,
   },
+  receivedRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: 6,
+    padding: 12,
+    borderRadius: 10,
+  },
   finalLabel: { fontSize: 14 },
   finalValue: { fontSize: 20 },
   logCard: {
     borderRadius: 18,
-    paddingHorizontal: 14,
     borderWidth: 1,
+    overflow: "hidden",
+    marginBottom: 8,
   },
-  logItem: {
+  logDivider: { height: 1 },
+  logEntry: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 12,
-    gap: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    gap: 12,
   },
-  logNum: {
-    width: 32,
-    height: 32,
-    borderRadius: 10,
+  logEntryIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
   },
-  logNumText: { fontSize: 13 },
-  logInfo: { flex: 1 },
-  logWeight: { fontSize: 15 },
-  logEdited: { fontSize: 11, marginTop: 1 },
-  logPcs: { flexDirection: "row", alignItems: "center", gap: 4 },
-  logPcsText: { fontSize: 13 },
-  editBtn: {
-    width: 30,
-    height: 30,
-    borderRadius: 9,
+  logEntryInfo: { flex: 1 },
+  logEntryLabel: { fontSize: 15 },
+  logEntrySub: { fontSize: 12, marginTop: 2 },
+  logEntryRight: { alignItems: "flex-end", gap: 3 },
+  logEntryKg: { fontSize: 15 },
+  logEntryPcsRow: {
+    flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    marginLeft: 4,
+    gap: 3,
   },
+  logEntryPcs: { fontSize: 12 },
 });
