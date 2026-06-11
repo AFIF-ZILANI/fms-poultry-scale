@@ -124,3 +124,6 @@ export const saveLanguagePref = (v: string) => setPref("language", v);
 
 export const loadThemePref = () => getPref("theme_preference");
 export const saveThemePref = (v: string) => setPref("theme_preference", v);
+
+export const loadFarmName = () => getPref("farm_name");
+export const saveFarmName = (v: string) => setPref("farm_name", v);
