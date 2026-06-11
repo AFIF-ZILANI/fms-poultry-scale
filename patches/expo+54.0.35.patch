@@ -1,8 +1,7 @@
-diff --git a/node_modules/expo-asset/build/AssetSources.js b/node_modules/expo-asset/build/AssetSources.js
---- a/node_modules/expo-asset/build/AssetSources.js
-+++ b/node_modules/expo-asset/build/AssetSources.js
-@@ -34,8 +34,11 @@ export function selectAssetSource(meta) {
-     }
+diff --git a/node_modules/expo/node_modules/expo-asset/build/AssetSources.js b/node_modules/expo/node_modules/expo-asset/build/AssetSources.js
+--- a/node_modules/expo/node_modules/expo-asset/build/AssetSources.js
++++ b/node_modules/expo/node_modules/expo-asset/build/AssetSources.js
+@@ -35,7 +35,11 @@ export function selectAssetSource(meta) {
      // For assets during development using manifest2, we use the development server's URL origin
      const manifest2 = getManifest2();
 +    // Use the scheme from manifestBaseUrl (derived from experienceUrl) to support HTTPS dev servers
@@ -12,5 +11,3 @@ diff --git a/node_modules/expo-asset/build/AssetSources.js b/node_modules/expo-a
 -        ? 'http://' + manifest2.extra.expoGo.debuggerHost
 +        ? scheme + manifest2.extra.expoGo.debuggerHost
          : null;
-     if (devServerUrl) {
-         const baseUrl = new URL(meta.httpServerLocation + suffix, devServerUrl);
