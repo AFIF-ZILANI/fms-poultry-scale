@@ -24,6 +24,7 @@ interface Props {
   onClose: () => void;
   onSave: (updatedRow: MeasurementRow) => void;
   onViewHistory: (row: MeasurementRow) => void;
+  enterPcsMode?: boolean;
 }
 
 export function EditRowModal({
@@ -33,6 +34,7 @@ export function EditRowModal({
   onClose,
   onSave,
   onViewHistory,
+  enterPcsMode = false,
 }: Props) {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
@@ -47,9 +49,15 @@ export function EditRowModal({
   useEffect(() => {
     if (visible && row) {
       setWeightInput(String(row.weightKg));
-      setPcsInput(String(row.pcs));
+      // In enterPcsMode, leave pcs blank so user must enter it
+      setPcsInput(enterPcsMode ? "" : String(row.pcs));
+      if (enterPcsMode) {
+        // Small delay so the modal has finished animating before focus
+        const t = setTimeout(() => pcsRef.current?.focus(), 350);
+        return () => clearTimeout(t);
+      }
     }
-  }, [visible, row]);
+  }, [visible, row, enterPcsMode]);
 
   if (!row) return null;
 
@@ -63,8 +71,10 @@ export function EditRowModal({
     !isNaN(newPcs) &&
     newPcs > 0;
 
-  const hasChanges =
-    isValid && (newWeight !== row.weightKg || newPcs !== row.pcs);
+  // In enterPcsMode any valid entry counts as a save (no diff required)
+  const hasChanges = enterPcsMode
+    ? isValid
+    : isValid && (newWeight !== row.weightKg || newPcs !== row.pcs);
 
   const editCount = row.editHistory?.length ?? 0;
 
@@ -127,12 +137,12 @@ export function EditRowModal({
           </Pressable>
           <View style={styles.headerCenter}>
             <View
-              style={[styles.rowBadge, { backgroundColor: theme.accentLight }]}
+              style={[styles.rowBadge, { backgroundColor: enterPcsMode ? theme.warmLight : theme.accentLight }]}
             >
               <Text
                 style={[
                   styles.rowBadgeText,
-                  { color: theme.accent, fontFamily: "Outfit_700Bold" },
+                  { color: enterPcsMode ? theme.warm : theme.accent, fontFamily: "Outfit_700Bold" },
                 ]}
               >
                 #{rowNumber}
@@ -144,7 +154,7 @@ export function EditRowModal({
                 { color: theme.text, fontFamily: "Outfit_700Bold" },
               ]}
             >
-              {t.editRow}
+              {enterPcsMode ? t.enterBirdCount : t.editRow}
             </Text>
           </View>
           <View style={{ width: 36 }} />
@@ -176,6 +186,12 @@ export function EditRowModal({
               {formatWeight(row.weightKg)} KG — {row.pcs} {t.birds.toLowerCase()}
             </Text>
           </View>
+
+          {enterPcsMode && (
+            <Text style={[styles.enterHint, { color: theme.textTertiary, fontFamily: "Outfit_400Regular" }]}>
+              {t.enterBirdCountHint}
+            </Text>
+          )}
 
           <View
             style={[
@@ -400,6 +416,7 @@ const styles = StyleSheet.create({
   rowBadgeText: { fontSize: 14 },
   headerTitle: { fontSize: 17 },
   body: { flex: 1, padding: 16 },
+  enterHint: { fontSize: 14, marginBottom: 12, lineHeight: 20 },
   currentCard: {
     borderRadius: 16,
     padding: 16,
