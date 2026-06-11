@@ -22,6 +22,8 @@ import {
   saveLastPricePerKg,
   saveLastKgPerCrate,
   saveLastDeductionG,
+  loadFarmName,
+  saveFarmName,
 } from "@/lib/storage";
 
 export default function SettingsScreen() {
@@ -33,6 +35,7 @@ export default function SettingsScreen() {
   const [defaultPrice, setDefaultPrice] = useState("");
   const [defaultKgPerCrate, setDefaultKgPerCrate] = useState("");
   const [defaultDholtaG, setDefaultDholtaG] = useState("");
+  const [farmNameValue, setFarmNameValue] = useState("");
 
   const webTopInset = Platform.OS === "web" ? 67 : 0;
   const webBottomInset = Platform.OS === "web" ? 34 : 0;
@@ -42,10 +45,12 @@ export default function SettingsScreen() {
       loadLastPricePerKg(),
       loadLastKgPerCrate(),
       loadLastDeductionG(),
-    ]).then(([price, kpc, dg]) => {
+      loadFarmName(),
+    ]).then(([price, kpc, dg, farm]) => {
       if (price) setDefaultPrice(price);
       if (kpc) setDefaultKgPerCrate(kpc);
       if (dg) setDefaultDholtaG(dg);
+      if (farm) setFarmNameValue(farm);
     });
   }, []);
 
@@ -66,6 +71,7 @@ export default function SettingsScreen() {
         ? saveLastKgPerCrate(defaultKgPerCrate)
         : Promise.resolve(),
       defaultDholtaG ? saveLastDeductionG(defaultDholtaG) : Promise.resolve(),
+      saveFarmName(farmNameValue.trim()),
     ]);
     if (Platform.OS !== "web") {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -243,6 +249,49 @@ export default function SettingsScreen() {
             isLast
           />
         </View>
+        <Text
+          style={[
+            styles.sectionLabel,
+            {
+              color: theme.textTertiary,
+              fontFamily: "Outfit_600SemiBold",
+              marginTop: 12,
+            },
+          ]}
+        >
+          {t.sectionFarm}
+        </Text>
+        <View
+          style={[
+            styles.card,
+            { backgroundColor: theme.surface, borderColor: theme.borderLight },
+          ]}
+        >
+          <View style={[styles.inputRow, { borderBottomWidth: 0 }]}>
+            <Text style={[styles.inputLabel, { color: theme.text, fontFamily: "Outfit_500Medium" }]}>
+              {t.farmName}
+            </Text>
+            <TextInput
+              value={farmNameValue}
+              onChangeText={setFarmNameValue}
+              placeholder={t.farmNamePlaceholder}
+              placeholderTextColor={theme.textTertiary}
+              style={[
+                styles.textInput,
+                {
+                  color: theme.text,
+                  borderColor: theme.border,
+                  backgroundColor: theme.background,
+                  fontFamily: "Outfit_600SemiBold",
+                  width: 160,
+                  textAlign: "left",
+                  paddingHorizontal: 12,
+                },
+              ]}
+            />
+          </View>
+        </View>
+
         <Pressable
           onPress={handleSaveDefaults}
           style={({ pressed }) => [
