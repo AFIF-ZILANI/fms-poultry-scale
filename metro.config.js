@@ -5,9 +5,11 @@ const fs = require("fs");
 const config = getDefaultConfig(__dirname);
 
 // Prevent Metro from crashing when Replit cleans up temporary files in
-// .local/skills (skill runner) and .local/state/workflow-logs (runner logs).
+// .local/skills (skill runner), .local/secondary_skills (secondary skills),
+// and .local/state/workflow-logs (runner logs).
 config.resolver.blockList = [
   /\.local[/\\]skills[/\\]/,
+  /\.local[/\\]secondary_skills[/\\]/,
   /\.local[/\\]state[/\\]/,
 ];
 

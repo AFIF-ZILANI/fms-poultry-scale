@@ -1,1 +1,3 @@
 - [i18n + Settings system](i18n-settings.md) — language (EN/BN) + theme override via SettingsContext; useTheme() reads isDark from context not system
+- [Metro blockList](metro-blocklist.md) — must block .local/skills, .local/secondary_skills, AND .local/state; any new Replit temp path that crashes Metro goes here
+- [Web 6000ms nav timeout](web-nav-timeout.md) — root layout return null on web blocks Expo Router nav; skip null guard on web and call SplashScreen.hideAsync() immediately

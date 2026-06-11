@@ -9,6 +9,9 @@ const en = {
   loading: "Loading...",
   birds: "Birds",
   kg: "KG",
+  yes: "Yes",
+  no: "No",
+  optional: "Optional",
 
   homeSalesRecorded: (n: number) =>
     `${n} sale${n !== 1 ? "s" : ""} recorded`,
@@ -27,6 +30,12 @@ const en = {
   weighings: (n: number) => `${n} weighing${n !== 1 ? "s" : ""}`,
 
   measurementTitle: "Weighing Session",
+  mainSession: "Main Session",
+  cullSession: "Cull Session",
+  mainSummaryBanner: (kg: string, pcs: number) =>
+    `Main: ${kg} KG · ${pcs} birds`,
+  hasCullBirds: "Do you have cull birds?",
+  hasCullBirdsHint: "Add a separate weighing for culled birds",
   weightKg: "Weight (KG)",
   pcs: "Birds",
   totalKg: "Total KG",
@@ -50,9 +59,11 @@ const en = {
   totalCrates: "Total Crates",
   totalCratesFloored: "Total Crates (floored)",
   totalDeduction: "Total Deduction",
+  cullWeight: "Cull Weight",
   payableWeight: "Payable Weight",
   finalAmount: "Final Amount",
   confirmSave: "Confirm & Save Sale",
+  receivedAmount: "Received Amount",
 
   reportTitle: "Sale Report",
   weighingComplete: "Weighing Complete",
@@ -120,6 +131,9 @@ const bn: typeof en = {
   loading: "লোড হচ্ছে...",
   birds: "মুরগি",
   kg: "কেজি",
+  yes: "হ্যাঁ",
+  no: "না",
+  optional: "ঐচ্ছিক",
 
   homeSalesRecorded: (n: number) => `${n}টি বিক্রয় রেকর্ড`,
   homeReadyToWeigh: "মাপজোক শুরু করুন",
@@ -137,6 +151,12 @@ const bn: typeof en = {
   weighings: (n: number) => `${n}টি পরিমাপ`,
 
   measurementTitle: "ওজন সেশন",
+  mainSession: "মূল সেশন",
+  cullSession: "কাল সেশন",
+  mainSummaryBanner: (kg: string, pcs: number) =>
+    `মূল: ${kg} কেজি · ${pcs} মুরগি`,
+  hasCullBirds: "কাল মুরগি আছে?",
+  hasCullBirdsHint: "বাতিল মুরগির জন্য আলাদা ওজন যোগ করুন",
   weightKg: "ওজন (কেজি)",
   pcs: "মুরগি (পিস)",
   totalKg: "মোট কেজি",
@@ -160,9 +180,11 @@ const bn: typeof en = {
   totalCrates: "মোট ক্রেট",
   totalCratesFloored: "মোট ক্রেট (ফ্লোর)",
   totalDeduction: "মোট কর্তন",
+  cullWeight: "কাল ওজন",
   payableWeight: "পরিশোধযোগ্য ওজন",
   finalAmount: "চূড়ান্ত পরিমাণ",
   confirmSave: "নিশ্চিত করুন ও সেভ করুন",
+  receivedAmount: "প্রাপ্ত পরিমাণ",
 
   reportTitle: "বিক্রয় প্রতিবেদন",
   weighingComplete: "ওজন সম্পন্ন",

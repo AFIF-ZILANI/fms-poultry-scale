@@ -229,11 +229,130 @@ function SummaryRow({
   );
 }
 
+function CullDialog({
+  visible,
+  theme,
+  onYes,
+  onNo,
+}: {
+  visible: boolean;
+  theme: ReturnType<typeof useTheme>;
+  onYes: () => void;
+  onNo: () => void;
+}) {
+  const { t } = useSettings();
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={onNo}
+    >
+      <View style={styles.cullOverlay}>
+        <Animated.View
+          entering={Platform.OS !== "web" ? FadeIn.duration(180) : undefined}
+          style={[
+            styles.cullCard,
+            {
+              backgroundColor: theme.surface,
+              borderColor: theme.borderLight,
+            },
+          ]}
+        >
+          <View
+            style={[
+              styles.cullIconWrap,
+              { backgroundColor: theme.warmLight },
+            ]}
+          >
+            <MaterialCommunityIcons
+              name="bird"
+              size={30}
+              color={theme.warm}
+            />
+          </View>
+          <Text
+            style={[
+              styles.cullTitle,
+              { color: theme.text, fontFamily: "Outfit_700Bold" },
+            ]}
+          >
+            {t.hasCullBirds}
+          </Text>
+          <Text
+            style={[
+              styles.cullHint,
+              {
+                color: theme.textTertiary,
+                fontFamily: "Outfit_400Regular",
+              },
+            ]}
+          >
+            {t.hasCullBirdsHint}
+          </Text>
+          <View style={styles.cullBtns}>
+            <Pressable
+              onPress={onNo}
+              style={({ pressed }) => [
+                styles.cullNoBtn,
+                {
+                  borderColor: theme.border,
+                  opacity: pressed ? 0.7 : 1,
+                },
+              ]}
+              testID="cull-no-btn"
+            >
+              <Text
+                style={[
+                  styles.cullNoBtnText,
+                  {
+                    color: theme.text,
+                    fontFamily: "Outfit_600SemiBold",
+                  },
+                ]}
+              >
+                {t.no}
+              </Text>
+            </Pressable>
+            <Pressable
+              onPress={onYes}
+              style={({ pressed }) => [
+                styles.cullYesBtn,
+                {
+                  backgroundColor: theme.warm,
+                  transform: [{ scale: pressed ? 0.97 : 1 }],
+                },
+              ]}
+              testID="cull-yes-btn"
+            >
+              <MaterialCommunityIcons
+                name="bird"
+                size={16}
+                color="#FFF"
+              />
+              <Text
+                style={[
+                  styles.cullYesBtnText,
+                  { fontFamily: "Outfit_700Bold" },
+                ]}
+              >
+                {t.yes}
+              </Text>
+            </Pressable>
+          </View>
+        </Animated.View>
+      </View>
+    </Modal>
+  );
+}
+
 function DholtaModal({
   visible,
   totalWeight,
   totalPcs,
   rows,
+  cullWeightKg,
+  cullRows,
   theme,
   insets,
   onCancel,
@@ -243,6 +362,8 @@ function DholtaModal({
   totalWeight: number;
   totalPcs: number;
   rows: MeasurementRow[];
+  cullWeightKg: number;
+  cullRows: MeasurementRow[];
   theme: ReturnType<typeof useTheme>;
   insets: { top: number; bottom: number };
   onCancel: () => void;
@@ -253,13 +374,16 @@ function DholtaModal({
   const [deductionG, setDeductionG] = useState("");
   const [pricePerKg, setPricePerKg] = useState("");
   const [fullCratesOnly, setFullCratesOnly] = useState(true);
+  const [receivedAmount, setReceivedAmount] = useState("");
   const [saving, setSaving] = useState(false);
 
   const deductionRef = useRef<TextInput>(null);
   const priceRef = useRef<TextInput>(null);
+  const receivedRef = useRef<TextInput>(null);
 
   useEffect(() => {
     if (visible) {
+      setReceivedAmount("");
       Promise.all([
         loadLastPricePerKg(),
         loadLastKgPerCrate(),
@@ -291,11 +415,21 @@ function DholtaModal({
     ? calcDholta(totalWeight, kgPerCrateNum, deductionGNum, fullCratesOnly)
     : null;
 
+  const adjustedNetWeight =
+    calc !== null ? calc.netWeight - cullWeightKg : null;
+
   const finalAmount =
-    calc && pricePerKgNum > 0 ? calc.netWeight * pricePerKgNum : null;
+    adjustedNetWeight !== null && pricePerKgNum > 0
+      ? adjustedNetWeight * pricePerKgNum
+      : null;
+
+  const receivedAmountNum = parseFloat(receivedAmount);
+  const validReceivedAmount =
+    receivedAmount.length > 0 && !isNaN(receivedAmountNum) && receivedAmountNum > 0;
 
   const handleSave = async () => {
-    if (!isValid || !calc || finalAmount === null) return;
+    if (!isValid || !calc || finalAmount === null || adjustedNetWeight === null)
+      return;
     setSaving(true);
 
     try {
@@ -306,7 +440,8 @@ function DholtaModal({
         full_crates_only: fullCratesOnly,
         total_crates: calc.totalCrates,
         total_deduction_kg: calc.totalDeductionKg,
-        net_weight: calc.netWeight,
+        cull_weight_kg: cullWeightKg,
+        net_weight: adjustedNetWeight,
         price_per_kg: pricePerKgNum,
         final_amount: finalAmount,
       };
@@ -323,8 +458,10 @@ function DholtaModal({
         averageWeightKg: avgWeightKg,
         averageWeightGrams: avgWeightGrams,
         rows,
+        cullRows: cullRows.length > 0 ? cullRows : undefined,
         createdAt: Date.now(),
         dholta,
+        receivedAmount: validReceivedAmount ? receivedAmountNum : undefined,
       };
 
       await Promise.all([
@@ -412,6 +549,28 @@ function DholtaModal({
               {formatWeight(totalWeight)}{" "}
               <Text style={styles.grossUnit}>KG</Text>
             </Text>
+            {cullWeightKg > 0 && (
+              <View
+                style={[
+                  styles.cullBanner,
+                  { backgroundColor: "rgba(255,255,255,0.12)" },
+                ]}
+              >
+                <MaterialCommunityIcons
+                  name="bird"
+                  size={14}
+                  color="rgba(255,255,255,0.7)"
+                />
+                <Text
+                  style={[
+                    styles.cullBannerText,
+                    { fontFamily: "Outfit_500Medium" },
+                  ]}
+                >
+                  {t.cullWeight}: {formatWeight(cullWeightKg)} KG
+                </Text>
+              </View>
+            )}
           </View>
 
           <Text
@@ -563,7 +722,9 @@ function DholtaModal({
                 styles.checkbox,
                 {
                   borderColor: fullCratesOnly ? theme.accent : theme.border,
-                  backgroundColor: fullCratesOnly ? theme.accent : "transparent",
+                  backgroundColor: fullCratesOnly
+                    ? theme.accent
+                    : "transparent",
                 },
               ]}
             >
@@ -594,7 +755,7 @@ function DholtaModal({
             </View>
           </Pressable>
 
-          {calc && finalAmount !== null && (
+          {calc && finalAmount !== null && adjustedNetWeight !== null && (
             <View
               style={[
                 styles.summaryCard,
@@ -623,7 +784,9 @@ function DholtaModal({
                 theme={theme}
               />
               <SummaryRow
-                label={fullCratesOnly ? t.totalCratesFloored : t.totalCrates}
+                label={
+                  fullCratesOnly ? t.totalCratesFloored : t.totalCrates
+                }
                 value={
                   fullCratesOnly
                     ? `${calc.totalCrates}`
@@ -633,13 +796,21 @@ function DholtaModal({
               />
               <SummaryRow
                 label={t.totalDeduction}
-                value={`${formatWeight(calc.totalDeductionKg)} KG`}
+                value={`-${formatWeight(calc.totalDeductionKg)} KG`}
                 theme={theme}
                 isNegative
               />
+              {cullWeightKg > 0 && (
+                <SummaryRow
+                  label={t.cullWeight}
+                  value={`-${formatWeight(cullWeightKg)} KG`}
+                  theme={theme}
+                  isNegative
+                />
+              )}
               <SummaryRow
                 label={t.payableWeight}
-                value={`${formatWeight(calc.netWeight)} KG`}
+                value={`${formatWeight(adjustedNetWeight)} KG`}
                 theme={theme}
                 isHighlight
               />
@@ -658,7 +829,10 @@ function DholtaModal({
                 <Text
                   style={[
                     styles.finalAmountLabel,
-                    { color: theme.accent, fontFamily: "Outfit_600SemiBold" },
+                    {
+                      color: theme.accent,
+                      fontFamily: "Outfit_600SemiBold",
+                    },
                   ]}
                 >
                   {t.finalAmount}
@@ -674,6 +848,70 @@ function DholtaModal({
                     maximumFractionDigits: 2,
                   })}
                 </Text>
+              </View>
+
+              <View
+                style={[
+                  styles.receivedAmountSection,
+                  { borderTopColor: theme.borderLight },
+                ]}
+              >
+                <View style={styles.receivedAmountHeader}>
+                  <Feather
+                    name="credit-card"
+                    size={14}
+                    color={theme.textTertiary}
+                  />
+                  <Text
+                    style={[
+                      styles.receivedAmountLabel,
+                      {
+                        color: theme.text,
+                        fontFamily: "Outfit_600SemiBold",
+                      },
+                    ]}
+                  >
+                    {t.receivedAmount}
+                  </Text>
+                  <View
+                    style={[
+                      styles.optionalBadge,
+                      { backgroundColor: theme.borderLight },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.optionalText,
+                        {
+                          color: theme.textTertiary,
+                          fontFamily: "Outfit_400Regular",
+                        },
+                      ]}
+                    >
+                      {t.optional}
+                    </Text>
+                  </View>
+                </View>
+                <TextInput
+                  ref={receivedRef}
+                  value={receivedAmount}
+                  onChangeText={setReceivedAmount}
+                  keyboardType="decimal-pad"
+                  placeholder="Tk 0.00"
+                  placeholderTextColor={theme.textTertiary}
+                  returnKeyType="done"
+                  onSubmitEditing={Keyboard.dismiss}
+                  style={[
+                    styles.receivedAmountInput,
+                    {
+                      color: theme.text,
+                      fontFamily: "Outfit_600SemiBold",
+                      borderColor: theme.border,
+                      backgroundColor: theme.background,
+                    },
+                  ]}
+                  testID="received-amount-input"
+                />
               </View>
             </View>
           )}
@@ -752,13 +990,20 @@ export default function MeasurementScreen() {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const { t } = useSettings();
-  const { draftId: draftIdParam } = useLocalSearchParams<{ draftId?: string }>();
+  const { draftId: draftIdParam } = useLocalSearchParams<{
+    draftId?: string;
+  }>();
+
   const [rows, setRows] = useState<MeasurementRow[]>([]);
+  const [mainRows, setMainRows] = useState<MeasurementRow[]>([]);
+  const [phase, setPhase] = useState<"main" | "cull">("main");
   const [weightInput, setWeightInput] = useState("");
   const [pcsInput, setPcsInput] = useState("");
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [showDholta, setShowDholta] = useState(false);
+  const [showCullDialog, setShowCullDialog] = useState(false);
   const [editingRow, setEditingRow] = useState<MeasurementRow | null>(null);
+
   const weightRef = useRef<TextInput>(null);
   const pcsRef = useRef<TextInput>(null);
   const startTimeRef = useRef(Date.now());
@@ -778,26 +1023,34 @@ export default function MeasurementScreen() {
     if (!id) return;
     draftLoaded.current = true;
     loadDraft(id).then((draft) => {
-      if (draft && draft.rows.length > 0) {
+      if (!draft) return;
+      startTimeRef.current = draft.createdAt;
+      if (draft.phase === "cull" && draft.mainRows && draft.mainRows.length > 0) {
+        setPhase("cull");
+        setMainRows(draft.mainRows);
+        if (draft.rows.length > 0) setRows(draft.rows);
+      } else if (draft.rows.length > 0) {
         setRows(draft.rows);
-        startTimeRef.current = draft.createdAt;
       }
     });
   }, [draftIdParam]);
 
   useEffect(() => {
-    if (rows.length > 0) hasEverHadRows.current = true;
+    const hasData = rows.length > 0 || mainRows.length > 0;
+    if (hasData) hasEverHadRows.current = true;
     if (!hasEverHadRows.current) return;
     const draft: DraftSession = {
       id: sessionDraftId.current,
       rows,
+      mainRows: mainRows.length > 0 ? mainRows : undefined,
+      phase,
       createdAt: startTimeRef.current,
       updatedAt: Date.now(),
       totalWeightKg: rows.reduce((s, r) => s + r.weightKg, 0),
       totalPcs: rows.reduce((s, r) => s + r.pcs, 0),
     };
     saveDraft(draft);
-  }, [rows]);
+  }, [rows, mainRows, phase]);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -811,6 +1064,9 @@ export default function MeasurementScreen() {
   const totalWeight = rows.reduce((sum, r) => sum + r.weightKg, 0);
   const totalPcs = rows.reduce((sum, r) => sum + r.pcs, 0);
   const avgWeight = totalPcs > 0 ? totalWeight / totalPcs : 0;
+
+  const mainWeight = mainRows.reduce((sum, r) => sum + r.weightKg, 0);
+  const mainPcs = mainRows.reduce((sum, r) => sum + r.pcs, 0);
 
   const handleAddRow = useCallback(() => {
     const weight = parseFloat(weightInput);
@@ -852,7 +1108,9 @@ export default function MeasurementScreen() {
           style: "destructive",
           onPress: () => {
             setRows((prev) => prev.slice(1));
-            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            Haptics.notificationAsync(
+              Haptics.NotificationFeedbackType.Success
+            );
           },
         },
       ]);
@@ -869,6 +1127,25 @@ export default function MeasurementScreen() {
     if (Platform.OS !== "web") {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     }
+    if (phase === "main") {
+      setShowCullDialog(true);
+    } else {
+      setShowDholta(true);
+    }
+  };
+
+  const handleCullYes = () => {
+    setShowCullDialog(false);
+    setMainRows(rows);
+    setRows([]);
+    setPhase("cull");
+    if (Platform.OS !== "web") {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    }
+  };
+
+  const handleCullNo = () => {
+    setShowCullDialog(false);
     setShowDholta(true);
   };
 
@@ -877,7 +1154,9 @@ export default function MeasurementScreen() {
   };
 
   const handleEditSave = (updatedRow: MeasurementRow) => {
-    setRows((prev) => prev.map((r) => (r.id === updatedRow.id ? updatedRow : r)));
+    setRows((prev) =>
+      prev.map((r) => (r.id === updatedRow.id ? updatedRow : r))
+    );
     setEditingRow(null);
     if (Platform.OS !== "web") {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -899,6 +1178,12 @@ export default function MeasurementScreen() {
     });
   };
 
+  const dholtaMainWeight = phase === "cull" ? mainWeight : totalWeight;
+  const dholtaMainPcs = phase === "cull" ? mainPcs : totalPcs;
+  const dholtaMainRows = phase === "cull" ? mainRows : rows;
+  const dholtaCullWeight = phase === "cull" ? totalWeight : 0;
+  const dholtaCullRows = phase === "cull" ? rows : [];
+
   const webTopInset = Platform.OS === "web" ? 67 : 0;
   const webBottomInset = Platform.OS === "web" ? 34 : 0;
 
@@ -914,6 +1199,8 @@ export default function MeasurementScreen() {
     ? rows.length - rows.findIndex((r) => r.id === editingRow.id)
     : 1;
 
+  const isCull = phase === "cull";
+
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       <EditRowModal
@@ -925,11 +1212,20 @@ export default function MeasurementScreen() {
         onViewHistory={handleViewHistory}
       />
 
+      <CullDialog
+        visible={showCullDialog}
+        theme={theme}
+        onYes={handleCullYes}
+        onNo={handleCullNo}
+      />
+
       <DholtaModal
         visible={showDholta}
-        totalWeight={totalWeight}
-        totalPcs={totalPcs}
-        rows={rows}
+        totalWeight={dholtaMainWeight}
+        totalPcs={dholtaMainPcs}
+        rows={dholtaMainRows}
+        cullWeightKg={dholtaCullWeight}
+        cullRows={dholtaCullRows}
         theme={theme}
         insets={insets}
         onCancel={() => setShowDholta(false)}
@@ -960,14 +1256,40 @@ export default function MeasurementScreen() {
         >
           <Ionicons name="chevron-back" size={20} color={theme.text} />
         </Pressable>
-        <Text
-          style={[
-            styles.topBarTitle,
-            { color: theme.text, fontFamily: "Outfit_600SemiBold" },
-          ]}
-        >
-          {t.measurementTitle}
-        </Text>
+
+        <View style={styles.topBarCenter}>
+          <Text
+            style={[
+              styles.topBarTitle,
+              { color: theme.text, fontFamily: "Outfit_600SemiBold" },
+            ]}
+          >
+            {isCull ? t.cullSession : t.mainSession}
+          </Text>
+          {isCull && (
+            <View
+              style={[
+                styles.cullPhaseBadge,
+                { backgroundColor: theme.warmLight },
+              ]}
+            >
+              <MaterialCommunityIcons
+                name="bird"
+                size={11}
+                color={theme.warm}
+              />
+              <Text
+                style={[
+                  styles.cullPhaseBadgeText,
+                  { color: theme.warm, fontFamily: "Outfit_600SemiBold" },
+                ]}
+              >
+                CULL
+              </Text>
+            </View>
+          )}
+        </View>
+
         {rows.length > 0 ? (
           <Pressable
             onPress={handleDeleteLast}
@@ -987,8 +1309,39 @@ export default function MeasurementScreen() {
         )}
       </View>
 
+      {isCull && mainRows.length > 0 && (
+        <View
+          style={[
+            styles.mainSummaryStrip,
+            {
+              backgroundColor: theme.accentLight,
+              borderBottomColor: theme.borderLight,
+            },
+          ]}
+        >
+          <Ionicons
+            name="checkmark-circle"
+            size={14}
+            color={theme.accent}
+          />
+          <Text
+            style={[
+              styles.mainSummaryText,
+              { color: theme.accent, fontFamily: "Outfit_600SemiBold" },
+            ]}
+          >
+            {t.mainSummaryBanner(formatWeight(mainWeight), mainPcs)}
+          </Text>
+        </View>
+      )}
+
       <Animated.View
-        style={[styles.displayPanel, { backgroundColor: theme.timerBg }]}
+        style={[
+          styles.displayPanel,
+          {
+            backgroundColor: theme.timerBg,
+          },
+        ]}
         entering={Platform.OS !== "web" ? FadeIn.delay(100) : undefined}
       >
         <View style={styles.timerRow}>
@@ -1200,7 +1553,12 @@ export default function MeasurementScreen() {
           style={({ pressed }) => [
             styles.endBtn,
             {
-              backgroundColor: rows.length > 0 ? theme.accent : theme.border,
+              backgroundColor:
+                rows.length > 0
+                  ? isCull
+                    ? theme.warm
+                    : theme.accent
+                  : theme.border,
               transform: [{ scale: pressed && rows.length > 0 ? 0.97 : 1 }],
             },
           ]}
@@ -1250,6 +1608,11 @@ const styles = StyleSheet.create({
     paddingBottom: 12,
     borderBottomWidth: 1,
   },
+  topBarCenter: {
+    flex: 1,
+    alignItems: "center",
+    gap: 4,
+  },
   navBtn: {
     width: 36,
     height: 36,
@@ -1258,6 +1621,24 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   topBarTitle: { fontSize: 16 },
+  cullPhaseBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  cullPhaseBadgeText: { fontSize: 10, letterSpacing: 0.5 },
+  mainSummaryStrip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+  },
+  mainSummaryText: { fontSize: 13 },
   displayPanel: {
     alignItems: "center",
     paddingVertical: 18,
@@ -1398,6 +1779,58 @@ const styles = StyleSheet.create({
     marginLeft: 2,
   },
   endBtnBadgeText: { fontSize: 12, color: "#FFF" },
+
+  cullOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 32,
+  },
+  cullCard: {
+    width: "100%",
+    borderRadius: 24,
+    padding: 24,
+    alignItems: "center",
+    borderWidth: 1,
+    gap: 8,
+  },
+  cullIconWrap: {
+    width: 64,
+    height: 64,
+    borderRadius: 22,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 4,
+  },
+  cullTitle: { fontSize: 20, textAlign: "center" },
+  cullHint: { fontSize: 13, textAlign: "center", lineHeight: 20, marginBottom: 8 },
+  cullBtns: {
+    flexDirection: "row",
+    gap: 10,
+    width: "100%",
+    marginTop: 4,
+  },
+  cullNoBtn: {
+    flex: 1,
+    height: 52,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  cullNoBtnText: { fontSize: 15 },
+  cullYesBtn: {
+    flex: 1,
+    height: 52,
+    borderRadius: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+  },
+  cullYesBtnText: { fontSize: 15, color: "#FFF" },
+
   modalContainer: { flex: 1 },
   modalHeader: {
     flexDirection: "row",
@@ -1420,6 +1853,7 @@ const styles = StyleSheet.create({
     padding: 18,
     alignItems: "center",
     marginBottom: 20,
+    gap: 4,
   },
   grossLabel: {
     fontSize: 12,
@@ -1433,6 +1867,19 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "rgba(255,255,255,0.55)",
     fontFamily: "Outfit_400Regular",
+  },
+  cullBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+    marginTop: 4,
+  },
+  cullBannerText: {
+    fontSize: 13,
+    color: "rgba(255,255,255,0.7)",
   },
   sectionLabel: {
     fontSize: 11,
@@ -1515,6 +1962,31 @@ const styles = StyleSheet.create({
   },
   finalAmountLabel: { fontSize: 14 },
   finalAmountValue: { fontSize: 20 },
+  receivedAmountSection: {
+    marginTop: 12,
+    paddingTop: 14,
+    borderTopWidth: 1,
+    gap: 10,
+  },
+  receivedAmountHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  receivedAmountLabel: { fontSize: 14, flex: 1 },
+  optionalBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  optionalText: { fontSize: 11 },
+  receivedAmountInput: {
+    height: 48,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    fontSize: 18,
+    borderWidth: 1,
+  },
   modalFooter: { paddingHorizontal: 16, paddingTop: 12, borderTopWidth: 1 },
   footerBtns: { flexDirection: "row", gap: 10 },
   cancelBtn: {

@@ -23,8 +23,10 @@ export interface SaleRecord {
   averageWeightKg: number;
   averageWeightGrams: number;
   rows: MeasurementRow[];
+  cullRows?: MeasurementRow[];
   createdAt: number;
   dholta?: DholtaDetails;
+  receivedAmount?: number;
 }
 
 export interface DholtaDetails {
@@ -34,6 +36,7 @@ export interface DholtaDetails {
   full_crates_only: boolean;
   total_crates: number;
   total_deduction_kg: number;
+  cull_weight_kg: number;
   net_weight: number;
   price_per_kg: number;
   final_amount: number;
@@ -42,6 +45,8 @@ export interface DholtaDetails {
 export interface DraftSession {
   id: string;
   rows: MeasurementRow[];
+  mainRows?: MeasurementRow[];
+  phase?: "main" | "cull";
   createdAt: number;
   updatedAt: number;
   totalWeightKg: number;
