@@ -229,16 +229,78 @@ function SummaryRow({
   );
 }
 
-function CullDialog({
+function PcsOptionalDialog({
   visible,
   theme,
-  onYes,
-  onNo,
+  onTrack,
+  onSkip,
 }: {
   visible: boolean;
   theme: ReturnType<typeof useTheme>;
-  onYes: () => void;
+  onTrack: () => void;
+  onSkip: () => void;
+}) {
+  const { t } = useSettings();
+  return (
+    <Modal visible={visible} transparent animationType="fade">
+      <View style={styles.cullOverlay}>
+        <Animated.View
+          entering={Platform.OS !== "web" ? FadeIn.duration(200) : undefined}
+          style={[
+            styles.cullCard,
+            { backgroundColor: theme.surface, borderColor: theme.borderLight },
+          ]}
+        >
+          <View style={[styles.cullIconWrap, { backgroundColor: theme.accentLight }]}>
+            <MaterialCommunityIcons name="counter" size={28} color={theme.accent} />
+          </View>
+          <Text style={[styles.cullTitle, { color: theme.text, fontFamily: "Outfit_700Bold" }]}>
+            {t.pcsOptionalTitle}
+          </Text>
+          <Text style={[styles.cullHint, { color: theme.textTertiary, fontFamily: "Outfit_400Regular" }]}>
+            {t.pcsOptionalDesc}
+          </Text>
+          <View style={styles.cullBtns}>
+            <Pressable
+              onPress={onSkip}
+              style={({ pressed }) => [
+                styles.cullNoBtn,
+                { borderColor: theme.border, opacity: pressed ? 0.7 : 1 },
+              ]}
+            >
+              <Text style={[styles.cullNoBtnText, { color: theme.text, fontFamily: "Outfit_600SemiBold" }]}>
+                {t.pcsOptionalSkip}
+              </Text>
+            </Pressable>
+            <Pressable
+              onPress={onTrack}
+              style={({ pressed }) => [
+                styles.cullYesBtn,
+                { backgroundColor: theme.accent, transform: [{ scale: pressed ? 0.97 : 1 }] },
+              ]}
+            >
+              <Ionicons name="checkmark" size={16} color="#FFF" />
+              <Text style={[styles.cullYesBtnText, { fontFamily: "Outfit_700Bold" }]}>
+                {t.pcsOptionalTrack}
+              </Text>
+            </Pressable>
+          </View>
+        </Animated.View>
+      </View>
+    </Modal>
+  );
+}
+
+function CullDialog({
+  visible,
+  theme,
+  onNo,
+  onYes,
+}: {
+  visible: boolean;
+  theme: ReturnType<typeof useTheme>;
   onNo: () => void;
+  onYes: () => void;
 }) {
   const { t } = useSettings();
   return (
@@ -325,11 +387,7 @@ function CullDialog({
               ]}
               testID="cull-yes-btn"
             >
-              <MaterialCommunityIcons
-                name="bird"
-                size={16}
-                color="#FFF"
-              />
+              <MaterialCommunityIcons name="bird" size={15} color="#FFF" />
               <Text
                 style={[
                   styles.cullYesBtnText,
@@ -375,15 +433,23 @@ function DholtaModal({
   const [pricePerKg, setPricePerKg] = useState("");
   const [fullCratesOnly, setFullCratesOnly] = useState(true);
   const [receivedAmount, setReceivedAmount] = useState("");
+  const [buyerName, setBuyerName] = useState("");
+  const [cullSold, setCullSold] = useState(false);
+  const [cullPricingMode, setCullPricingMode] = useState<"per_kg" | "per_piece">("per_kg");
+  const [cullPrice, setCullPrice] = useState("");
   const [saving, setSaving] = useState(false);
 
   const deductionRef = useRef<TextInput>(null);
   const priceRef = useRef<TextInput>(null);
   const receivedRef = useRef<TextInput>(null);
+  const cullPriceRef = useRef<TextInput>(null);
 
   useEffect(() => {
     if (visible) {
       setReceivedAmount("");
+      setBuyerName("");
+      setCullSold(false);
+      setCullPrice("");
       Promise.all([
         loadLastPricePerKg(),
         loadLastKgPerCrate(),
@@ -399,6 +465,16 @@ function DholtaModal({
   const kgPerCrateNum = parseFloat(kgPerCrate);
   const deductionGNum = parseFloat(deductionG);
   const pricePerKgNum = parseFloat(pricePerKg);
+  const cullPriceNum = parseFloat(cullPrice);
+  const cullPcs = cullRows.reduce((s, r) => s + r.pcs, 0);
+
+  // Cull session happened if rows were recorded
+  const hasCull = cullRows.length > 0;
+
+  const isValidCullPrice =
+    !hasCull || !cullSold
+      ? true
+      : cullPrice.length > 0 && !isNaN(cullPriceNum) && cullPriceNum > 0;
 
   const isValid =
     kgPerCrate.length > 0 &&
@@ -409,26 +485,45 @@ function DholtaModal({
     !isNaN(deductionGNum) &&
     deductionGNum >= 0 &&
     !isNaN(pricePerKgNum) &&
-    pricePerKgNum > 0;
+    pricePerKgNum > 0 &&
+    isValidCullPrice;
 
+  // KEY FIX: crate count is based on (gross - cull_weight), not full gross.
+  // For pcs_only mode, cullWeightKg is 0 so subtotalGross = totalWeight.
+  const subtotalGross = totalWeight - cullWeightKg;
   const calc = isValid
-    ? calcDholta(totalWeight, kgPerCrateNum, deductionGNum, fullCratesOnly)
+    ? calcDholta(subtotalGross, kgPerCrateNum, deductionGNum, fullCratesOnly)
     : null;
 
-  const adjustedNetWeight =
-    calc !== null ? calc.netWeight - cullWeightKg : null;
+  // net main weight = subtotalGross - crate_deduction
+  const netMainWeight = calc !== null ? calc.netWeight : null;
+
+  const mainAmount =
+    netMainWeight !== null && pricePerKgNum > 0
+      ? netMainWeight * pricePerKgNum
+      : null;
+
+  const cullAmount =
+    hasCull && cullSold && !isNaN(cullPriceNum) && cullPriceNum > 0
+      ? cullPricingMode === "per_kg"
+        ? cullWeightKg * cullPriceNum
+        : cullPcs * cullPriceNum
+      : 0;
 
   const finalAmount =
-    adjustedNetWeight !== null && pricePerKgNum > 0
-      ? adjustedNetWeight * pricePerKgNum
-      : null;
+    mainAmount !== null ? mainAmount + cullAmount : null;
 
   const receivedAmountNum = parseFloat(receivedAmount);
   const validReceivedAmount =
     receivedAmount.length > 0 && !isNaN(receivedAmountNum) && receivedAmountNum > 0;
 
+  const balanceDue =
+    validReceivedAmount && finalAmount !== null
+      ? finalAmount - receivedAmountNum
+      : null;
+
   const handleSave = async () => {
-    if (!isValid || !calc || finalAmount === null || adjustedNetWeight === null)
+    if (!isValid || !calc || finalAmount === null || netMainWeight === null || mainAmount === null)
       return;
     setSaving(true);
 
@@ -441,8 +536,14 @@ function DholtaModal({
         total_crates: calc.totalCrates,
         total_deduction_kg: calc.totalDeductionKg,
         cull_weight_kg: cullWeightKg,
-        net_weight: adjustedNetWeight,
+        net_weight: netMainWeight,
         price_per_kg: pricePerKgNum,
+        main_amount: mainAmount,
+        cull_sold: hasCull ? cullSold : false,
+        cull_pricing_mode: hasCull && cullSold ? cullPricingMode : undefined,
+        cull_price: hasCull && cullSold ? cullPriceNum : undefined,
+        cull_pcs: hasCull ? cullPcs : undefined,
+        cull_amount: cullAmount,
         final_amount: finalAmount,
       };
 
@@ -462,6 +563,7 @@ function DholtaModal({
         createdAt: Date.now(),
         dholta,
         receivedAmount: validReceivedAmount ? receivedAmountNum : undefined,
+        buyerName: buyerName.trim() || undefined,
       };
 
       await Promise.all([
@@ -482,6 +584,7 @@ function DholtaModal({
   };
 
   const webBottomInset = Platform.OS === "web" ? 34 : 0;
+  const rawCrates = isValid ? subtotalGross / kgPerCrateNum : 0;
 
   return (
     <Modal
@@ -535,6 +638,7 @@ function DholtaModal({
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
+          {/* Gross banner */}
           <View
             style={[styles.grossBanner, { backgroundColor: theme.timerBg }]}
           >
@@ -573,6 +677,67 @@ function DholtaModal({
             )}
           </View>
 
+          {/* Buyer name — optional, full-width */}
+          <View
+            style={[
+              styles.inputCard,
+              {
+                backgroundColor: theme.surface,
+                borderColor: theme.borderLight,
+                marginBottom: 16,
+              },
+            ]}
+          >
+            <View style={[styles.buyerNameCard]}>
+              <View style={styles.buyerNameHeader}>
+                <View style={[styles.buyerIconWrap, { backgroundColor: theme.accentLight }]}>
+                  <Feather name="user" size={16} color={theme.accent} />
+                </View>
+                <Text
+                  style={[
+                    styles.buyerNameLabel,
+                    { color: theme.text, fontFamily: "Outfit_600SemiBold" },
+                  ]}
+                >
+                  {t.buyerName}
+                </Text>
+                <View
+                  style={[
+                    styles.optionalBadge,
+                    { backgroundColor: theme.borderLight },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.optionalText,
+                      { color: theme.textTertiary, fontFamily: "Outfit_400Regular" },
+                    ]}
+                  >
+                    {t.optional}
+                  </Text>
+                </View>
+              </View>
+              <TextInput
+                value={buyerName}
+                onChangeText={setBuyerName}
+                placeholder={t.buyerNamePlaceholder}
+                placeholderTextColor={theme.textTertiary}
+                returnKeyType="next"
+                onSubmitEditing={() => deductionRef.current?.focus()}
+                style={[
+                  styles.buyerNameInput,
+                  {
+                    color: theme.text,
+                    fontFamily: "Outfit_600SemiBold",
+                    borderColor: theme.border,
+                    backgroundColor: theme.background,
+                  },
+                ]}
+              />
+            </View>
+          </View>
+
+          {/* Deduction parameters */}
           <Text
             style={[
               styles.sectionLabel,
@@ -755,7 +920,192 @@ function DholtaModal({
             </View>
           </Pressable>
 
-          {calc && finalAmount !== null && adjustedNetWeight !== null && (
+          {/* Cull pricing — only when cull session exists */}
+          {hasCull && (
+            <>
+              <Text
+                style={[
+                  styles.sectionLabel,
+                  { color: theme.textTertiary, fontFamily: "Outfit_600SemiBold" },
+                ]}
+              >
+                {t.cullPricingSection}
+              </Text>
+              <View
+                style={[
+                  styles.inputCard,
+                  {
+                    backgroundColor: theme.surface,
+                    borderColor: theme.borderLight,
+                  },
+                ]}
+              >
+                {/* Sold / Not sold toggle */}
+                <View style={[styles.inputRow, { borderBottomColor: theme.borderLight, borderBottomWidth: cullSold ? 1 : 0 }]}>
+                  <View style={styles.inputLabelWrap}>
+                    <MaterialCommunityIcons name="bird" size={16} color={theme.warm} />
+                    <Text
+                      style={[
+                        styles.inputFieldLabel,
+                        { color: theme.text, fontFamily: "Outfit_500Medium" },
+                      ]}
+                    >
+                      {t.cullSoldQuestion}
+                    </Text>
+                  </View>
+                  <View style={styles.segmentRow}>
+                    <Pressable
+                      onPress={() => setCullSold(false)}
+                      style={[
+                        styles.segmentBtn,
+                        {
+                          backgroundColor: !cullSold ? theme.borderLight : "transparent",
+                          borderColor: !cullSold ? theme.border : "transparent",
+                        },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.segmentText,
+                          {
+                            color: !cullSold ? theme.text : theme.textTertiary,
+                            fontFamily: !cullSold ? "Outfit_700Bold" : "Outfit_400Regular",
+                          },
+                        ]}
+                      >
+                        {t.no}
+                      </Text>
+                    </Pressable>
+                    <Pressable
+                      onPress={() => setCullSold(true)}
+                      style={[
+                        styles.segmentBtn,
+                        {
+                          backgroundColor: cullSold ? theme.warmLight : "transparent",
+                          borderColor: cullSold ? theme.warm : "transparent",
+                        },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.segmentText,
+                          {
+                            color: cullSold ? theme.warm : theme.textTertiary,
+                            fontFamily: cullSold ? "Outfit_700Bold" : "Outfit_400Regular",
+                          },
+                        ]}
+                      >
+                        {t.yes}
+                      </Text>
+                    </Pressable>
+                  </View>
+                </View>
+
+                {cullSold && (
+                  <>
+                    {/* Per kg / Per piece toggle */}
+                    <View style={[styles.inputRow, { borderBottomColor: theme.borderLight }]}>
+                      <View style={styles.inputLabelWrap}>
+                        <Feather name="sliders" size={16} color={theme.accent} />
+                        <Text
+                          style={[
+                            styles.inputFieldLabel,
+                            { color: theme.text, fontFamily: "Outfit_500Medium" },
+                          ]}
+                        >
+                          {t.cullPricingMode}
+                        </Text>
+                      </View>
+                      <View style={styles.segmentRow}>
+                        <Pressable
+                          onPress={() => setCullPricingMode("per_kg")}
+                          style={[
+                            styles.segmentBtn,
+                            {
+                              backgroundColor: cullPricingMode === "per_kg" ? theme.accentLight : "transparent",
+                              borderColor: cullPricingMode === "per_kg" ? theme.accent : theme.borderLight,
+                            },
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.segmentText,
+                              {
+                                color: cullPricingMode === "per_kg" ? theme.accent : theme.textTertiary,
+                                fontFamily: cullPricingMode === "per_kg" ? "Outfit_700Bold" : "Outfit_400Regular",
+                              },
+                            ]}
+                          >
+                            {t.perKg}
+                          </Text>
+                        </Pressable>
+                        <Pressable
+                          onPress={() => setCullPricingMode("per_piece")}
+                          style={[
+                            styles.segmentBtn,
+                            {
+                              backgroundColor: cullPricingMode === "per_piece" ? theme.accentLight : "transparent",
+                              borderColor: cullPricingMode === "per_piece" ? theme.accent : theme.borderLight,
+                            },
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.segmentText,
+                              {
+                                color: cullPricingMode === "per_piece" ? theme.accent : theme.textTertiary,
+                                fontFamily: cullPricingMode === "per_piece" ? "Outfit_700Bold" : "Outfit_400Regular",
+                              },
+                            ]}
+                          >
+                            {t.perPiece}
+                          </Text>
+                        </Pressable>
+                      </View>
+                    </View>
+
+                    {/* Cull price input */}
+                    <View style={[styles.inputRow, { borderBottomWidth: 0 }]}>
+                      <View style={styles.inputLabelWrap}>
+                        <Feather name="tag" size={16} color={theme.warm} />
+                        <Text
+                          style={[
+                            styles.inputFieldLabel,
+                            { color: theme.text, fontFamily: "Outfit_500Medium" },
+                          ]}
+                        >
+                          {cullPricingMode === "per_kg" ? t.cullPriceKg : t.cullPricePiece}
+                        </Text>
+                      </View>
+                      <TextInput
+                        ref={cullPriceRef}
+                        value={cullPrice}
+                        onChangeText={setCullPrice}
+                        keyboardType="decimal-pad"
+                        placeholder="e.g. 120"
+                        placeholderTextColor={theme.textTertiary}
+                        returnKeyType="done"
+                        onSubmitEditing={Keyboard.dismiss}
+                        style={[
+                          styles.inputField,
+                          {
+                            color: theme.text,
+                            fontFamily: "Outfit_600SemiBold",
+                            borderColor: theme.border,
+                            backgroundColor: theme.background,
+                          },
+                        ]}
+                        testID="cull-price-input"
+                      />
+                    </View>
+                  </>
+                )}
+              </View>
+            </>
+          )}
+
+          {/* Calculation summary */}
+          {calc && finalAmount !== null && netMainWeight !== null && mainAmount !== null && (
             <View
               style={[
                 styles.summaryCard,
@@ -778,47 +1128,94 @@ function DholtaModal({
                 {t.calcSummary}
               </Text>
 
+              {/* Gross weight */}
               <SummaryRow
                 label={t.grossWeight}
                 value={`${formatWeight(totalWeight)} KG`}
                 theme={theme}
               />
+
+              {/* Cull weight — always shown for full transparency */}
+              {hasCull ? (
+                <>
+                  <SummaryRow
+                    label={t.cullWeight}
+                    value={`−${formatWeight(cullWeightKg)} KG`}
+                    theme={theme}
+                    isNegative
+                  />
+                  <SummaryRow
+                    label={t.subtotalGross}
+                    value={`${formatWeight(subtotalGross)} KG`}
+                    theme={theme}
+                  />
+                </>
+              ) : (
+                <SummaryRow
+                  label={t.cullWeight}
+                  value="0 KG"
+                  theme={theme}
+                />
+              )}
+
+              {/* Explicit floor calculation */}
+              {fullCratesOnly ? (
+                <SummaryRow
+                  label={`${formatWeight(subtotalGross)} ÷ ${kgPerCrateNum} = ${rawCrates.toFixed(3)} → ${calc.totalCrates} crates`}
+                  value={`${calc.totalCrates}`}
+                  theme={theme}
+                />
+              ) : (
+                <SummaryRow
+                  label={t.totalCrates}
+                  value={`${calc.totalCrates.toFixed(3)}`}
+                  theme={theme}
+                />
+              )}
+
+              {/* Crate deduction */}
               <SummaryRow
-                label={
-                  fullCratesOnly ? t.totalCratesFloored : t.totalCrates
-                }
-                value={
-                  fullCratesOnly
-                    ? `${calc.totalCrates}`
-                    : `${calc.totalCrates.toFixed(3)}`
-                }
-                theme={theme}
-              />
-              <SummaryRow
-                label={t.totalDeduction}
-                value={`-${formatWeight(calc.totalDeductionKg)} KG`}
+                label={`${calc.totalCrates} × ${deductionGNum}g dholta`}
+                value={`−${formatWeight(calc.totalDeductionKg)} KG`}
                 theme={theme}
                 isNegative
               />
-              {cullWeightKg > 0 && (
-                <SummaryRow
-                  label={t.cullWeight}
-                  value={`-${formatWeight(cullWeightKg)} KG`}
-                  theme={theme}
-                  isNegative
-                />
-              )}
+
+              {/* Net main weight */}
               <SummaryRow
                 label={t.payableWeight}
-                value={`${formatWeight(adjustedNetWeight)} KG`}
+                value={`${formatWeight(netMainWeight)} KG`}
                 theme={theme}
                 isHighlight
               />
+
+              {/* × price/kg label */}
+              <View style={styles.multiplyRow}>
+                <Text style={[styles.multiplyText, { color: theme.textTertiary, fontFamily: "Outfit_400Regular" }]}>
+                  × Tk {pricePerKgNum.toFixed(2)} / kg
+                </Text>
+              </View>
+
+              {/* Main amount */}
               <SummaryRow
-                label={t.pricePerKg}
-                value={`Tk ${pricePerKgNum.toFixed(2)}`}
+                label={t.mainAmount}
+                value={`Tk ${mainAmount.toLocaleString("en-PK", { maximumFractionDigits: 2 })}`}
                 theme={theme}
               />
+
+              {/* Cull revenue line */}
+              {hasCull && cullSold && cullAmount > 0 && (
+                <SummaryRow
+                  label={
+                    cullPricingMode === "per_kg"
+                      ? `${t.cullAmount} (${formatWeight(cullWeightKg)} kg × Tk ${cullPriceNum.toFixed(2)})`
+                      : `${t.cullAmount} (${cullPcs} birds × Tk ${cullPriceNum.toFixed(2)})`
+                  }
+                  value={`+ Tk ${cullAmount.toLocaleString("en-PK", { maximumFractionDigits: 2 })}`}
+                  theme={theme}
+                  isHighlight
+                />
+              )}
 
               <View
                 style={[
@@ -912,6 +1309,42 @@ function DholtaModal({
                   ]}
                   testID="received-amount-input"
                 />
+
+                {/* Balance due preview */}
+                {balanceDue !== null && (
+                  <View
+                    style={[
+                      styles.balanceDueRow,
+                      {
+                        backgroundColor: balanceDue > 0 ? theme.dangerLight : theme.successLight,
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.balanceDueLabel,
+                        {
+                          color: balanceDue > 0 ? theme.danger : theme.success,
+                          fontFamily: "Outfit_600SemiBold",
+                        },
+                      ]}
+                    >
+                      {t.balanceDue}
+                    </Text>
+                    <Text
+                      style={[
+                        styles.balanceDueValue,
+                        {
+                          color: balanceDue > 0 ? theme.danger : theme.success,
+                          fontFamily: "Outfit_700Bold",
+                        },
+                      ]}
+                    >
+                      Tk {Math.abs(balanceDue).toLocaleString("en-PK", { maximumFractionDigits: 2 })}
+                      {balanceDue < 0 ? " (overpaid)" : ""}
+                    </Text>
+                  </View>
+                )}
               </View>
             </View>
           )}
@@ -997,15 +1430,20 @@ export default function MeasurementScreen() {
   const [rows, setRows] = useState<MeasurementRow[]>([]);
   const [mainRows, setMainRows] = useState<MeasurementRow[]>([]);
   const [phase, setPhase] = useState<"main" | "cull">("main");
+  // Show setup dialog for new sessions (not draft resumes)
+  const [showPcsDialog, setShowPcsDialog] = useState(
+    !(typeof draftIdParam === "string" && draftIdParam.length > 0)
+  );
+  const [pcsOptional, setPcsOptional] = useState(false);
   const [weightInput, setWeightInput] = useState("");
-  const [pcsInput, setPcsInput] = useState("");
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [showDholta, setShowDholta] = useState(false);
   const [showCullDialog, setShowCullDialog] = useState(false);
   const [editingRow, setEditingRow] = useState<MeasurementRow | null>(null);
+  const [isEnterPcsMode, setIsEnterPcsMode] = useState(false);
 
   const weightRef = useRef<TextInput>(null);
-  const pcsRef = useRef<TextInput>(null);
+  const enterPcsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const startTimeRef = useRef(Date.now());
   const sessionDraftId = useRef<string>(
     typeof draftIdParam === "string" && draftIdParam.length > 0
@@ -1017,6 +1455,11 @@ export default function MeasurementScreen() {
   );
   const draftLoaded = useRef(false);
 
+  // Cancel any pending auto-open timer on unmount
+  useEffect(() => () => {
+    if (enterPcsTimerRef.current) clearTimeout(enterPcsTimerRef.current);
+  }, []);
+
   useEffect(() => {
     if (draftLoaded.current) return;
     const id = typeof draftIdParam === "string" ? draftIdParam : "";
@@ -1025,6 +1468,7 @@ export default function MeasurementScreen() {
     loadDraft(id).then((draft) => {
       if (!draft) return;
       startTimeRef.current = draft.createdAt;
+      if (draft.pcsOptional) setPcsOptional(true);
       if (draft.phase === "cull" && draft.mainRows && draft.mainRows.length > 0) {
         setPhase("cull");
         setMainRows(draft.mainRows);
@@ -1044,13 +1488,14 @@ export default function MeasurementScreen() {
       rows,
       mainRows: mainRows.length > 0 ? mainRows : undefined,
       phase,
+      pcsOptional: pcsOptional || undefined,
       createdAt: startTimeRef.current,
       updatedAt: Date.now(),
       totalWeightKg: rows.reduce((s, r) => s + r.weightKg, 0),
       totalPcs: rows.reduce((s, r) => s + r.pcs, 0),
     };
     saveDraft(draft);
-  }, [rows, mainRows, phase]);
+  }, [rows, mainRows, phase, pcsOptional]);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -1070,9 +1515,8 @@ export default function MeasurementScreen() {
 
   const handleAddRow = useCallback(() => {
     const weight = parseFloat(weightInput);
-    const pcs = parseInt(pcsInput, 10);
 
-    if (isNaN(weight) || weight <= 0 || isNaN(pcs) || pcs <= 0) {
+    if (isNaN(weight) || weight <= 0) {
       if (Platform.OS !== "web") {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       }
@@ -1082,19 +1526,27 @@ export default function MeasurementScreen() {
     const newRow: MeasurementRow = {
       id: Crypto.randomUUID(),
       weightKg: weight,
-      pcs,
+      pcs: 1, // placeholder; updated via edit modal when !pcsOptional
       timestamp: Date.now(),
     };
 
     setRows((prev) => [newRow, ...prev]);
     setWeightInput("");
-    setPcsInput("");
     Keyboard.dismiss();
 
     if (Platform.OS !== "web") {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
-  }, [weightInput, pcsInput]);
+
+    if (!pcsOptional) {
+      // Auto-open the edit modal to enter bird count after row animation settles
+      if (enterPcsTimerRef.current) clearTimeout(enterPcsTimerRef.current);
+      enterPcsTimerRef.current = setTimeout(() => {
+        setEditingRow(newRow);
+        setIsEnterPcsMode(true);
+      }, 800);
+    }
+  }, [weightInput, pcsOptional]);
 
   const handleDeleteLast = () => {
     if (rows.length === 0) return;
@@ -1158,9 +1610,15 @@ export default function MeasurementScreen() {
       prev.map((r) => (r.id === updatedRow.id ? updatedRow : r))
     );
     setEditingRow(null);
+    setIsEnterPcsMode(false);
     if (Platform.OS !== "web") {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     }
+  };
+
+  const handleEditClose = () => {
+    setEditingRow(null);
+    setIsEnterPcsMode(false);
   };
 
   const handleViewHistory = (row: MeasurementRow) => {
@@ -1189,11 +1647,8 @@ export default function MeasurementScreen() {
 
   const canAdd =
     weightInput.length > 0 &&
-    pcsInput.length > 0 &&
     !isNaN(parseFloat(weightInput)) &&
-    parseFloat(weightInput) > 0 &&
-    !isNaN(parseInt(pcsInput, 10)) &&
-    parseInt(pcsInput, 10) > 0;
+    parseFloat(weightInput) > 0;
 
   const editingRowNumber = editingRow
     ? rows.length - rows.findIndex((r) => r.id === editingRow.id)
@@ -1203,13 +1658,21 @@ export default function MeasurementScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
+      <PcsOptionalDialog
+        visible={showPcsDialog}
+        theme={theme}
+        onTrack={() => { setPcsOptional(false); setShowPcsDialog(false); }}
+        onSkip={() => { setPcsOptional(true); setShowPcsDialog(false); }}
+      />
+
       <EditRowModal
         visible={editingRow !== null}
         row={editingRow}
         rowNumber={editingRowNumber}
-        onClose={() => setEditingRow(null)}
+        onClose={handleEditClose}
         onSave={handleEditSave}
         onViewHistory={handleViewHistory}
+        enterPcsMode={isEnterPcsMode}
       />
 
       <CullDialog
@@ -1417,6 +1880,14 @@ export default function MeasurementScreen() {
           { backgroundColor: theme.surface, borderColor: theme.border },
         ]}
       >
+        {!pcsOptional && (
+          <View style={[styles.pcsTrackingBadge, { backgroundColor: theme.accentLight }]}>
+            <Ionicons name="checkmark-circle" size={12} color={theme.accent} />
+            <Text style={[styles.pcsTrackingText, { color: theme.accent, fontFamily: "Outfit_600SemiBold" }]}>
+              {t.pcsOptionalTrack}
+            </Text>
+          </View>
+        )}
         <View style={styles.inputGroup}>
           <View style={styles.inputCol}>
             <Text
@@ -1434,36 +1905,6 @@ export default function MeasurementScreen() {
               keyboardType="decimal-pad"
               placeholder="0.00"
               placeholderTextColor={theme.textTertiary}
-              returnKeyType="next"
-              onSubmitEditing={() => pcsRef.current?.focus()}
-              style={[
-                styles.input,
-                {
-                  backgroundColor: theme.background,
-                  color: theme.text,
-                  borderColor: theme.border,
-                  fontFamily: "Outfit_600SemiBold",
-                },
-              ]}
-              testID="weight-input"
-            />
-          </View>
-          <View style={styles.inputColSmall}>
-            <Text
-              style={[
-                styles.inputLabel,
-                { color: theme.textTertiary, fontFamily: "Outfit_500Medium" },
-              ]}
-            >
-              {t.pcs}
-            </Text>
-            <TextInput
-              ref={pcsRef}
-              value={pcsInput}
-              onChangeText={setPcsInput}
-              keyboardType="number-pad"
-              placeholder="0"
-              placeholderTextColor={theme.textTertiary}
               returnKeyType="done"
               onSubmitEditing={handleAddRow}
               style={[
@@ -1475,7 +1916,7 @@ export default function MeasurementScreen() {
                   fontFamily: "Outfit_600SemiBold",
                 },
               ]}
-              testID="pcs-input"
+              testID="weight-input"
             />
           </View>
           <Pressable
@@ -1507,7 +1948,12 @@ export default function MeasurementScreen() {
             row={item}
             rowNumber={rows.length - index}
             theme={theme}
-            onEdit={setEditingRow}
+            onEdit={(row) => {
+              // Cancel auto-open timer if user manually taps edit
+              if (enterPcsTimerRef.current) clearTimeout(enterPcsTimerRef.current);
+              setIsEnterPcsMode(false);
+              setEditingRow(row);
+            }}
           />
         )}
         contentContainerStyle={{
@@ -1987,6 +2433,34 @@ const styles = StyleSheet.create({
     fontSize: 18,
     borderWidth: 1,
   },
+  balanceDueRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: 10,
+    padding: 12,
+    borderRadius: 10,
+  },
+  balanceDueLabel: { fontSize: 14 },
+  balanceDueValue: { fontSize: 18 },
+  segmentRow: {
+    flexDirection: "row",
+    gap: 6,
+  },
+  segmentBtn: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    minWidth: 56,
+    alignItems: "center",
+  },
+  segmentText: { fontSize: 14 },
+  multiplyRow: {
+    paddingVertical: 4,
+    paddingHorizontal: 2,
+  },
+  multiplyText: { fontSize: 13 },
   modalFooter: { paddingHorizontal: 16, paddingTop: 12, borderTopWidth: 1 },
   footerBtns: { flexDirection: "row", gap: 10 },
   cancelBtn: {
@@ -2008,4 +2482,39 @@ const styles = StyleSheet.create({
     borderRadius: 16,
   },
   confirmBtnText: { fontSize: 15 },
+  pcsTrackingBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    alignSelf: "flex-start",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    marginBottom: 8,
+  },
+  pcsTrackingText: { fontSize: 11 },
+  buyerNameCard: {
+    padding: 16,
+  },
+  buyerNameHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginBottom: 12,
+  },
+  buyerIconWrap: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  buyerNameLabel: { fontSize: 15, flex: 1 },
+  buyerNameInput: {
+    height: 48,
+    borderRadius: 12,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    fontSize: 17,
+  },
 });
