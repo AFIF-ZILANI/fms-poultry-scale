@@ -1,5 +1,5 @@
 import { ClerkProvider, ClerkLoaded } from "@clerk/expo";
-import { QueryClientProvider } from "@tanstack/react-query";
+// import { QueryClientProvider } from "@tanstack/react-query";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect } from "react";
@@ -7,7 +7,7 @@ import { Platform } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
-import { queryClient } from "@/lib/query-client";
+// import { queryClient } from "@/lib/query-client";
 import { SettingsProvider } from "@/lib/SettingsContext";
 import {
   useFonts,
@@ -67,7 +67,7 @@ export default function RootLayout() {
     <ClerkProvider publishableKey={process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY!}>
       <ClerkLoaded>
         <ErrorBoundary>
-          <QueryClientProvider client={queryClient}>
+          {/* <QueryClientProvider client={queryClient}> */}
             <SettingsProvider>
               <GestureHandlerRootView style={{ flex: 1 }}>
                 <KeyboardProvider>
@@ -75,7 +75,7 @@ export default function RootLayout() {
                 </KeyboardProvider>
               </GestureHandlerRootView>
             </SettingsProvider>
-          </QueryClientProvider>
+          {/* </QueryClientProvider> */}
         </ErrorBoundary>
       </ClerkLoaded>
     </ClerkProvider>
