@@ -18,7 +18,7 @@
     "lint:fix": "npx expo lint --fix"
   },
   "dependencies": {
-    "@clerk/expo": "^3.2.8",
+    "@clerk/expo": "^3.4.1",
     "@expo-google-fonts/outfit": "^0.4.3",
     "@expo/vector-icons": "^15.1.1",
     "@react-native-async-storage/async-storage": "2.2.0",
@@ -39,6 +39,7 @@
     "expo-linear-gradient": "~15.0.8",
     "expo-linking": "~8.0.12",
     "expo-location": "~19.0.8",
+    "expo-print": "~15.0.8",
     "expo-router": "~6.0.24",
     "expo-secure-store": "~15.0.8",
     "expo-sharing": "~14.0.8",
