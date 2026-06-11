@@ -130,7 +130,7 @@ const bn: typeof en = {
 
   cancel: "বাতিল",
   save: "সেভ",
-  delete: "মুছুন",
+  delete: "ডিলিট",
   loading: "লোড হচ্ছে...",
   birds: "মুরগি",
   kg: "কেজি",

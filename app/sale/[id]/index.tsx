@@ -416,7 +416,7 @@ function LogEntryRow({
         ]}
       >
         <MaterialCommunityIcons
-          name="food-turkey"
+          name="bird"
           size={18}
           color={isCull ? theme.warm : theme.accent}
         />
@@ -452,7 +452,7 @@ function LogEntryRow({
         </Text>
         <View style={styles.logEntryPcsRow}>
           <MaterialCommunityIcons
-            name="food-turkey"
+            name="bird"
             size={11}
             color={theme.warm}
           />

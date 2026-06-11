@@ -4,6 +4,16 @@ const fs = require("fs");
 
 const config = getDefaultConfig(__dirname);
 
+config.transformer.babelTransformerPath = require.resolve(
+  "react-native-svg-transformer"
+);
+
+config.resolver.assetExts = config.resolver.assetExts.filter(
+  (ext) => ext !== "svg"
+);
+config.resolver.sourceExts.push("svg");
+
+
 // Prevent Metro from crashing when Replit cleans up temporary files in
 // .local/skills (skill runner), .local/secondary_skills (secondary skills),
 // and .local/state/workflow-logs (runner logs).

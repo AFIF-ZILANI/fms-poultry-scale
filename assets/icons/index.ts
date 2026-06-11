@@ -1,0 +1,1 @@
+export { default as IChicken } from '../images/chicken.svg';
