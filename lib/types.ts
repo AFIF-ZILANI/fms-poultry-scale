@@ -27,6 +27,7 @@ export interface SaleRecord {
   createdAt: number;
   dholta?: DholtaDetails;
   receivedAmount?: number;
+  buyerName?: string;
 }
 
 export interface DholtaDetails {
@@ -39,6 +40,14 @@ export interface DholtaDetails {
   cull_weight_kg: number;
   net_weight: number;
   price_per_kg: number;
+  // New fields — absent on records saved before this version
+  main_amount?: number;
+  cull_session_mode?: "weigh" | "pcs_only";
+  cull_sold?: boolean;
+  cull_pricing_mode?: "per_kg" | "per_piece";
+  cull_price?: number;
+  cull_pcs?: number;
+  cull_amount?: number;
   final_amount: number;
 }
 
@@ -47,6 +56,7 @@ export interface DraftSession {
   rows: MeasurementRow[];
   mainRows?: MeasurementRow[];
   phase?: "main" | "cull";
+  pcsOptional?: boolean;
   createdAt: number;
   updatedAt: number;
   totalWeightKg: number;
