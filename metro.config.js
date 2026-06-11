@@ -25,8 +25,18 @@ const DEDUP_MODULES = {
   "react-native": require.resolve("react-native"),
 };
 
+// react-native-worklets@0.5.1 sets "react-native": "./src/index" in its
+// package.json but ships no src/index file — only the compiled lib/module/.
+// Redirect all requires of this package to the built output.
+const WORKLETS_BUILT = require.resolve("react-native-worklets/lib/module/index");
+
 const originalResolveRequest = config.resolver.resolveRequest;
 config.resolver.resolveRequest = (context, moduleName, platform) => {
+  // 0. Redirect broken react-native-worklets native entry to built output
+  if (moduleName === "react-native-worklets") {
+    return { filePath: WORKLETS_BUILT, type: "sourceFile" };
+  }
+
   // 1. Deduplicate react and friends
   if (Object.prototype.hasOwnProperty.call(DEDUP_MODULES, moduleName)) {
     return { filePath: DEDUP_MODULES[moduleName], type: "sourceFile" };

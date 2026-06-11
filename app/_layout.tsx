@@ -1,3 +1,4 @@
+import { ClerkProvider, ClerkLoaded } from "@clerk/expo";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
@@ -63,16 +64,20 @@ export default function RootLayout() {
   if (!fontsLoaded && !fontError && Platform.OS !== "web") return null;
 
   return (
-    <ErrorBoundary>
-      <QueryClientProvider client={queryClient}>
-        <SettingsProvider>
-          <GestureHandlerRootView style={{ flex: 1 }}>
-            <KeyboardProvider>
-              <AppLayout />
-            </KeyboardProvider>
-          </GestureHandlerRootView>
-        </SettingsProvider>
-      </QueryClientProvider>
-    </ErrorBoundary>
+    <ClerkProvider publishableKey={process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY!}>
+      <ClerkLoaded>
+        <ErrorBoundary>
+          <QueryClientProvider client={queryClient}>
+            <SettingsProvider>
+              <GestureHandlerRootView style={{ flex: 1 }}>
+                <KeyboardProvider>
+                  <AppLayout />
+                </KeyboardProvider>
+              </GestureHandlerRootView>
+            </SettingsProvider>
+          </QueryClientProvider>
+        </ErrorBoundary>
+      </ClerkLoaded>
+    </ClerkProvider>
   );
 }
