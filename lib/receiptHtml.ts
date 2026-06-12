@@ -27,14 +27,14 @@ function fmtDate(ts: number) {
 
 function logTable(rows: MeasurementRow[]): string {
   const totalKg = rows.reduce((s, r) => s + r.weightKg, 0);
-  const totalPcs = rows.reduce((s, r) => s + r.pcs, 0);
+  const totalPcs = rows.reduce((s, r) => s + (r.pcs ?? 0), 0);
   const bodyRows = rows
     .map(
       (row, idx) => `
       <tr class="${idx % 2 === 1 ? "shaded" : ""}">
         <td>${rows.length - idx}</td>
         <td class="right">${fmt(row.weightKg)}</td>
-        <td class="right">${row.pcs}</td>
+        <td class="right">${row.pcs ?? "Unknown"}</td>
         <td class="right">${fmtTime(row.timestamp)}</td>
       </tr>`
     )
@@ -71,7 +71,7 @@ export function generateReceiptHtml(
   const hasCull = (sale.cullRows?.length ?? 0) > 0;
   const cullRows = sale.cullRows ?? [];
   const cullTotalKg = cullRows.reduce((s, r) => s + r.weightKg, 0);
-  const cullTotalPcs = cullRows.reduce((s, r) => s + r.pcs, 0);
+  const cullTotalPcs = cullRows.reduce((s, r) => s + (r.pcs ?? 0), 0);
 
   const mainAmount =
     dholta?.main_amount ?? (dholta ? dholta.net_weight * dholta.price_per_kg : 0);
