@@ -14,7 +14,7 @@ import { Ionicons, Feather } from "@expo/vector-icons";
 import * as Crypto from "expo-crypto";
 import { useTheme } from "@/lib/useTheme";
 import { useSettings } from "@/lib/SettingsContext";
-import { formatWeight } from "@/lib/utils";
+import { formatWeight, formatPcs } from "@/lib/utils";
 import type { MeasurementRow, RowEditEntry } from "@/lib/types";
 
 interface Props {
@@ -25,6 +25,8 @@ interface Props {
   onSave: (updatedRow: MeasurementRow) => void;
   onViewHistory: (row: MeasurementRow) => void;
   enterPcsMode?: boolean;
+  // When pcs tracking is skipped, the bird count is optional and may stay unknown
+  pcsOptional?: boolean;
 }
 
 export function EditRowModal({
@@ -35,6 +37,7 @@ export function EditRowModal({
   onSave,
   onViewHistory,
   enterPcsMode = false,
+  pcsOptional = false,
 }: Props) {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
@@ -49,8 +52,9 @@ export function EditRowModal({
   useEffect(() => {
     if (visible && row) {
       setWeightInput(String(row.weightKg));
-      // In enterPcsMode, leave pcs blank so user must enter it
-      setPcsInput(enterPcsMode ? "" : String(row.pcs));
+      // Leave pcs blank in enterPcsMode (user must enter it) or when the count
+      // is still unknown (null) — never seed the field with "null".
+      setPcsInput(enterPcsMode || row.pcs == null ? "" : String(row.pcs));
       if (enterPcsMode) {
         // Small delay so the modal has finished animating before focus
         const t = setTimeout(() => pcsRef.current?.focus(), 350);
@@ -62,19 +66,27 @@ export function EditRowModal({
   if (!row) return null;
 
   const newWeight = parseFloat(weightInput);
-  const newPcs = parseInt(pcsInput, 10);
-  const isValid =
-    weightInput.length > 0 &&
-    pcsInput.length > 0 &&
-    !isNaN(newWeight) &&
-    newWeight > 0 &&
-    !isNaN(newPcs) &&
-    newPcs > 0;
+  // Bird count is required unless pcs tracking is optional (skipped). A blank
+  // field means "unknown" → stored as null.
+  const pcsRequired = !pcsOptional;
+  const hasPcsInput = pcsInput.trim().length > 0;
+  const newPcs: number | null = hasPcsInput ? parseInt(pcsInput, 10) : null;
 
-  // In enterPcsMode any valid entry counts as a save (no diff required)
-  const hasChanges = enterPcsMode
-    ? isValid
-    : isValid && (newWeight !== row.weightKg || newPcs !== row.pcs);
+  const weightValid =
+    weightInput.length > 0 && !isNaN(newWeight) && newWeight > 0;
+  const pcsValid = hasPcsInput
+    ? !isNaN(newPcs as number) && (newPcs as number) > 0
+    : !pcsRequired;
+  const isValid = weightValid && pcsValid;
+
+  const weightChanged = newWeight !== row.weightKg;
+  const pcsChanged = newPcs !== row.pcs;
+  const hasChanges = isValid && (weightChanged || pcsChanged);
+
+  // Only a genuine edit of existing data marks the row as "edited". Filling in a
+  // previously-unknown bird count (or entering it for the first time) does not.
+  const isGenuineEdit =
+    weightChanged || (row.pcs !== null && pcsChanged);
 
   const editCount = row.editHistory?.length ?? 0;
 
@@ -82,20 +94,25 @@ export function EditRowModal({
     if (!isValid || !hasChanges) return;
     Keyboard.dismiss();
 
-    const entry: RowEditEntry = {
-      id: Crypto.randomUUID(),
-      timestamp: Date.now(),
-      previousWeightKg: row.weightKg,
-      previousPcs: row.pcs,
-      newWeightKg: newWeight,
-      newPcs,
-    };
+    const editHistory = isGenuineEdit
+      ? [
+          {
+            id: Crypto.randomUUID(),
+            timestamp: Date.now(),
+            previousWeightKg: row.weightKg,
+            previousPcs: row.pcs,
+            newWeightKg: newWeight,
+            newPcs,
+          } satisfies RowEditEntry,
+          ...(row.editHistory ?? []),
+        ]
+      : row.editHistory;
 
     const updatedRow: MeasurementRow = {
       ...row,
       weightKg: newWeight,
       pcs: newPcs,
-      editHistory: [entry, ...(row.editHistory ?? [])],
+      editHistory,
     };
 
     onSave(updatedRow);
@@ -183,7 +200,8 @@ export function EditRowModal({
                 { fontFamily: "Outfit_700Bold" },
               ]}
             >
-              {formatWeight(row.weightKg)} KG — {row.pcs} {t.birds.toLowerCase()}
+              {formatWeight(row.weightKg)} KG — {formatPcs(row.pcs, t.unknown)}{" "}
+              {t.birds.toLowerCase()}
             </Text>
           </View>
 
