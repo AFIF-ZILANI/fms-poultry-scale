@@ -37,7 +37,7 @@ export async function updateSale(
 
   const sale: SaleRecord = JSON.parse(row.data);
   const totalWeightKg = updatedRows.reduce((s, r) => s + r.weightKg, 0);
-  const totalPcs = updatedRows.reduce((s, r) => s + r.pcs, 0);
+  const totalPcs = updatedRows.reduce((s, r) => s + (r.pcs ?? 0), 0);
   const avgWeightKg = totalPcs > 0 ? totalWeightKg / totalPcs : 0;
 
   const updated: SaleRecord = {
