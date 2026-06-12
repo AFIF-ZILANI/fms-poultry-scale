@@ -1,7 +1,7 @@
 import React from "react";
 import { View, Text } from "react-native";
 import type { SaleRecord } from "@/lib/types";
-import { formatWeight, formatDateTime } from "@/lib/utils";
+import { formatWeight, formatPcs, formatDateTime } from "@/lib/utils";
 
 interface Props {
   sale: SaleRecord;
@@ -159,7 +159,7 @@ function LogTable({
         >
           <Text style={[colNo, td]}>{rows.length - idx}</Text>
           <Text style={[colKg, td]}>{formatWeight(row.weightKg)}</Text>
-          <Text style={[colPcs, td]}>{row.pcs}</Text>
+          <Text style={[colPcs, td]}>{formatPcs(row.pcs, "Unknown")}</Text>
           <Text style={[colTime, td]}>{formatTime(row.timestamp)}</Text>
         </View>
       ))}
@@ -194,7 +194,7 @@ export function ReceiptView({ sale, farmName }: Props) {
   const hasCull = (sale.cullRows?.length ?? 0) > 0;
   const cullRows = sale.cullRows ?? [];
   const cullTotalKg = cullRows.reduce((s, r) => s + r.weightKg, 0);
-  const cullTotalPcs = cullRows.reduce((s, r) => s + r.pcs, 0);
+  const cullTotalPcs = cullRows.reduce((s, r) => s + (r.pcs ?? 0), 0);
 
   const mainAmount =
     dholta?.main_amount ?? (dholta ? dholta.net_weight * dholta.price_per_kg : 0);
