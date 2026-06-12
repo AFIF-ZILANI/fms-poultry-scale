@@ -21,7 +21,7 @@ import * as Crypto from "expo-crypto";
 import Animated, { FadeInDown, FadeIn } from "react-native-reanimated";
 import { useTheme } from "@/lib/useTheme";
 import { useSettings } from "@/lib/SettingsContext";
-import { formatWeight, getRelativeTime } from "@/lib/utils";
+import { formatWeight, formatPcs, sumPcs, getRelativeTime } from "@/lib/utils";
 import {
   saveSale,
   loadLastPricePerKg,
@@ -166,7 +166,7 @@ function RowItem({
               { color: theme.warm, fontFamily: "Outfit_600SemiBold" },
             ]}
           >
-            {row.pcs}
+            {formatPcs(row.pcs, t.unknown)}
           </Text>
         </View>
 
@@ -466,7 +466,7 @@ function DholtaModal({
   const deductionGNum = parseFloat(deductionG);
   const pricePerKgNum = parseFloat(pricePerKg);
   const cullPriceNum = parseFloat(cullPrice);
-  const cullPcs = cullRows.reduce((s, r) => s + r.pcs, 0);
+  const cullPcs = sumPcs(cullRows);
 
   // Cull session happened if rows were recorded
   const hasCull = cullRows.length > 0;
@@ -1492,7 +1492,7 @@ export default function MeasurementScreen() {
       createdAt: startTimeRef.current,
       updatedAt: Date.now(),
       totalWeightKg: rows.reduce((s, r) => s + r.weightKg, 0),
-      totalPcs: rows.reduce((s, r) => s + r.pcs, 0),
+      totalPcs: sumPcs(rows),
     };
     saveDraft(draft);
   }, [rows, mainRows, phase, pcsOptional]);
@@ -1507,11 +1507,13 @@ export default function MeasurementScreen() {
   }, []);
 
   const totalWeight = rows.reduce((sum, r) => sum + r.weightKg, 0);
-  const totalPcs = rows.reduce((sum, r) => sum + r.pcs, 0);
-  const avgWeight = totalPcs > 0 ? totalWeight / totalPcs : 0;
+  const totalPcs = sumPcs(rows);
+  // When pcs tracking is skipped, average per bird is meaningless — default to 0
+  // and hide it in the UI.
+  const avgWeight = pcsOptional || totalPcs === 0 ? 0 : totalWeight / totalPcs;
 
   const mainWeight = mainRows.reduce((sum, r) => sum + r.weightKg, 0);
-  const mainPcs = mainRows.reduce((sum, r) => sum + r.pcs, 0);
+  const mainPcs = sumPcs(mainRows);
 
   const handleAddRow = useCallback(() => {
     const weight = parseFloat(weightInput);
@@ -1526,7 +1528,9 @@ export default function MeasurementScreen() {
     const newRow: MeasurementRow = {
       id: Crypto.randomUUID(),
       weightKg: weight,
-      pcs: 1, // placeholder; updated via edit modal when !pcsOptional
+      // Unknown until entered. Tracked sessions capture it via the edit modal
+      // below; skipped (pcsOptional) sessions leave it unknown.
+      pcs: null,
       timestamp: Date.now(),
     };
 
@@ -1631,7 +1635,7 @@ export default function MeasurementScreen() {
         rowNumber: String(rowNumber),
         history: JSON.stringify(row.editHistory ?? []),
         currentWeightKg: String(row.weightKg),
-        currentPcs: String(row.pcs),
+        currentPcs: row.pcs == null ? "" : String(row.pcs),
       },
     });
   };
@@ -1673,6 +1677,7 @@ export default function MeasurementScreen() {
         onSave={handleEditSave}
         onViewHistory={handleViewHistory}
         enterPcsMode={isEnterPcsMode}
+        pcsOptional={pcsOptional}
       />
 
       <CullDialog
@@ -1836,7 +1841,7 @@ export default function MeasurementScreen() {
                 { fontFamily: "Outfit_700Bold" },
               ]}
             >
-              {totalPcs}
+              {pcsOptional ? t.unknown : totalPcs}
             </Text>
             <Text
               style={[
@@ -1847,30 +1852,35 @@ export default function MeasurementScreen() {
               {t.birds.toLowerCase()}
             </Text>
           </View>
-          <View style={styles.displayStatDot} />
-          <View style={styles.displayStatItem}>
-            <Feather
-              name="trending-up"
-              size={14}
-              color="rgba(255,255,255,0.5)"
-            />
-            <Text
-              style={[
-                styles.displayStatVal,
-                { fontFamily: "Outfit_700Bold" },
-              ]}
-            >
-              {formatWeight(avgWeight)}
-            </Text>
-            <Text
-              style={[
-                styles.displayStatLabel,
-                { fontFamily: "Outfit_400Regular" },
-              ]}
-            >
-              {t.avgPerBird}
-            </Text>
-          </View>
+          {/* Average per bird is meaningless without bird counts */}
+          {!pcsOptional && (
+            <>
+              <View style={styles.displayStatDot} />
+              <View style={styles.displayStatItem}>
+                <Feather
+                  name="trending-up"
+                  size={14}
+                  color="rgba(255,255,255,0.5)"
+                />
+                <Text
+                  style={[
+                    styles.displayStatVal,
+                    { fontFamily: "Outfit_700Bold" },
+                  ]}
+                >
+                  {formatWeight(avgWeight)}
+                </Text>
+                <Text
+                  style={[
+                    styles.displayStatLabel,
+                    { fontFamily: "Outfit_400Regular" },
+                  ]}
+                >
+                  {t.avgPerBird}
+                </Text>
+              </View>
+            </>
+          )}
         </View>
       </Animated.View>
 
