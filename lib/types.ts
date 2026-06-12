@@ -2,15 +2,17 @@ export interface RowEditEntry {
   id: string;
   timestamp: number;
   previousWeightKg: number;
-  previousPcs: number;
+  // null = bird count was unknown at the time
+  previousPcs: number | null;
   newWeightKg: number;
-  newPcs: number;
+  newPcs: number | null;
 }
 
 export interface MeasurementRow {
   id: string;
   weightKg: number;
-  pcs: number;
+  // null = bird count not entered (unknown), e.g. when pcs tracking is skipped
+  pcs: number | null;
   timestamp: number;
   editHistory?: RowEditEntry[];
 }
