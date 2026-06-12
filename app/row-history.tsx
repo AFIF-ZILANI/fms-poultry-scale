@@ -13,7 +13,7 @@ import { Ionicons, Feather } from "@expo/vector-icons";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { useTheme } from "@/lib/useTheme";
 import { useSettings } from "@/lib/SettingsContext";
-import { formatWeight, formatDateTime } from "@/lib/utils";
+import { formatWeight, formatPcs, formatDateTime } from "@/lib/utils";
 import type { RowEditEntry } from "@/lib/types";
 
 export default function RowHistoryScreen() {
@@ -29,7 +29,9 @@ export default function RowHistoryScreen() {
 
   const rowNumber = params.rowNumber ?? "?";
   const currentWeightKg = parseFloat(params.currentWeightKg ?? "0");
-  const currentPcs = parseInt(params.currentPcs ?? "0", 10);
+  const currentPcs: number | null = params.currentPcs
+    ? parseInt(params.currentPcs, 10)
+    : null;
   const history: RowEditEntry[] = params.history
     ? JSON.parse(params.history)
     : [];
@@ -110,7 +112,7 @@ export default function RowHistoryScreen() {
               { fontFamily: "Outfit_400Regular" },
             ]}
           >
-            {currentPcs} {t.birds.toLowerCase()}
+            {formatPcs(currentPcs, t.unknown)} {t.birds.toLowerCase()}
           </Text>
         </View>
 
@@ -233,7 +235,8 @@ export default function RowHistoryScreen() {
                           },
                         ]}
                       >
-                        {entry.previousPcs} {t.birds.toLowerCase()}
+                        {formatPcs(entry.previousPcs, t.unknown)}{" "}
+                        {t.birds.toLowerCase()}
                       </Text>
                     </View>
 
@@ -277,7 +280,8 @@ export default function RowHistoryScreen() {
                           },
                         ]}
                       >
-                        {entry.newPcs} {t.birds.toLowerCase()}
+                        {formatPcs(entry.newPcs, t.unknown)}{" "}
+                        {t.birds.toLowerCase()}
                       </Text>
                     </View>
                   </View>
@@ -308,7 +312,9 @@ export default function RowHistoryScreen() {
                       {entry.newWeightKg > entry.previousWeightKg ? "+" : ""}
                       {formatWeight(entry.newWeightKg - entry.previousWeightKg)}{" "}
                       KG
-                      {entry.newPcs !== entry.previousPcs
+                      {entry.previousPcs !== null &&
+                      entry.newPcs !== null &&
+                      entry.newPcs !== entry.previousPcs
                         ? `, ${entry.newPcs > entry.previousPcs ? "+" : ""}${entry.newPcs - entry.previousPcs} ${t.birds.toLowerCase()}`
                         : ""}
                     </Text>
