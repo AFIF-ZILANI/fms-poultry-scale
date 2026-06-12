@@ -12,6 +12,7 @@ const en = {
   yes: "Yes",
   no: "No",
   optional: "Optional",
+  unknown: "Unknown",
 
   homeSalesRecorded: (n: number) =>
     `${n} sale${n !== 1 ? "s" : ""} recorded`,
@@ -180,6 +181,7 @@ const bn: typeof en = {
   yes: "হ্যাঁ",
   no: "না",
   optional: "ঐচ্ছিক",
+  unknown: "অজানা",
 
   homeSalesRecorded: (n: number) => `${n}টি বিক্রয় রেকর্ড`,
   homeReadyToWeigh: "মাপজোক শুরু করুন",
