@@ -2,6 +2,20 @@ export function formatWeight(kg: number): string {
   return kg.toFixed(2);
 }
 
+// Bird count can be unknown (null) when pcs tracking is skipped or not yet
+// entered — show the localized "unknown" label instead of a misleading number.
+export function formatPcs(
+  pcs: number | null | undefined,
+  unknownLabel: string
+): string {
+  return pcs == null ? unknownLabel : String(pcs);
+}
+
+// Sum bird counts, treating unknown (null) entries as 0.
+export function sumPcs(rows: { pcs: number | null }[]): number {
+  return rows.reduce((s, r) => s + (r.pcs ?? 0), 0);
+}
+
 export function kgToGrams(kg: number): number {
   return Math.round(kg * 1000);
 }
