@@ -14,7 +14,7 @@ import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { useTheme } from "@/lib/useTheme";
 import { useSettings } from "@/lib/SettingsContext";
-import { formatWeight, formatDateTime } from "@/lib/utils";
+import { formatWeight, formatPcs, sumPcs, formatDateTime } from "@/lib/utils";
 import { loadSales } from "@/lib/storage";
 import type { MeasurementRow, SaleRecord } from "@/lib/types";
 
@@ -83,7 +83,7 @@ export default function SessionLogsScreen() {
     : sale.rows;
 
   const totalKg = rows.reduce((s, r) => s + r.weightKg, 0);
-  const totalPcs = rows.reduce((s, r) => s + r.pcs, 0);
+  const totalPcs = sumPcs(rows);
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
@@ -321,7 +321,7 @@ export default function SessionLogsScreen() {
                             },
                           ]}
                         >
-                          {row.pcs}
+                          {formatPcs(row.pcs, t.unknown)}
                         </Text>
                       </View>
                     </View>
