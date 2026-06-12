@@ -94,7 +94,7 @@ export default function SaleDetailScreen() {
   const { dholta } = sale;
   const hasCull = (sale.cullRows?.length ?? 0) > 0;
   const cullTotalKg = hasCull ? (sale.cullRows ?? []).reduce((s, r) => s + r.weightKg, 0) : 0;
-  const cullTotalPcs = hasCull ? (sale.cullRows ?? []).reduce((s, r) => s + r.pcs, 0) : 0;
+  const cullTotalPcs = hasCull ? (sale.cullRows ?? []).reduce((s, r) => s + (r.pcs ?? 0), 0) : 0;
 
   const mainAmount = dholta?.main_amount ?? (dholta ? dholta.net_weight * dholta.price_per_kg : 0);
   const cullAmount = dholta?.cull_amount ?? 0;
