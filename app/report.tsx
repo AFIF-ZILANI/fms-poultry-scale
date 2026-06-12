@@ -17,6 +17,8 @@ import { useTheme } from "@/lib/useTheme";
 import { useSettings } from "@/lib/SettingsContext";
 import {
   formatWeight,
+  formatPcs,
+  sumPcs,
   kgToGrams,
   formatGrams,
   formatDateTime,
@@ -32,7 +34,7 @@ export default function ReportScreen() {
 
   const rows: MeasurementRow[] = params.rows ? JSON.parse(params.rows) : [];
   const totalWeightKg = rows.reduce((sum, r) => sum + r.weightKg, 0);
-  const totalPcs = rows.reduce((sum, r) => sum + r.pcs, 0);
+  const totalPcs = sumPcs(rows);
   const avgWeightKg = totalPcs > 0 ? totalWeightKg / totalPcs : 0;
   const totalWeightGrams = kgToGrams(totalWeightKg);
   const avgWeightGrams = kgToGrams(avgWeightKg);
@@ -336,7 +338,7 @@ export default function ReportScreen() {
                       { color: theme.warm, fontFamily: "Outfit_500Medium" },
                     ]}
                   >
-                    {row.pcs}
+                    {formatPcs(row.pcs, t.unknown)}
                   </Text>
                 </View>
               </View>
