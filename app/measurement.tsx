@@ -38,7 +38,7 @@ import { EditRowModal } from "@/components/EditRowModal";
 import type {
   MeasurementRow,
   SaleRecord,
-  DholtaDetails,
+  TradeDeduction,
   DraftSession,
 } from "@/lib/types";
 
@@ -51,7 +51,7 @@ function formatTimer(seconds: number): string {
   return `${pad(m)}:${pad(s)}`;
 }
 
-function calcDholta(
+function calcDeduction(
   totalWeight: number,
   kgPerCrate: number,
   deductionPerCrateG: number,
@@ -76,19 +76,19 @@ function RowItem({
   onEdit: (row: MeasurementRow) => void;
 }) {
   const { t } = useSettings();
-  const [timeAgo, setTimeAgo] = useState(getRelativeTime(row.timestamp));
+  const [timeAgo, setTimeAgo] = useState(getRelativeTime(row.timestamp, t));
   const lastEdit = row.editHistory?.[0];
   const [editAgo, setEditAgo] = useState(
-    lastEdit ? getRelativeTime(lastEdit.timestamp) : ""
+    lastEdit ? getRelativeTime(lastEdit.timestamp, t) : ""
   );
 
   useEffect(() => {
     const interval = setInterval(() => {
-      setTimeAgo(getRelativeTime(row.timestamp));
-      if (lastEdit) setEditAgo(getRelativeTime(lastEdit.timestamp));
+      setTimeAgo(getRelativeTime(row.timestamp, t));
+      if (lastEdit) setEditAgo(getRelativeTime(lastEdit.timestamp, t));
     }, 5000);
     return () => clearInterval(interval);
-  }, [row.timestamp, lastEdit]);
+  }, [row.timestamp, lastEdit, t]);
 
   return (
     <Animated.View
@@ -404,10 +404,11 @@ function CullDialog({
   );
 }
 
-function DholtaModal({
+function TradeDeductionModal({
   visible,
   totalWeight,
   totalPcs,
+  pcsTracked,
   rows,
   cullWeightKg,
   cullRows,
@@ -419,6 +420,7 @@ function DholtaModal({
   visible: boolean;
   totalWeight: number;
   totalPcs: number;
+  pcsTracked: boolean;
   rows: MeasurementRow[];
   cullWeightKg: number;
   cullRows: MeasurementRow[];
@@ -492,7 +494,7 @@ function DholtaModal({
   // For pcs_only mode, cullWeightKg is 0 so subtotalGross = totalWeight.
   const subtotalGross = totalWeight - cullWeightKg;
   const calc = isValid
-    ? calcDholta(subtotalGross, kgPerCrateNum, deductionGNum, fullCratesOnly)
+    ? calcDeduction(subtotalGross, kgPerCrateNum, deductionGNum, fullCratesOnly)
     : null;
 
   // net main weight = subtotalGross - crate_deduction
@@ -528,7 +530,7 @@ function DholtaModal({
     setSaving(true);
 
     try {
-      const dholta: DholtaDetails = {
+      const deduction: TradeDeduction = {
         gross_weight: totalWeight,
         kg_per_crate: kgPerCrateNum,
         deduction_per_crate_g: deductionGNum,
@@ -556,12 +558,13 @@ function DholtaModal({
         totalWeightKg: totalWeight,
         totalWeightGrams,
         totalPcs,
+        pcsTracked,
         averageWeightKg: avgWeightKg,
         averageWeightGrams: avgWeightGrams,
         rows,
         cullRows: cullRows.length > 0 ? cullRows : undefined,
         createdAt: Date.now(),
-        dholta,
+        deduction,
         receivedAmount: validReceivedAmount ? receivedAmountNum : undefined,
         buyerName: buyerName.trim() || undefined,
       };
@@ -812,7 +815,7 @@ function DholtaModal({
                     { color: theme.text, fontFamily: "Outfit_500Medium" },
                   ]}
                 >
-                  {t.dholtaPerCrate}
+                  {t.deductionPerCrate}
                 </Text>
               </View>
               <TextInput
@@ -1175,7 +1178,7 @@ function DholtaModal({
 
               {/* Crate deduction */}
               <SummaryRow
-                label={`${calc.totalCrates} × ${deductionGNum}g dholta`}
+                label={`${calc.totalCrates} × ${deductionGNum}g deduction`}
                 value={`−${formatWeight(calc.totalDeductionKg)} KG`}
                 theme={theme}
                 isNegative
@@ -1437,7 +1440,7 @@ export default function MeasurementScreen() {
   const [pcsOptional, setPcsOptional] = useState(false);
   const [weightInput, setWeightInput] = useState("");
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
-  const [showDholta, setShowDholta] = useState(false);
+  const [showDeductionModal, setShowDeductionModal] = useState(false);
   const [showCullDialog, setShowCullDialog] = useState(false);
   const [editingRow, setEditingRow] = useState<MeasurementRow | null>(null);
   const [isEnterPcsMode, setIsEnterPcsMode] = useState(false);
@@ -1515,16 +1518,7 @@ export default function MeasurementScreen() {
   const mainWeight = mainRows.reduce((sum, r) => sum + r.weightKg, 0);
   const mainPcs = sumPcs(mainRows);
 
-  const handleAddRow = useCallback(() => {
-    const weight = parseFloat(weightInput);
-
-    if (isNaN(weight) || weight <= 0) {
-      if (Platform.OS !== "web") {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      }
-      return;
-    }
-
+  const performAddRow = useCallback((weight: number) => {
     const newRow: MeasurementRow = {
       id: Crypto.randomUUID(),
       weightKg: weight,
@@ -1550,7 +1544,28 @@ export default function MeasurementScreen() {
         setIsEnterPcsMode(true);
       }, 800);
     }
-  }, [weightInput, pcsOptional]);
+  }, [pcsOptional]);
+
+  const handleAddRow = useCallback(() => {
+    const weight = parseFloat(weightInput);
+
+    if (isNaN(weight) || weight <= 0) {
+      if (Platform.OS !== "web") {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      }
+      return;
+    }
+
+    if (weight > 500 && Platform.OS !== "web") {
+      Alert.alert(t.weightTooLargeTitle, t.weightTooLargeMessage, [
+        { text: t.cancel, style: "cancel" },
+        { text: t.addAnyway, onPress: () => performAddRow(weight) },
+      ]);
+      return;
+    }
+
+    performAddRow(weight);
+  }, [weightInput, performAddRow, t]);
 
   const handleDeleteLast = () => {
     if (rows.length === 0) return;
@@ -1586,7 +1601,7 @@ export default function MeasurementScreen() {
     if (phase === "main") {
       setShowCullDialog(true);
     } else {
-      setShowDholta(true);
+      setShowDeductionModal(true);
     }
   };
 
@@ -1602,7 +1617,7 @@ export default function MeasurementScreen() {
 
   const handleCullNo = () => {
     setShowCullDialog(false);
-    setShowDholta(true);
+    setShowDeductionModal(true);
   };
 
   const handleBack = () => {
@@ -1640,11 +1655,11 @@ export default function MeasurementScreen() {
     });
   };
 
-  const dholtaMainWeight = phase === "cull" ? mainWeight : totalWeight;
-  const dholtaMainPcs = phase === "cull" ? mainPcs : totalPcs;
-  const dholtaMainRows = phase === "cull" ? mainRows : rows;
-  const dholtaCullWeight = phase === "cull" ? totalWeight : 0;
-  const dholtaCullRows = phase === "cull" ? rows : [];
+  const deductionMainWeight = phase === "cull" ? mainWeight : totalWeight;
+  const deductionMainPcs = phase === "cull" ? mainPcs : totalPcs;
+  const deductionMainRows = phase === "cull" ? mainRows : rows;
+  const deductionCullWeight = phase === "cull" ? totalWeight : 0;
+  const deductionCullRows = phase === "cull" ? rows : [];
 
   const webTopInset = Platform.OS === "web" ? 67 : 0;
   const webBottomInset = Platform.OS === "web" ? 34 : 0;
@@ -1687,18 +1702,19 @@ export default function MeasurementScreen() {
         onNo={handleCullNo}
       />
 
-      <DholtaModal
-        visible={showDholta}
-        totalWeight={dholtaMainWeight}
-        totalPcs={dholtaMainPcs}
-        rows={dholtaMainRows}
-        cullWeightKg={dholtaCullWeight}
-        cullRows={dholtaCullRows}
+      <TradeDeductionModal
+        visible={showDeductionModal}
+        totalWeight={deductionMainWeight}
+        totalPcs={deductionMainPcs}
+        pcsTracked={!pcsOptional}
+        rows={deductionMainRows}
+        cullWeightKg={deductionCullWeight}
+        cullRows={deductionCullRows}
         theme={theme}
         insets={insets}
-        onCancel={() => setShowDholta(false)}
+        onCancel={() => setShowDeductionModal(false)}
         onSaved={async () => {
-          setShowDholta(false);
+          setShowDeductionModal(false);
           await deleteDraft(sessionDraftId.current);
           router.dismissAll();
         }}

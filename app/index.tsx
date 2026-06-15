@@ -32,7 +32,7 @@ function SaleCard({
   onDelete: (id: string) => void;
   t: ReturnType<typeof useSettings>["t"];
 }) {
-  const { dholta } = sale;
+  const { deduction } = sale;
 
   const handleDelete = () => {
     if (Platform.OS === "web") {
@@ -135,7 +135,7 @@ function SaleCard({
                 { color: theme.warm, fontFamily: "Outfit_700Bold" },
               ]}
             >
-              {sale.totalPcs}
+              {sale.pcsTracked === false ? "—" : sale.totalPcs}
             </Text>
             <Text
               style={[
@@ -154,8 +154,8 @@ function SaleCard({
                 { color: theme.text, fontFamily: "Outfit_700Bold" },
               ]}
             >
-              {dholta
-                ? formatWeight(dholta.net_weight)
+              {deduction
+                ? formatWeight(deduction.net_weight)
                 : formatWeight(sale.averageWeightKg)}
             </Text>
             <Text
@@ -164,59 +164,59 @@ function SaleCard({
                 { color: theme.textTertiary, fontFamily: "Outfit_500Medium" },
               ]}
             >
-              {dholta ? t.netKg : t.avgKg}
+              {deduction ? t.netKg : t.avgKg}
             </Text>
           </View>
         </View>
 
-        {dholta ? (
+        {deduction ? (
           <View
             style={[
-              styles.dholtaStrip,
+              styles.deductionStrip,
               {
                 backgroundColor: theme.accentLight,
                 borderTopColor: theme.borderLight,
               },
             ]}
           >
-            <View style={styles.dholtaLeft}>
+            <View style={styles.deductionLeft}>
               <Feather name="minus-circle" size={13} color={theme.accent} />
               <Text
                 style={[
-                  styles.dholtaDeduction,
+                  styles.deductionLabel,
                   {
                     color: theme.textSecondary,
                     fontFamily: "Outfit_400Regular",
                   },
                 ]}
               >
-                {t.dholta}{" "}
+                {t.deductionShort}{" "}
                 <Text
                   style={{
                     fontFamily: "Outfit_600SemiBold",
                     color: theme.danger,
                   }}
                 >
-                  -{formatWeight(dholta.total_deduction_kg)} KG
+                  -{formatWeight(deduction.total_deduction_kg)} KG
                 </Text>
                 {"  "}
                 <Text style={{ color: theme.textTertiary }}>
                   (
-                  {dholta.total_crates % 1 === 0
-                    ? dholta.total_crates
-                    : dholta.total_crates.toFixed(2)}{" "}
+                  {deduction.total_crates % 1 === 0
+                    ? deduction.total_crates
+                    : deduction.total_crates.toFixed(2)}{" "}
                   crates)
                 </Text>
               </Text>
             </View>
             <Text
               style={[
-                styles.dholtaAmount,
+                styles.deductionAmount,
                 { color: theme.accent, fontFamily: "Outfit_700Bold" },
               ]}
             >
               Tk{" "}
-              {dholta.final_amount.toLocaleString("en-PK", {
+              {deduction.final_amount.toLocaleString("en-PK", {
                 maximumFractionDigits: 0,
               })}
             </Text>
@@ -612,7 +612,7 @@ const styles = StyleSheet.create({
   rowInfoText: { fontSize: 12 },
   viewDetailRow: { flexDirection: "row", alignItems: "center", gap: 2 },
   viewDetailText: { fontSize: 12 },
-  dholtaStrip: {
+  deductionStrip: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
@@ -620,9 +620,9 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderTopWidth: 1,
   },
-  dholtaLeft: { flexDirection: "row", alignItems: "center", gap: 6, flex: 1 },
-  dholtaDeduction: { fontSize: 12, flexShrink: 1 },
-  dholtaAmount: { fontSize: 16, marginLeft: 8 },
+  deductionLeft: { flexDirection: "row", alignItems: "center", gap: 6, flex: 1 },
+  deductionLabel: { fontSize: 12, flexShrink: 1 },
+  deductionAmount: { fontSize: 16, marginLeft: 8 },
   fab: {
     position: "absolute",
     right: 20,

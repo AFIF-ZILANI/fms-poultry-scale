@@ -24,22 +24,31 @@ export function formatGrams(grams: number): string {
   return grams.toLocaleString();
 }
 
-export function getRelativeTime(timestamp: number): string {
-  const now = Date.now();
-  const diff = Math.floor((now - timestamp) / 1000);
+export interface RelTimeStrings {
+  justNow: string;
+  secsAgo: (n: number) => string;
+  minsAgo: (n: number) => string;
+  hoursAgo: (n: number) => string;
+  daysAgo: (n: number) => string;
+}
 
-  if (diff < 5) return "just now";
-  if (diff < 60) return `${diff}s ago`;
-  if (diff < 3600) {
-    const mins = Math.floor(diff / 60);
-    return `${mins}m ago`;
-  }
-  if (diff < 86400) {
-    const hours = Math.floor(diff / 3600);
-    return `${hours}h ago`;
-  }
-  const days = Math.floor(diff / 86400);
-  return `${days}d ago`;
+const defaultRelTime: RelTimeStrings = {
+  justNow: "just now",
+  secsAgo: (n) => `${n}s ago`,
+  minsAgo: (n) => `${n}m ago`,
+  hoursAgo: (n) => `${n}h ago`,
+  daysAgo: (n) => `${n}d ago`,
+};
+
+export function getRelativeTime(timestamp: number, s?: RelTimeStrings): string {
+  const { justNow, secsAgo, minsAgo, hoursAgo, daysAgo } = s ?? defaultRelTime;
+  const diff = Math.floor((Date.now() - timestamp) / 1000);
+
+  if (diff < 5) return justNow;
+  if (diff < 60) return secsAgo(diff);
+  if (diff < 3600) return minsAgo(Math.floor(diff / 60));
+  if (diff < 86400) return hoursAgo(Math.floor(diff / 3600));
+  return daysAgo(Math.floor(diff / 86400));
 }
 
 export function formatDateTime(timestamp: number): string {

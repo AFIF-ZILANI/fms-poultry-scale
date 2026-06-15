@@ -8,7 +8,15 @@ export async function loadSales(): Promise<SaleRecord[]> {
   const rows = await db.getAllAsync<{ data: string }>(
     "SELECT data FROM sales ORDER BY created_at DESC"
   );
-  return rows.map((r) => JSON.parse(r.data) as SaleRecord);
+  return rows.map((r) => {
+    const parsed = JSON.parse(r.data) as SaleRecord & { dholta?: SaleRecord["deduction"] };
+    // Migrate old records that stored trade deduction under the "dholta" key
+    if (!parsed.deduction && parsed.dholta) {
+      parsed.deduction = parsed.dholta;
+      delete (parsed as unknown as Record<string, unknown>).dholta;
+    }
+    return parsed as SaleRecord;
+  });
 }
 
 export async function saveSale(sale: SaleRecord): Promise<void> {
@@ -40,6 +48,27 @@ export async function updateSale(
   const totalPcs = updatedRows.reduce((s, r) => s + (r.pcs ?? 0), 0);
   const avgWeightKg = totalPcs > 0 ? totalWeightKg / totalPcs : 0;
 
+  // Recompute trade deduction with updated gross weight
+  let updatedDeduction = sale.deduction;
+  if (updatedDeduction) {
+    const d = updatedDeduction;
+    const rawCrates = totalWeightKg / d.kg_per_crate;
+    const totalCrates = d.full_crates_only ? Math.floor(rawCrates) : rawCrates;
+    const totalDeductionKg = (totalCrates * d.deduction_per_crate_g) / 1000;
+    const netWeight = Math.max(0, totalWeightKg - totalDeductionKg - d.cull_weight_kg);
+    const mainAmount = netWeight * d.price_per_kg;
+    const finalAmount = mainAmount + (d.cull_amount ?? 0);
+    updatedDeduction = {
+      ...d,
+      gross_weight: totalWeightKg,
+      total_crates: totalCrates,
+      total_deduction_kg: totalDeductionKg,
+      net_weight: netWeight,
+      main_amount: mainAmount,
+      final_amount: finalAmount,
+    };
+  }
+
   const updated: SaleRecord = {
     ...sale,
     rows: updatedRows,
@@ -48,6 +77,7 @@ export async function updateSale(
     totalPcs,
     averageWeightKg: avgWeightKg,
     averageWeightGrams: Math.round(avgWeightKg * 1000),
+    deduction: updatedDeduction,
   };
 
   await db.runAsync("UPDATE sales SET data = ? WHERE id = ?", [

@@ -26,7 +26,7 @@ const en = {
   grossKg: "Gross KG",
   netKg: "Net KG",
   avgKg: "Avg KG",
-  dholta: "Dholta",
+  deductionShort: "Deduction",
   viewDetail: "View detail",
   weighings: (n: number) => `${n} weighing${n !== 1 ? "s" : ""}`,
 
@@ -51,8 +51,8 @@ const en = {
   tradeDeduction: "Trade Deduction",
   grossWeight: "Gross Weight",
   deductionParams: "DEDUCTION PARAMETERS",
+  deductionPerCrate: "Deduction per Crate (g)",
   kgPerCrate: "KG per Crate",
-  dholtaPerCrate: "Dholta per Crate (g)",
   pricePerKg: "Price per KG",
   fullCratesOnly: "Full crates only (floor logic)",
   fullCratesOnlyHint: "Deduct only on complete crates, ignore partial",
@@ -65,6 +65,11 @@ const en = {
   finalAmount: "Final Amount",
   confirmSave: "Confirm & Save Sale",
   receivedAmount: "Received Amount",
+
+  // Weight validation
+  weightTooLargeTitle: "Large Weight",
+  weightTooLargeMessage: "This seems larger than a typical batch. Add anyway?",
+  addAnyway: "Add Anyway",
 
   // PCS optional setup dialog
   pcsOptionalTitle: "Bird Count",
@@ -129,8 +134,8 @@ const en = {
   discard: "Discard",
 
   saleDetail: "Sale Detail",
-  tradeDeductionDholta: "TRADE DEDUCTION (DHOLTA)",
-  deductionPerCrate: "Dholta per Crate",
+  tradeDeductionHeader: "TRADE DEDUCTION",
+  deductionPerCrateLabel: "Deduction per Crate",
   totalCratesFull: "Total Crates (full)",
   netWeight: "Net Weight",
   edited: "edited",
@@ -164,9 +169,16 @@ const en = {
   version: "Version",
   sectionDefaults: "DEFAULT DEDUCTIONS",
   defaultKgPerCrate: "Default KG per Crate",
-  defaultDholtaG: "Default Dholta (g)",
+  defaultDeductionG: "Default Deduction (g)",
   defaultPricePerKg: "Default Price / KG",
   sectionFarm: "FARM",
+
+  // Relative time
+  justNow: "just now",
+  secsAgo: (n: number) => `${n}s ago`,
+  minsAgo: (n: number) => `${n}m ago`,
+  hoursAgo: (n: number) => `${n}h ago`,
+  daysAgo: (n: number) => `${n}d ago`,
 };
 
 const bn: typeof en = {
@@ -194,7 +206,7 @@ const bn: typeof en = {
   grossKg: "মোট কেজি",
   netKg: "নেট কেজি",
   avgKg: "গড় কেজি",
-  dholta: "ঢলতা",
+  deductionShort: "ঢলতা",
   viewDetail: "বিবরণ দেখুন",
   weighings: (n: number) => `${n}টি পরিমাপ`,
 
@@ -219,8 +231,8 @@ const bn: typeof en = {
   tradeDeduction: "বাণিজ্য কর্তন",
   grossWeight: "মোট ওজন",
   deductionParams: "কর্তনের তথ্য",
+  deductionPerCrate: "প্রতি ক্রেটে ঢলতা (গ্রাম)",
   kgPerCrate: "প্রতি ক্রেটে কেজি",
-  dholtaPerCrate: "প্রতি ক্রেটে ঢলতা (গ্রাম)",
   pricePerKg: "প্রতি কেজির দাম",
   fullCratesOnly: "শুধু পূর্ণ ক্রেট (ফ্লোর)",
   fullCratesOnlyHint: "আংশিক ক্রেট বাদে শুধু পূর্ণ ক্রেট থেকে কর্তন",
@@ -233,6 +245,10 @@ const bn: typeof en = {
   finalAmount: "চূড়ান্ত পরিমাণ",
   confirmSave: "নিশ্চিত করুন ও সেভ করুন",
   receivedAmount: "প্রাপ্ত পরিমাণ",
+
+  weightTooLargeTitle: "বড় ওজন",
+  weightTooLargeMessage: "এটি সাধারণ ব্যাচের চেয়ে বেশি মনে হচ্ছে। যোগ করবেন?",
+  addAnyway: "তবুও যোগ করুন",
 
   pcsOptionalTitle: "মুরগির সংখ্যা",
   pcsOptionalDesc: "প্রতিটি এন্ট্রিতে সংখ্যা না রাখলে গড় ওজন নির্ভুল হবে না এবং বিশ্লেষণ সীমিত হবে।",
@@ -292,8 +308,8 @@ const bn: typeof en = {
   discard: "বাতিল করুন",
 
   saleDetail: "বিক্রয়ের বিবরণ",
-  tradeDeductionDholta: "বাণিজ্য কর্তন (ঢলতা)",
-  deductionPerCrate: "প্রতি ক্রেটে ঢলতা",
+  tradeDeductionHeader: "বাণিজ্য কর্তন (ঢলতা)",
+  deductionPerCrateLabel: "প্রতি ক্রেটে ঢলতা",
   totalCratesFull: "মোট ক্রেট (পূর্ণ)",
   netWeight: "নেট ওজন",
   edited: "সম্পাদিত",
@@ -326,9 +342,15 @@ const bn: typeof en = {
   version: "সংস্করণ",
   sectionDefaults: "ডিফল্ট কর্তন",
   defaultKgPerCrate: "ডিফল্ট কেজি/ক্রেট",
-  defaultDholtaG: "ডিফল্ট ঢলতা (গ্রাম)",
+  defaultDeductionG: "ডিফল্ট ঢলতা (গ্রাম)",
   defaultPricePerKg: "ডিফল্ট দাম/কেজি",
   sectionFarm: "খামার",
+
+  justNow: "এইমাত্র",
+  secsAgo: (n: number) => `${n} সেকেন্ড আগে`,
+  minsAgo: (n: number) => `${n} মিনিট আগে`,
+  hoursAgo: (n: number) => `${n} ঘণ্টা আগে`,
+  daysAgo: (n: number) => `${n} দিন আগে`,
 };
 
 export const translations = { en, bn };

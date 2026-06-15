@@ -190,19 +190,19 @@ function LogTable({
 }
 
 export function ReceiptView({ sale, farmName }: Props) {
-  const { dholta } = sale;
+  const { deduction } = sale;
   const hasCull = (sale.cullRows?.length ?? 0) > 0;
   const cullRows = sale.cullRows ?? [];
   const cullTotalKg = cullRows.reduce((s, r) => s + r.weightKg, 0);
   const cullTotalPcs = cullRows.reduce((s, r) => s + (r.pcs ?? 0), 0);
 
   const mainAmount =
-    dholta?.main_amount ?? (dholta ? dholta.net_weight * dholta.price_per_kg : 0);
-  const cullAmount = dholta?.cull_amount ?? 0;
-  const cullSold = dholta?.cull_sold ?? false;
+    deduction?.main_amount ?? (deduction ? deduction.net_weight * deduction.price_per_kg : 0);
+  const cullAmount = deduction?.cull_amount ?? 0;
+  const cullSold = deduction?.cull_sold ?? false;
   const balanceDue =
-    sale.receivedAmount != null && dholta
-      ? dholta.final_amount - sale.receivedAmount
+    sale.receivedAmount != null && deduction
+      ? deduction.final_amount - sale.receivedAmount
       : null;
 
   const shortId = sale.id.replace(/-/g, "").slice(0, 8).toUpperCase();
@@ -259,13 +259,13 @@ export function ReceiptView({ sale, farmName }: Props) {
             </Text>
           </View>
         </View>
-        {dholta && (
+        {deduction && (
           <>
             <View style={{ height: 1, backgroundColor: C.border }} />
             <View style={{ flexDirection: "row" }}>
               <View style={{ flex: 1, padding: 12 }}>
                 <Text style={{ fontSize: 17, fontFamily: "Outfit_700Bold", color: C.text }}>
-                  {formatWeight(dholta.net_weight)} KG
+                  {formatWeight(deduction.net_weight)} KG
                 </Text>
                 <Text style={{ fontSize: 9, fontFamily: "Outfit_500Medium", color: C.muted, marginTop: 2, letterSpacing: 0.4 }}>
                   NET WEIGHT
@@ -274,7 +274,7 @@ export function ReceiptView({ sale, farmName }: Props) {
               <View style={{ width: 1, backgroundColor: C.border }} />
               <View style={{ flex: 1, padding: 12 }}>
                 <Text style={{ fontSize: 17, fontFamily: "Outfit_700Bold", color: C.text }}>
-                  Tk {dholta.price_per_kg.toFixed(2)}
+                  Tk {deduction.price_per_kg.toFixed(2)}
                 </Text>
                 <Text style={{ fontSize: 9, fontFamily: "Outfit_500Medium", color: C.muted, marginTop: 2, letterSpacing: 0.4 }}>
                   PRICE / KG
@@ -286,24 +286,24 @@ export function ReceiptView({ sale, farmName }: Props) {
       </View>
 
       {/* ── Calculation ─────────────────────────────────────────── */}
-      {dholta && (() => {
-        const base = dholta.gross_weight - dholta.cull_weight_kg;
-        const rawCrates = base / dholta.kg_per_crate;
-        const crateNote = dholta.full_crates_only
-          ? `${formatWeight(base)} ÷ ${dholta.kg_per_crate} = ${rawCrates.toFixed(3)} → ${dholta.total_crates} crates`
-          : `${formatWeight(base)} ÷ ${dholta.kg_per_crate} = ${dholta.total_crates.toFixed(3)} crates`;
+      {deduction && (() => {
+        const base = deduction.gross_weight - deduction.cull_weight_kg;
+        const rawCrates = base / deduction.kg_per_crate;
+        const crateNote = deduction.full_crates_only
+          ? `${formatWeight(base)} ÷ ${deduction.kg_per_crate} = ${rawCrates.toFixed(3)} → ${deduction.total_crates} crates`
+          : `${formatWeight(base)} ÷ ${deduction.kg_per_crate} = ${deduction.total_crates.toFixed(3)} crates`;
 
         return (
           <>
             <SectionLabel label="Calculation Detail" />
 
-            <CalcRow label="Gross weight" value={`${formatWeight(dholta.gross_weight)} KG`} />
+            <CalcRow label="Gross weight" value={`${formatWeight(deduction.gross_weight)} KG`} />
 
-            {dholta.cull_weight_kg > 0 ? (
+            {deduction.cull_weight_kg > 0 ? (
               <>
                 <CalcRow
                   label="Cull weight"
-                  value={`−${formatWeight(dholta.cull_weight_kg)} KG`}
+                  value={`−${formatWeight(deduction.cull_weight_kg)} KG`}
                   valColor={C.red}
                 />
                 <CalcRow
@@ -318,8 +318,8 @@ export function ReceiptView({ sale, farmName }: Props) {
             <CalcRow label={crateNote} indent />
 
             <CalcRow
-              label={`${dholta.total_crates} crates × ${dholta.deduction_per_crate_g}g dholta`}
-              value={`−${formatWeight(dholta.total_deduction_kg)} KG`}
+              label={`${deduction.total_crates} crates × ${deduction.deduction_per_crate_g}g deduction`}
+              value={`−${formatWeight(deduction.total_deduction_kg)} KG`}
               valColor={C.red}
             />
 
@@ -340,19 +340,19 @@ export function ReceiptView({ sale, farmName }: Props) {
                 Net payable weight
               </Text>
               <Text style={{ fontSize: 16, fontFamily: "Outfit_700Bold", color: C.text }}>
-                {formatWeight(dholta.net_weight)} KG
+                {formatWeight(deduction.net_weight)} KG
               </Text>
             </View>
 
-            <CalcRow label={`× Tk ${dholta.price_per_kg.toFixed(2)} / kg`} indent />
+            <CalcRow label={`× Tk ${deduction.price_per_kg.toFixed(2)} / kg`} indent />
             <CalcRow label="Main amount" value={tk(mainAmount)} />
 
             {cullSold && cullAmount > 0 && (
               <CalcRow
                 label={
-                  dholta.cull_pricing_mode === "per_kg"
-                    ? `Cull: ${formatWeight(dholta.cull_weight_kg)} kg × Tk ${dholta.cull_price?.toFixed(2)}`
-                    : `Cull: ${dholta.cull_pcs} birds × Tk ${dholta.cull_price?.toFixed(2)}`
+                  deduction.cull_pricing_mode === "per_kg"
+                    ? `Cull: ${formatWeight(deduction.cull_weight_kg)} kg × Tk ${deduction.cull_price?.toFixed(2)}`
+                    : `Cull: ${deduction.cull_pcs} birds × Tk ${deduction.cull_price?.toFixed(2)}`
                 }
                 value={`+ ${tk(cullAmount)}`}
                 valColor={C.green}
@@ -373,7 +373,7 @@ export function ReceiptView({ sale, farmName }: Props) {
                 TOTAL
               </Text>
               <Text style={{ fontSize: 22, fontFamily: "Outfit_700Bold", color: C.text }}>
-                {tk(dholta.final_amount)}
+                {tk(deduction.final_amount)}
               </Text>
             </View>
             <View style={{ height: 2, backgroundColor: C.text, marginBottom: 8 }} />

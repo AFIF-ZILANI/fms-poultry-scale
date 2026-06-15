@@ -91,21 +91,21 @@ export default function SaleDetailScreen() {
     );
   }
 
-  const { dholta } = sale;
+  const { deduction } = sale;
   const hasCull = (sale.cullRows?.length ?? 0) > 0;
   const cullTotalKg = hasCull ? (sale.cullRows ?? []).reduce((s, r) => s + r.weightKg, 0) : 0;
   const cullTotalPcs = hasCull ? (sale.cullRows ?? []).reduce((s, r) => s + (r.pcs ?? 0), 0) : 0;
 
-  const mainAmount = dholta?.main_amount ?? (dholta ? dholta.net_weight * dholta.price_per_kg : 0);
-  const cullAmount = dholta?.cull_amount ?? 0;
-  const cullSold = dholta?.cull_sold ?? false;
+  const mainAmount = deduction?.main_amount ?? (deduction ? deduction.net_weight * deduction.price_per_kg : 0);
+  const cullAmount = deduction?.cull_amount ?? 0;
+  const cullSold = deduction?.cull_sold ?? false;
   const balanceDue =
-    sale.receivedAmount != null && dholta
-      ? dholta.final_amount - sale.receivedAmount
+    sale.receivedAmount != null && deduction
+      ? deduction.final_amount - sale.receivedAmount
       : null;
 
-  const subtotalGross = dholta ? dholta.gross_weight - dholta.cull_weight_kg : 0;
-  const rawCrates = dholta ? subtotalGross / dholta.kg_per_crate : 0;
+  const subtotalGross = deduction ? deduction.gross_weight - deduction.cull_weight_kg : 0;
+  const rawCrates = deduction ? subtotalGross / deduction.kg_per_crate : 0;
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
@@ -259,42 +259,42 @@ export default function SaleDetailScreen() {
           </View>
         </Animated.View>
 
-        {/* Dholta card */}
-        {dholta && (
+        {/* Deduction card */}
+        {deduction && (
           <Animated.View
             entering={
               Platform.OS !== "web" ? FadeInDown.delay(120).springify() : undefined
             }
           >
             <Text style={[styles.sectionLabel, { color: theme.textTertiary, fontFamily: "Outfit_600SemiBold" }]}>
-              {t.tradeDeductionDholta}
+              {t.tradeDeductionHeader}
             </Text>
             <View
               style={[
-                styles.dholtaCard,
+                styles.deductionCard,
                 { backgroundColor: theme.surface, borderColor: theme.borderLight },
               ]}
             >
               {/* Gross */}
-              <DholtaRow label={t.grossWeight} value={`${formatWeight(dholta.gross_weight)} KG`} theme={theme} />
+              <DeductionRow label={t.grossWeight} value={`${formatWeight(deduction.gross_weight)} KG`} theme={theme} />
 
               {/* Cull weight — always shown for transparency */}
-              {dholta.cull_weight_kg > 0 ? (
+              {deduction.cull_weight_kg > 0 ? (
                 <>
-                  <DholtaRow
+                  <DeductionRow
                     label={t.cullWeight}
-                    value={`−${formatWeight(dholta.cull_weight_kg)} KG`}
+                    value={`−${formatWeight(deduction.cull_weight_kg)} KG`}
                     theme={theme}
                     isNegative
                   />
-                  <DholtaRow
+                  <DeductionRow
                     label={t.subtotalGross}
                     value={`${formatWeight(subtotalGross)} KG`}
                     theme={theme}
                   />
                 </>
               ) : (
-                <DholtaRow
+                <DeductionRow
                   label={t.cullWeight}
                   value="0 KG"
                   theme={theme}
@@ -302,33 +302,33 @@ export default function SaleDetailScreen() {
               )}
 
               {/* Explicit crate floor calculation */}
-              {dholta.full_crates_only ? (
-                <DholtaRow
-                  label={`${formatWeight(subtotalGross)} ÷ ${dholta.kg_per_crate} = ${rawCrates.toFixed(3)} → ${dholta.total_crates} crates`}
-                  value={`${dholta.total_crates}`}
+              {deduction.full_crates_only ? (
+                <DeductionRow
+                  label={`${formatWeight(subtotalGross)} ÷ ${deduction.kg_per_crate} = ${rawCrates.toFixed(3)} → ${deduction.total_crates} crates`}
+                  value={`${deduction.total_crates}`}
                   theme={theme}
                   isIndent
                 />
               ) : (
-                <DholtaRow
+                <DeductionRow
                   label={`${t.totalCrates}`}
-                  value={`${dholta.total_crates.toFixed(3)}`}
+                  value={`${deduction.total_crates.toFixed(3)}`}
                   theme={theme}
                 />
               )}
 
               {/* Crate deduction */}
-              <DholtaRow
-                label={`${dholta.total_crates} × ${dholta.deduction_per_crate_g}g dholta`}
-                value={`−${formatWeight(dholta.total_deduction_kg)} KG`}
+              <DeductionRow
+                label={`${deduction.total_crates} × ${deduction.deduction_per_crate_g}g deduction`}
+                value={`−${formatWeight(deduction.total_deduction_kg)} KG`}
                 theme={theme}
                 isNegative
               />
 
               {/* Net main weight */}
-              <DholtaRow
-                label={dholta.cull_weight_kg > 0 ? t.payableWeight : t.netWeight}
-                value={`${formatWeight(dholta.net_weight)} KG`}
+              <DeductionRow
+                label={deduction.cull_weight_kg > 0 ? t.payableWeight : t.netWeight}
+                value={`${formatWeight(deduction.net_weight)} KG`}
                 theme={theme}
                 isHighlight
               />
@@ -336,12 +336,12 @@ export default function SaleDetailScreen() {
               {/* × price/kg */}
               <View style={styles.multiplyHint}>
                 <Text style={[styles.multiplyHintText, { color: theme.textTertiary, fontFamily: "Outfit_400Regular" }]}>
-                  × Tk {dholta.price_per_kg.toFixed(2)} / kg
+                  × Tk {deduction.price_per_kg.toFixed(2)} / kg
                 </Text>
               </View>
 
               {/* Main amount */}
-              <DholtaRow
+              <DeductionRow
                 label={t.mainAmount}
                 value={`Tk ${mainAmount.toLocaleString("en-PK", { maximumFractionDigits: 2 })}`}
                 theme={theme}
@@ -349,11 +349,11 @@ export default function SaleDetailScreen() {
 
               {/* Cull revenue */}
               {cullSold && cullAmount > 0 && (
-                <DholtaRow
+                <DeductionRow
                   label={
-                    dholta.cull_pricing_mode === "per_kg"
-                      ? `${t.cullAmount} (${formatWeight(dholta.cull_weight_kg)} kg × Tk ${dholta.cull_price?.toFixed(2)})`
-                      : `${t.cullAmount} (${dholta.cull_pcs} birds × Tk ${dholta.cull_price?.toFixed(2)})`
+                    deduction.cull_pricing_mode === "per_kg"
+                      ? `${t.cullAmount} (${formatWeight(deduction.cull_weight_kg)} kg × Tk ${deduction.cull_price?.toFixed(2)})`
+                      : `${t.cullAmount} (${deduction.cull_pcs} birds × Tk ${deduction.cull_price?.toFixed(2)})`
                   }
                   value={`+ Tk ${cullAmount.toLocaleString("en-PK", { maximumFractionDigits: 2 })}`}
                   theme={theme}
@@ -367,7 +367,7 @@ export default function SaleDetailScreen() {
                   {t.finalAmount}
                 </Text>
                 <Text style={[styles.finalValue, { color: theme.accent, fontFamily: "Outfit_700Bold" }]}>
-                  Tk {dholta.final_amount.toLocaleString("en-PK", { maximumFractionDigits: 2 })}
+                  Tk {deduction.final_amount.toLocaleString("en-PK", { maximumFractionDigits: 2 })}
                 </Text>
               </View>
 
@@ -421,7 +421,7 @@ export default function SaleDetailScreen() {
         <Animated.View
           entering={
             Platform.OS !== "web"
-              ? FadeInDown.delay(dholta ? 200 : 140).springify()
+              ? FadeInDown.delay(deduction ? 200 : 140).springify()
               : undefined
           }
         >
@@ -525,7 +525,7 @@ function LogEntryRow({
   );
 }
 
-function DholtaRow({
+function DeductionRow({
   label,
   value,
   theme,
@@ -546,18 +546,18 @@ function DholtaRow({
     ? theme.success
     : theme.text;
   return (
-    <View style={[styles.dholtaRow, isIndent && styles.dholtaRowIndent]}>
+    <View style={[styles.deductionRow, isIndent && styles.deductionRowIndent]}>
       <Text
         style={[
-          styles.dholtaRowLabel,
-          { color: isIndent ? theme.textTertiary : theme.textTertiary, fontFamily: "Outfit_400Regular" },
+          styles.deductionRowLabel,
+          { color: theme.textTertiary, fontFamily: "Outfit_400Regular" },
         ]}
         numberOfLines={2}
       >
         {label}
       </Text>
       {value != null && (
-        <Text style={[styles.dholtaRowValue, { color: valueColor, fontFamily: "Outfit_600SemiBold" }]}>
+        <Text style={[styles.deductionRowValue, { color: valueColor, fontFamily: "Outfit_600SemiBold" }]}>
           {value}
         </Text>
       )}
@@ -645,23 +645,23 @@ const styles = StyleSheet.create({
     marginLeft: 2,
     textTransform: "uppercase",
   },
-  dholtaCard: {
+  deductionCard: {
     borderRadius: 18,
     borderWidth: 1,
     padding: 16,
     marginBottom: 20,
     gap: 2,
   },
-  dholtaRow: {
+  deductionRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-start",
     paddingVertical: 7,
     gap: 8,
   },
-  dholtaRowIndent: { paddingLeft: 12 },
-  dholtaRowLabel: { fontSize: 14, flex: 1, lineHeight: 20 },
-  dholtaRowValue: { fontSize: 15, textAlign: "right" },
+  deductionRowIndent: { paddingLeft: 12 },
+  deductionRowLabel: { fontSize: 14, flex: 1, lineHeight: 20 },
+  deductionRowValue: { fontSize: 15, textAlign: "right" },
 
   multiplyHint: { paddingVertical: 2, paddingLeft: 2 },
   multiplyHintText: { fontSize: 13 },

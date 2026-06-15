@@ -66,7 +66,7 @@ export function generateReceiptHtml(
   sale: SaleRecord,
   farmName: string
 ): string {
-  const { dholta } = sale;
+  const { deduction } = sale;
   const shortId = sale.id.replace(/-/g, "").slice(0, 8).toUpperCase();
   const hasCull = (sale.cullRows?.length ?? 0) > 0;
   const cullRows = sale.cullRows ?? [];
@@ -74,12 +74,12 @@ export function generateReceiptHtml(
   const cullTotalPcs = cullRows.reduce((s, r) => s + (r.pcs ?? 0), 0);
 
   const mainAmount =
-    dholta?.main_amount ?? (dholta ? dholta.net_weight * dholta.price_per_kg : 0);
-  const cullAmount = dholta?.cull_amount ?? 0;
-  const cullSold = dholta?.cull_sold ?? false;
+    deduction?.main_amount ?? (deduction ? deduction.net_weight * deduction.price_per_kg : 0);
+  const cullAmount = deduction?.cull_amount ?? 0;
+  const cullSold = deduction?.cull_sold ?? false;
   const balanceDue =
-    sale.receivedAmount != null && dholta
-      ? dholta.final_amount - sale.receivedAmount
+    sale.receivedAmount != null && deduction
+      ? deduction.final_amount - sale.receivedAmount
       : null;
 
   const displayName = farmName.trim() || "Poultry Farm";
@@ -92,12 +92,12 @@ export function generateReceiptHtml(
     </div>`;
 
   // ── Page 1 ───────────────────────────────────────────────────────────
-  const statsGrid = dholta
+  const statsGrid = deduction
     ? `<div class="stats-grid">
         <div class="stat-cell"><div class="stat-val">${fmt(sale.totalWeightKg)} KG</div><div class="stat-key">Gross Weight</div></div>
         <div class="stat-cell stat-divider"><div class="stat-val">${sale.totalPcs}</div><div class="stat-key">Total Birds</div></div>
-        <div class="stat-cell stat-top"><div class="stat-val">${fmt(dholta.net_weight)} KG</div><div class="stat-key">Net Weight</div></div>
-        <div class="stat-cell stat-top stat-divider"><div class="stat-val">Tk ${dholta.price_per_kg.toFixed(2)}</div><div class="stat-key">Price / KG</div></div>
+        <div class="stat-cell stat-top"><div class="stat-val">${fmt(deduction.net_weight)} KG</div><div class="stat-key">Net Weight</div></div>
+        <div class="stat-cell stat-top stat-divider"><div class="stat-val">Tk ${deduction.price_per_kg.toFixed(2)}</div><div class="stat-key">Price / KG</div></div>
       </div>`
     : `<div class="stats-grid stats-grid-2">
         <div class="stat-cell"><div class="stat-val">${fmt(sale.totalWeightKg)} KG</div><div class="stat-key">Gross Weight</div></div>
@@ -105,41 +105,41 @@ export function generateReceiptHtml(
       </div>`;
 
   let calcHtml = "";
-  if (dholta) {
-    const base = dholta.gross_weight - dholta.cull_weight_kg;
-    const rawCrates = base / dholta.kg_per_crate;
-    const crateNote = dholta.full_crates_only
-      ? `${fmt(base)} ÷ ${dholta.kg_per_crate} = ${rawCrates.toFixed(3)} → ${dholta.total_crates} crates`
-      : `${fmt(base)} ÷ ${dholta.kg_per_crate} = ${dholta.total_crates.toFixed(3)} crates`;
+  if (deduction) {
+    const base = deduction.gross_weight - deduction.cull_weight_kg;
+    const rawCrates = base / deduction.kg_per_crate;
+    const crateNote = deduction.full_crates_only
+      ? `${fmt(base)} ÷ ${deduction.kg_per_crate} = ${rawCrates.toFixed(3)} → ${deduction.total_crates} crates`
+      : `${fmt(base)} ÷ ${deduction.kg_per_crate} = ${deduction.total_crates.toFixed(3)} crates`;
 
     calcHtml = `
       <div class="section-label">Calculation Detail</div>
       <table class="calc-table">
-        <tr><td>Gross weight</td><td class="cv">${fmt(dholta.gross_weight)} KG</td></tr>
-        ${dholta.cull_weight_kg > 0 ? `
-          <tr><td>Cull weight</td><td class="cv neg">−${fmt(dholta.cull_weight_kg)} KG</td></tr>
+        <tr><td>Gross weight</td><td class="cv">${fmt(deduction.gross_weight)} KG</td></tr>
+        ${deduction.cull_weight_kg > 0 ? `
+          <tr><td>Cull weight</td><td class="cv neg">−${fmt(deduction.cull_weight_kg)} KG</td></tr>
           <tr><td>Subtotal gross</td><td class="cv">${fmt(base)} KG</td></tr>
         ` : `<tr><td>Cull weight</td><td class="cv">0 KG</td></tr>`}
         <tr class="indent"><td>${crateNote}</td><td></td></tr>
         <tr>
-          <td>${dholta.total_crates} crates × ${dholta.deduction_per_crate_g}g dholta</td>
-          <td class="cv neg">−${fmt(dholta.total_deduction_kg)} KG</td>
+          <td>${deduction.total_crates} crates × ${deduction.deduction_per_crate_g}g deduction</td>
+          <td class="cv neg">−${fmt(deduction.total_deduction_kg)} KG</td>
         </tr>
-        <tr class="net-row"><td>Net payable weight</td><td class="cv">${fmt(dholta.net_weight)} KG</td></tr>
-        <tr class="indent"><td>× Tk ${dholta.price_per_kg.toFixed(2)} / kg</td><td></td></tr>
+        <tr class="net-row"><td>Net payable weight</td><td class="cv">${fmt(deduction.net_weight)} KG</td></tr>
+        <tr class="indent"><td>× Tk ${deduction.price_per_kg.toFixed(2)} / kg</td><td></td></tr>
         <tr><td>Main amount</td><td class="cv">${tk(mainAmount)}</td></tr>
         ${cullSold && cullAmount > 0 ? `
           <tr>
-            <td>${dholta.cull_pricing_mode === "per_kg"
-              ? `Cull: ${fmt(dholta.cull_weight_kg)} kg × Tk ${dholta.cull_price?.toFixed(2)}`
-              : `Cull: ${dholta.cull_pcs} birds × Tk ${dholta.cull_price?.toFixed(2)}`}</td>
+            <td>${deduction.cull_pricing_mode === "per_kg"
+              ? `Cull: ${fmt(deduction.cull_weight_kg)} kg × Tk ${deduction.cull_price?.toFixed(2)}`
+              : `Cull: ${deduction.cull_pcs} birds × Tk ${deduction.cull_price?.toFixed(2)}`}</td>
             <td class="cv pos">+ ${tk(cullAmount)}</td>
           </tr>` : ""}
       </table>
       <div class="total-wrap">
         <div class="total-bar">
           <span class="total-lbl">TOTAL</span>
-          <span class="total-amt">${tk(dholta.final_amount)}</span>
+          <span class="total-amt">${tk(deduction.final_amount)}</span>
         </div>
         ${sale.receivedAmount != null && sale.receivedAmount > 0 ? `
           <div class="payment-row">
