@@ -8,8 +8,11 @@ export type UserRole = "farmer" | "wholesaler";
 export interface OnboardingData {
   role: UserRole;
   name: string;
-  location: string;
+  phone: string;
+  location?: string;
   farmName?: string;
+  businessName?: string;
+  // legacy fields kept for backwards compat
   farmCapacity?: string;
   breed?: string;
   buyingCapacity?: string;

@@ -1,286 +1,254 @@
-import { useSignIn } from "@clerk/expo";
-import { type Href, Link, useRouter } from "expo-router";
+import { useOAuth } from "@clerk/expo";
+import * as Linking from "expo-linking";
+import * as WebBrowser from "expo-web-browser";
+import { LinearGradient } from "expo-linear-gradient";
+import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
   ActivityIndicator,
-  KeyboardAvoidingView,
   Platform,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useTheme } from "@/lib/useTheme";
+import { useSettings } from "@/lib/SettingsContext";
+
+WebBrowser.maybeCompleteAuthSession();
 
 export default function SignInPage() {
-  const signIn = useSignIn();
+  const { startOAuthFlow } = useOAuth({ strategy: "oauth_google" });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
   const router = useRouter();
-  const insets = useSafeAreaInsets();
   const theme = useTheme();
+  const insets = useSafeAreaInsets();
+  const { t } = useSettings();
 
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
-  const [localError, setLocalError] = useState("");
-
-  const isLoading = signIn?.fetchStatus === "fetching";
-
-  const handleSignIn = async () => {
-    if (!email || !password || !signIn) return;
-    setLocalError("");
+  const handleGoogle = async () => {
+    setLoading(true);
+    setError("");
     try {
-      const { error } = await signIn.password({ emailAddress: email, password });
-      if (error) {
-        setLocalError(error.message || "Sign in failed. Please try again.");
-        return;
-      }
-      if (signIn.status === "complete") {
-        await signIn.finalize({
-          navigate: ({ decorateUrl }) => {
-            const url = decorateUrl("/");
-            if (url.startsWith("http") && Platform.OS === "web") {
-              if (typeof window !== "undefined") window.location.href = url;
-            } else {
-              router.replace("/");
-            }
-          },
-        });
+      const { createdSessionId, setActive } = await startOAuthFlow({
+        redirectUrl: Linking.createURL("/", { scheme: "poultryscale" }),
+      });
+      if (createdSessionId && setActive) {
+        await setActive({ session: createdSessionId });
+        // _layout AuthGuard will redirect to onboarding or dashboard
       }
     } catch (e: any) {
-      setLocalError(e?.message || "Something went wrong. Please try again.");
+      setError(e?.message ?? "Sign in failed. Please try again.");
+    } finally {
+      setLoading(false);
     }
   };
 
-  const fieldError =
-    signIn?.errors?.fields?.emailAddress?.message ||
-    signIn?.errors?.fields?.password?.message ||
-    localError;
-
   return (
-    <KeyboardAvoidingView
-      style={{ flex: 1, backgroundColor: theme.background }}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
-    >
-      <ScrollView
-        contentContainerStyle={[
-          styles.container,
-          {
-            paddingTop: insets.top + 32,
-            paddingBottom: insets.bottom + 24,
-          },
-        ]}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
+    <View style={[styles.root, { backgroundColor: theme.background }]}>
+      {/* Gradient top section */}
+      <LinearGradient
+        colors={["#0D1B30", "#1E3A5F", "#0D1B30"]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={[styles.hero, { paddingTop: insets.top + 48 }]}
       >
-        {/* Logo */}
-        <View style={styles.brandRow}>
-          <View style={[styles.iconCircle, { backgroundColor: theme.accent }]}>
-            <MaterialCommunityIcons name="scale-balance" size={32} color="#fff" />
+        {/* App icon */}
+        <View style={styles.iconWrap}>
+          <View style={[styles.iconOuter, { backgroundColor: "rgba(59,130,246,0.25)" }]}>
+            <View style={[styles.iconInner, { backgroundColor: theme.accent }]}>
+              <MaterialCommunityIcons name="scale-balance" size={36} color="#fff" />
+            </View>
           </View>
-          <Text style={[styles.brandName, { color: theme.text, fontFamily: "Outfit_700Bold" }]}>
-            PoultryScale
-          </Text>
         </View>
 
-        <Text style={[styles.title, { color: theme.text, fontFamily: "Outfit_700Bold" }]}>
-          Welcome back
+        <Text style={[styles.appName, { fontFamily: "Outfit_700Bold" }]}>
+          PoultryScale
         </Text>
-        <Text style={[styles.subtitle, { color: theme.textSecondary, fontFamily: "Outfit_400Regular" }]}>
-          Sign in to continue
+        <Text style={[styles.tagline, { fontFamily: "Outfit_400Regular" }]}>
+          {t.signInSubtitle}
         </Text>
 
-        {/* Email */}
-        <View style={styles.fieldGroup}>
-          <Text style={[styles.label, { color: theme.textSecondary, fontFamily: "Outfit_500Medium" }]}>
-            Email address
-          </Text>
-          <View style={[styles.inputRow, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-            <MaterialCommunityIcons name="email-outline" size={20} color={theme.textTertiary} style={styles.inputIcon} />
-            <TextInput
-              style={[styles.input, { color: theme.text, fontFamily: "Outfit_400Regular" }]}
-              value={email}
-              onChangeText={setEmail}
-              placeholder="your@email.com"
-              placeholderTextColor={theme.textTertiary}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              autoCorrect={false}
-              testID="sign-in-email"
-            />
-          </View>
+        {/* Feature pills */}
+        <View style={styles.pills}>
+          {["Digital Weighing", "Sales Records", "Analytics"].map((f) => (
+            <View key={f} style={styles.pill}>
+              <Text style={[styles.pillText, { fontFamily: "Outfit_500Medium" }]}>{f}</Text>
+            </View>
+          ))}
         </View>
+      </LinearGradient>
 
-        {/* Password */}
-        <View style={styles.fieldGroup}>
-          <Text style={[styles.label, { color: theme.textSecondary, fontFamily: "Outfit_500Medium" }]}>
-            Password
-          </Text>
-          <View style={[styles.inputRow, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-            <MaterialCommunityIcons name="lock-outline" size={20} color={theme.textTertiary} style={styles.inputIcon} />
-            <TextInput
-              style={[styles.input, { color: theme.text, fontFamily: "Outfit_400Regular" }]}
-              value={password}
-              onChangeText={setPassword}
-              placeholder="Enter password"
-              placeholderTextColor={theme.textTertiary}
-              secureTextEntry={!showPassword}
-              testID="sign-in-password"
-            />
-            <Pressable onPress={() => setShowPassword((p) => !p)} style={styles.eyeBtn} hitSlop={8}>
-              <MaterialCommunityIcons
-                name={showPassword ? "eye-off-outline" : "eye-outline"}
-                size={20}
-                color={theme.textTertiary}
-              />
-            </Pressable>
-          </View>
-        </View>
+      {/* Sign in card */}
+      <View style={[styles.card, { backgroundColor: theme.surface, paddingBottom: insets.bottom + 32 }]}>
+        <Text style={[styles.cardTitle, { color: theme.text, fontFamily: "Outfit_700Bold" }]}>
+          {t.signInTitle}
+        </Text>
+        <Text style={[styles.cardSub, { color: theme.textSecondary, fontFamily: "Outfit_400Regular" }]}>
+          Sign in to access your records
+        </Text>
 
         {/* Error */}
-        {fieldError ? (
+        {!!error && (
           <View style={[styles.errorBox, { backgroundColor: theme.dangerLight }]}>
             <MaterialCommunityIcons name="alert-circle-outline" size={16} color={theme.danger} />
             <Text style={[styles.errorText, { color: theme.danger, fontFamily: "Outfit_400Regular" }]}>
-              {fieldError}
+              {error}
             </Text>
           </View>
-        ) : null}
+        )}
 
-        {/* Sign In Button */}
+        {/* Google button */}
         <Pressable
           style={({ pressed }) => [
-            styles.primaryBtn,
-            { backgroundColor: theme.accent, opacity: pressed ? 0.85 : 1 },
-            (isLoading || !email || !password) && styles.btnDisabled,
+            styles.googleBtn,
+            {
+              backgroundColor: theme.isDark ? "#1C2840" : "#fff",
+              borderColor: theme.border,
+              opacity: pressed || loading ? 0.8 : 1,
+            },
           ]}
-          onPress={handleSignIn}
-          disabled={isLoading || !email || !password}
-          testID="sign-in-btn"
+          onPress={handleGoogle}
+          disabled={loading}
         >
-          {isLoading ? (
-            <ActivityIndicator color="#fff" size="small" />
+          {loading ? (
+            <ActivityIndicator color={theme.accent} size="small" />
           ) : (
-            <Text style={[styles.primaryBtnText, { fontFamily: "Outfit_600SemiBold" }]}>
-              Sign In
-            </Text>
+            <>
+              {/* Google G logo via SVG-like shape */}
+              <View style={styles.googleLogo}>
+                <Text style={styles.googleG}>G</Text>
+              </View>
+              <Text style={[styles.googleBtnText, { color: theme.text, fontFamily: "Outfit_600SemiBold" }]}>
+                {t.signInWithGoogle}
+              </Text>
+            </>
           )}
         </Pressable>
 
-        {/* Sign Up Link */}
-        <View style={styles.linkRow}>
-          <Text style={[styles.linkLabel, { color: theme.textSecondary, fontFamily: "Outfit_400Regular" }]}>
-            New here?{" "}
-          </Text>
-          <Link href={"/(auth)/sign-up" as Href} asChild>
-            <Pressable>
-              <Text style={[styles.link, { color: theme.accent, fontFamily: "Outfit_600SemiBold" }]}>
-                Create account
-              </Text>
-            </Pressable>
-          </Link>
-        </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+        <Text style={[styles.terms, { color: theme.textTertiary, fontFamily: "Outfit_400Regular" }]}>
+          By continuing, you agree to our Terms of Service and Privacy Policy.
+        </Text>
+      </View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flexGrow: 1,
-    paddingHorizontal: 24,
-    gap: 16,
-  },
-  brandRow: {
-    flexDirection: "row",
+  root: { flex: 1 },
+  hero: {
     alignItems: "center",
+    paddingHorizontal: 24,
+    paddingBottom: 48,
     gap: 12,
-    marginBottom: 16,
   },
-  iconCircle: {
-    width: 52,
-    height: 52,
-    borderRadius: 16,
+  iconWrap: { marginBottom: 8 },
+  iconOuter: {
+    width: 100,
+    height: 100,
+    borderRadius: 32,
     alignItems: "center",
     justifyContent: "center",
   },
-  brandName: {
-    fontSize: 22,
-  },
-  title: {
-    fontSize: 30,
-    marginTop: 4,
-  },
-  subtitle: {
-    fontSize: 16,
-    marginTop: -8,
-    marginBottom: 8,
-  },
-  fieldGroup: {
-    gap: 6,
-  },
-  label: {
-    fontSize: 13,
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-  },
-  inputRow: {
-    flexDirection: "row",
+  iconInner: {
+    width: 76,
+    height: 76,
+    borderRadius: 24,
     alignItems: "center",
-    borderWidth: 1.5,
-    borderRadius: 14,
+    justifyContent: "center",
+  },
+  appName: {
+    fontSize: 32,
+    color: "#fff",
+    letterSpacing: -0.5,
+  },
+  tagline: {
+    fontSize: 15,
+    color: "rgba(255,255,255,0.65)",
+    textAlign: "center",
+  },
+  pills: {
+    flexDirection: "row",
+    gap: 8,
+    marginTop: 4,
+    flexWrap: "wrap",
+    justifyContent: "center",
+  },
+  pill: {
+    backgroundColor: "rgba(255,255,255,0.12)",
+    borderRadius: 20,
     paddingHorizontal: 14,
-    height: 56,
+    paddingVertical: 6,
   },
-  inputIcon: {
-    marginRight: 10,
+  pillText: {
+    color: "rgba(255,255,255,0.85)",
+    fontSize: 12,
   },
-  input: {
+  card: {
     flex: 1,
-    fontSize: 16,
-    height: "100%",
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
+    marginTop: -24,
+    paddingHorizontal: 24,
+    paddingTop: 36,
+    gap: 16,
   },
-  eyeBtn: {
-    padding: 4,
+  cardTitle: {
+    fontSize: 24,
+  },
+  cardSub: {
+    fontSize: 15,
+    marginTop: -8,
   },
   errorBox: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
     padding: 12,
-    borderRadius: 10,
+    borderRadius: 12,
   },
-  errorText: {
-    fontSize: 13,
-    flex: 1,
-  },
-  primaryBtn: {
-    height: 56,
-    borderRadius: 16,
+  errorText: { fontSize: 13, flex: 1 },
+  googleBtn: {
+    height: 60,
+    borderRadius: 18,
+    borderWidth: 1.5,
+    flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
+    gap: 12,
     marginTop: 8,
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.08,
+        shadowRadius: 8,
+      },
+      android: { elevation: 2 },
+    }),
   },
-  btnDisabled: {
-    opacity: 0.45,
+  googleLogo: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: "#4285F4",
+    alignItems: "center",
+    justifyContent: "center",
   },
-  primaryBtnText: {
+  googleG: {
     color: "#fff",
+    fontSize: 16,
+    fontWeight: "700",
+  },
+  googleBtnText: {
     fontSize: 17,
   },
-  linkRow: {
-    flexDirection: "row",
-    justifyContent: "center",
-    alignItems: "center",
-    marginTop: 8,
-  },
-  linkLabel: {
-    fontSize: 15,
-  },
-  link: {
-    fontSize: 15,
+  terms: {
+    fontSize: 12,
+    textAlign: "center",
+    lineHeight: 18,
+    marginTop: 4,
   },
 });
