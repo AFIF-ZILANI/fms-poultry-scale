@@ -241,7 +241,7 @@ export default function SaleDetailScreen() {
             <View style={styles.heroDot} />
             <View style={styles.heroStatItem}>
               <Text style={[styles.heroStatVal, { fontFamily: "Outfit_700Bold" }]}>
-                {sale.totalPcs}
+                {sale.pcsTracked === false ? "—" : sale.totalPcs}
               </Text>
               <Text style={[styles.heroStatUnit, { fontFamily: "Outfit_400Regular" }]}>
                 {t.birds}
@@ -436,6 +436,7 @@ export default function SaleDetailScreen() {
               totalPcs={sale.totalPcs}
               rowCount={sale.rows.length}
               isCull={false}
+              pcsTracked={sale.pcsTracked}
               theme={theme}
               t={t}
               onPress={() => router.push(`/sale/${id}/logs/main`)}
@@ -468,6 +469,7 @@ function LogEntryRow({
   totalPcs,
   rowCount,
   isCull,
+  pcsTracked,
   theme,
   t,
   onPress,
@@ -477,6 +479,7 @@ function LogEntryRow({
   totalPcs: number;
   rowCount: number;
   isCull: boolean;
+  pcsTracked?: boolean;
   theme: ReturnType<typeof useTheme>;
   t: ReturnType<typeof useSettings>["t"];
   onPress: () => void;
@@ -515,7 +518,7 @@ function LogEntryRow({
         <View style={styles.logEntryPcsRow}>
           <MaterialCommunityIcons name="bird" size={11} color={theme.warm} />
           <Text style={[styles.logEntryPcs, { color: theme.warm, fontFamily: "Outfit_500Medium" }]}>
-            {totalPcs}
+            {!isCull && pcsTracked === false ? "—" : totalPcs}
           </Text>
         </View>
       </View>
