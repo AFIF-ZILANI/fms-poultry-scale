@@ -173,7 +173,7 @@ export default function SessionLogsScreen() {
               <Text
                 style={[styles.summaryStatVal, { fontFamily: "Outfit_700Bold" }]}
               >
-                {totalPcs}
+                {!isCull && sale.pcsTracked === false ? "—" : totalPcs}
               </Text>
               <Text
                 style={[
@@ -206,7 +206,7 @@ export default function SessionLogsScreen() {
         {rows.length === 0 ? (
           <View style={styles.emptyState}>
             <MaterialCommunityIcons
-              name="food-turkey"
+              name="bird"
               size={36}
               color={theme.textTertiary}
             />
@@ -308,7 +308,7 @@ export default function SessionLogsScreen() {
 
                       <View style={styles.logPcsCol}>
                         <MaterialCommunityIcons
-                          name="food-turkey"
+                          name="bird"
                           size={14}
                           color={theme.warm}
                         />

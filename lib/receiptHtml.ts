@@ -95,13 +95,13 @@ export function generateReceiptHtml(
   const statsGrid = deduction
     ? `<div class="stats-grid">
         <div class="stat-cell"><div class="stat-val">${fmt(sale.totalWeightKg)} KG</div><div class="stat-key">Gross Weight</div></div>
-        <div class="stat-cell stat-divider"><div class="stat-val">${sale.totalPcs}</div><div class="stat-key">Total Birds</div></div>
+        <div class="stat-cell stat-divider"><div class="stat-val">${sale.pcsTracked === false ? "—" : sale.totalPcs}</div><div class="stat-key">Total Birds</div></div>
         <div class="stat-cell stat-top"><div class="stat-val">${fmt(deduction.net_weight)} KG</div><div class="stat-key">Net Weight</div></div>
         <div class="stat-cell stat-top stat-divider"><div class="stat-val">Tk ${deduction.price_per_kg.toFixed(2)}</div><div class="stat-key">Price / KG</div></div>
       </div>`
     : `<div class="stats-grid stats-grid-2">
         <div class="stat-cell"><div class="stat-val">${fmt(sale.totalWeightKg)} KG</div><div class="stat-key">Gross Weight</div></div>
-        <div class="stat-cell stat-divider"><div class="stat-val">${sale.totalPcs}</div><div class="stat-key">Total Birds</div></div>
+        <div class="stat-cell stat-divider"><div class="stat-val">${sale.pcsTracked === false ? "—" : sale.totalPcs}</div><div class="stat-key">Total Birds</div></div>
       </div>`;
 
   let calcHtml = "";
@@ -309,7 +309,7 @@ export function generateReceiptHtml(
       ${miniHeader}
       <div class="session-title">
         MAIN SESSION
-        <span class="session-sub">${fmt(sale.totalWeightKg)} KG · ${sale.totalPcs} Birds</span>
+        <span class="session-sub">${fmt(sale.totalWeightKg)} KG · ${sale.pcsTracked === false ? "—" : sale.totalPcs} Birds</span>
       </div>
       ${logTable(sale.rows)}
       <div class="page-footer">

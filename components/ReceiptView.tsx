@@ -252,7 +252,7 @@ export function ReceiptView({ sale, farmName }: Props) {
           <View style={{ width: 1, backgroundColor: C.border }} />
           <View style={{ flex: 1, padding: 12 }}>
             <Text style={{ fontSize: 17, fontFamily: "Outfit_700Bold", color: C.text }}>
-              {sale.totalPcs}
+              {sale.pcsTracked === false ? "—" : sale.totalPcs}
             </Text>
             <Text style={{ fontSize: 9, fontFamily: "Outfit_500Medium", color: C.muted, marginTop: 2, letterSpacing: 0.4 }}>
               TOTAL BIRDS
