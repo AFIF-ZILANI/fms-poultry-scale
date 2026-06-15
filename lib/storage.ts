@@ -139,26 +139,27 @@ async function setPref(key: string, value: string): Promise<void> {
   );
 }
 
-export const loadLastPricePerKg = () => getPref("last_price_per_kg");
-export const saveLastPricePerKg = (v: string) =>
-  setPref("last_price_per_kg", v);
+// All pref keys are namespaced by userId so each account has its own settings.
+// key format: "${userId}:${settingName}"
+const uk = (userId: string, name: string) => `${userId}:${name}`;
 
-export const loadLastKgPerCrate = () => getPref("last_kg_per_crate");
-export const saveLastKgPerCrate = (v: string) =>
-  setPref("last_kg_per_crate", v);
+export const loadLastPricePerKg = (uid: string) => getPref(uk(uid, "last_price_per_kg"));
+export const saveLastPricePerKg = (uid: string, v: string) => setPref(uk(uid, "last_price_per_kg"), v);
 
-export const loadLastDeductionG = () => getPref("last_deduction_g");
-export const saveLastDeductionG = (v: string) =>
-  setPref("last_deduction_g", v);
+export const loadLastKgPerCrate = (uid: string) => getPref(uk(uid, "last_kg_per_crate"));
+export const saveLastKgPerCrate = (uid: string, v: string) => setPref(uk(uid, "last_kg_per_crate"), v);
 
-export const loadLanguagePref = () => getPref("language");
-export const saveLanguagePref = (v: string) => setPref("language", v);
+export const loadLastDeductionG = (uid: string) => getPref(uk(uid, "last_deduction_g"));
+export const saveLastDeductionG = (uid: string, v: string) => setPref(uk(uid, "last_deduction_g"), v);
 
-export const loadThemePref = () => getPref("theme_preference");
-export const saveThemePref = (v: string) => setPref("theme_preference", v);
+export const loadLanguagePref = (uid: string) => getPref(uk(uid, "language"));
+export const saveLanguagePref = (uid: string, v: string) => setPref(uk(uid, "language"), v);
 
-export const loadFarmName = () => getPref("farm_name");
-export const saveFarmName = (v: string) => setPref("farm_name", v);
+export const loadThemePref = (uid: string) => getPref(uk(uid, "theme_preference"));
+export const saveThemePref = (uid: string, v: string) => setPref(uk(uid, "theme_preference"), v);
 
-export const loadSubscriptionPlan = () => getPref("subscription_plan");
-export const saveSubscriptionPlan = (v: string) => setPref("subscription_plan", v);
+export const loadFarmName = (uid: string) => getPref(uk(uid, "farm_name"));
+export const saveFarmName = (uid: string, v: string) => setPref(uk(uid, "farm_name"), v);
+
+export const loadSubscriptionPlan = (uid: string) => getPref(uk(uid, "subscription_plan"));
+export const saveSubscriptionPlan = (uid: string, v: string) => setPref(uk(uid, "subscription_plan"), v);

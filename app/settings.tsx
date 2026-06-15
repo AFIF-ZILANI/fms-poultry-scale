@@ -12,6 +12,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { Ionicons, Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import { useUser } from "@clerk/expo";
 import { useTheme } from "@/lib/useTheme";
 import { useSettings, type ThemePreference } from "@/lib/SettingsContext";
 import type { Language } from "@/lib/i18n";
@@ -29,6 +30,8 @@ import {
 export default function SettingsScreen() {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
+  const { user } = useUser();
+  const userId = user?.id ?? "";
   const { language, setLanguage, themePreference, setThemePreference, t } =
     useSettings();
 
@@ -41,18 +44,19 @@ export default function SettingsScreen() {
   const webBottomInset = Platform.OS === "web" ? 34 : 0;
 
   useEffect(() => {
+    if (!userId) return;
     Promise.all([
-      loadLastPricePerKg(),
-      loadLastKgPerCrate(),
-      loadLastDeductionG(),
-      loadFarmName(),
+      loadLastPricePerKg(userId),
+      loadLastKgPerCrate(userId),
+      loadLastDeductionG(userId),
+      loadFarmName(userId),
     ]).then(([price, kpc, dg, farm]) => {
       if (price) setDefaultPrice(price);
       if (kpc) setDefaultKgPerCrate(kpc);
       if (dg) setDefaultDeductionG(dg);
       if (farm) setFarmNameValue(farm);
     });
-  }, []);
+  }, [userId]);
 
   const handleLanguage = (lang: Language) => {
     if (Platform.OS !== "web") Haptics.selectionAsync();
@@ -66,12 +70,10 @@ export default function SettingsScreen() {
 
   const handleSaveDefaults = async () => {
     await Promise.all([
-      defaultPrice ? saveLastPricePerKg(defaultPrice) : Promise.resolve(),
-      defaultKgPerCrate
-        ? saveLastKgPerCrate(defaultKgPerCrate)
-        : Promise.resolve(),
-      defaultDeductionG ? saveLastDeductionG(defaultDeductionG) : Promise.resolve(),
-      saveFarmName(farmNameValue.trim()),
+      defaultPrice ? saveLastPricePerKg(userId, defaultPrice) : Promise.resolve(),
+      defaultKgPerCrate ? saveLastKgPerCrate(userId, defaultKgPerCrate) : Promise.resolve(),
+      defaultDeductionG ? saveLastDeductionG(userId, defaultDeductionG) : Promise.resolve(),
+      saveFarmName(userId, farmNameValue.trim()),
     ]);
     if (Platform.OS !== "web") {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);

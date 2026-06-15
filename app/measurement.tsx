@@ -456,9 +456,9 @@ function TradeDeductionModal({
       setCullSold(false);
       setCullPrice("");
       Promise.all([
-        loadLastPricePerKg(),
-        loadLastKgPerCrate(),
-        loadLastDeductionG(),
+        loadLastPricePerKg(userId),
+        loadLastKgPerCrate(userId),
+        loadLastDeductionG(userId),
       ]).then(([price, kpc, dg]) => {
         if (price) setPricePerKg(price);
         if (kpc) setKgPerCrate(kpc);
@@ -574,9 +574,9 @@ function TradeDeductionModal({
 
       await Promise.all([
         saveSale(userId, sale),
-        saveLastPricePerKg(pricePerKg),
-        saveLastKgPerCrate(kgPerCrate),
-        saveLastDeductionG(deductionG),
+        saveLastPricePerKg(userId, pricePerKg),
+        saveLastKgPerCrate(userId, kgPerCrate),
+        saveLastDeductionG(userId, deductionG),
       ]);
 
       if (Platform.OS !== "web") {

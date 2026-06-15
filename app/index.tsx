@@ -39,15 +39,35 @@ const SCREEN_W = Dimensions.get("window").width;
 
 type ChartPeriod = "7d" | "4w" | "6m";
 
-interface Bar { label: string; revenue: number }
+interface Bar {
+  label: string;
+  revenue: number;
+}
 
-const MONTH_SHORT = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const MONTH_SHORT = [
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec",
+];
 
 function buildBars(sales: SaleRecord[], period: ChartPeriod): Bar[] {
   const now = new Date();
 
   if (period === "7d") {
-    const todayMs = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    const todayMs = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate(),
+    ).getTime();
     const DAY_LABELS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
     return Array.from({ length: 7 }, (_, i) => {
       const start = todayMs - (6 - i) * 86_400_000;
@@ -60,7 +80,11 @@ function buildBars(sales: SaleRecord[], period: ChartPeriod): Bar[] {
   }
 
   if (period === "4w") {
-    const todayMs = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    const todayMs = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate(),
+    ).getTime();
     return Array.from({ length: 4 }, (_, i) => {
       const start = todayMs - (3 - i) * 7 * 86_400_000;
       const end = start + 7 * 86_400_000;
@@ -101,13 +125,16 @@ function getGreeting(t: any): string {
 
 function RevenueChart({ bars }: { bars: Bar[] }) {
   const count = bars.length;
-  const W = SCREEN_W - 64;
+  const W = SCREEN_W - 96;
   const H = 72;
   const SLOT = W / count;
   const BAR_W = Math.max(Math.floor(SLOT * 0.52), 8);
   const GAP = SLOT - BAR_W;
   const maxVal = Math.max(...bars.map((b) => b.revenue), 1);
-  const peakIdx = bars.reduce((mi, b, i) => (b.revenue > bars[mi].revenue ? i : mi), 0);
+  const peakIdx = bars.reduce(
+    (mi, b, i) => (b.revenue > bars[mi].revenue ? i : mi),
+    0,
+  );
   const lastIdx = count - 1;
 
   return (
@@ -132,15 +159,20 @@ function RevenueChart({ bars }: { bars: Bar[] }) {
         return (
           <G key={i}>
             <Rect
-              x={x} y={y} width={BAR_W} height={barH}
+              x={x}
+              y={y}
+              width={BAR_W}
+              height={barH}
               rx={5}
               fill={hasRev ? "url(#barGrad)" : "url(#emptyGrad)"}
               opacity={isLast ? 1 : hasRev ? 0.82 : 1}
             />
             {isPeak && (
               <SvgText
-                x={x + BAR_W / 2} y={y - 5}
-                textAnchor="middle" fontSize={9}
+                x={x + BAR_W / 2}
+                y={y - 5}
+                textAnchor="middle"
+                fontSize={9}
                 fill="#93C5FD"
                 fontFamily="Outfit_600SemiBold"
               >
@@ -148,8 +180,10 @@ function RevenueChart({ bars }: { bars: Bar[] }) {
               </SvgText>
             )}
             <SvgText
-              x={x + BAR_W / 2} y={H + 16}
-              textAnchor="middle" fontSize={9.5}
+              x={x + BAR_W / 2}
+              y={H + 16}
+              textAnchor="middle"
+              fontSize={9.5}
               fill={isLast ? "#fff" : "rgba(255,255,255,0.4)"}
               fontFamily={isLast ? "Outfit_700Bold" : "Outfit_400Regular"}
             >
@@ -165,7 +199,11 @@ function RevenueChart({ bars }: { bars: Bar[] }) {
 // ─── Sale card ────────────────────────────────────────────────────────────────
 
 function SaleCard({
-  sale, index, theme, onDelete, t,
+  sale,
+  index,
+  theme,
+  onDelete,
+  t,
 }: {
   sale: SaleRecord;
   index: number;
@@ -176,17 +214,32 @@ function SaleCard({
   const { deduction } = sale;
 
   const handleDelete = () => {
-    if (Platform.OS === "web") { onDelete(sale.id); return; }
+    if (Platform.OS === "web") {
+      onDelete(sale.id);
+      return;
+    }
     Alert.alert(t.homeDeleteTitle, t.homeDeleteMessage, [
       { text: t.cancel, style: "cancel" },
-      { text: t.delete, style: "destructive", onPress: () => onDelete(sale.id) },
+      {
+        text: t.delete,
+        style: "destructive",
+        onPress: () => onDelete(sale.id),
+      },
     ]);
   };
 
   return (
-    <Animated.View entering={Platform.OS !== "web" ? FadeInDown.delay(index * 40).springify() : undefined}>
+    <Animated.View
+      entering={
+        Platform.OS !== "web"
+          ? FadeInDown.delay(index * 40).springify()
+          : undefined
+      }
+    >
       <Pressable
-        onPress={() => router.push({ pathname: "/sale/[id]", params: { id: sale.id } })}
+        onPress={() =>
+          router.push({ pathname: "/sale/[id]", params: { id: sale.id } })
+        }
         style={({ pressed }) => [
           styles.card,
           {
@@ -199,10 +252,17 @@ function SaleCard({
       >
         <View style={styles.cardHead}>
           <View style={styles.cardDateRow}>
-            <View style={[styles.calIcon, { backgroundColor: theme.accentLight }]}>
+            <View
+              style={[styles.calIcon, { backgroundColor: theme.accentLight }]}
+            >
               <Feather name="calendar" size={12} color={theme.accent} />
             </View>
-            <Text style={[styles.cardDate, { color: theme.textSecondary, fontFamily: "Outfit_400Regular" }]}>
+            <Text
+              style={[
+                styles.cardDate,
+                { color: theme.textSecondary, fontFamily: "Outfit_400Regular" },
+              ]}
+            >
               {formatDateTime(sale.createdAt)}
             </Text>
           </View>
@@ -212,17 +272,30 @@ function SaleCard({
         </View>
 
         <View style={styles.cardStats}>
-          <StatCell value={`${formatWeight(sale.totalWeightKg)} KG`} label={t.grossKg} color={theme.accent} theme={theme} />
-          <View style={[styles.statDivider, { backgroundColor: theme.borderLight }]} />
+          <StatCell
+            value={`${formatWeight(sale.totalWeightKg)} KG`}
+            label={t.grossKg}
+            color={theme.accent}
+            theme={theme}
+          />
+          <View
+            style={[styles.statDivider, { backgroundColor: theme.borderLight }]}
+          />
           <StatCell
             value={sale.pcsTracked === false ? "—" : String(sale.totalPcs)}
             label={t.birds}
             color={theme.warm}
             theme={theme}
           />
-          <View style={[styles.statDivider, { backgroundColor: theme.borderLight }]} />
+          <View
+            style={[styles.statDivider, { backgroundColor: theme.borderLight }]}
+          />
           <StatCell
-            value={deduction ? `${formatWeight(deduction.net_weight)} KG` : `${formatWeight(sale.averageWeightKg)} KG`}
+            value={
+              deduction
+                ? `${formatWeight(deduction.net_weight)} KG`
+                : `${formatWeight(sale.averageWeightKg)} KG`
+            }
             label={deduction ? t.netKg : t.avgKg}
             color={theme.text}
             theme={theme}
@@ -230,24 +303,75 @@ function SaleCard({
         </View>
 
         {deduction ? (
-          <View style={[styles.cardFooter, { backgroundColor: theme.accentLight, borderTopColor: theme.borderLight }]}>
-            <Text style={[styles.footerMeta, { color: theme.textSecondary, fontFamily: "Outfit_400Regular" }]}>
-              <Text style={{ color: theme.danger, fontFamily: "Outfit_600SemiBold" }}>
+          <View
+            style={[
+              styles.cardFooter,
+              {
+                backgroundColor: theme.accentLight,
+                borderTopColor: theme.borderLight,
+              },
+            ]}
+          >
+            <Text
+              style={[
+                styles.footerMeta,
+                { color: theme.textSecondary, fontFamily: "Outfit_400Regular" },
+              ]}
+            >
+              <Text
+                style={{
+                  color: theme.danger,
+                  fontFamily: "Outfit_600SemiBold",
+                }}
+              >
                 −{formatWeight(deduction.total_deduction_kg)} KG
               </Text>
               {"  deduction"}
             </Text>
-            <Text style={[styles.footerAmount, { color: theme.accent, fontFamily: "Outfit_700Bold" }]}>
-              Tk {deduction.final_amount.toLocaleString("en-PK", { maximumFractionDigits: 0 })}
+            <Text
+              style={[
+                styles.footerAmount,
+                { color: theme.accent, fontFamily: "Outfit_700Bold" },
+              ]}
+            >
+              Tk{" "}
+              {deduction.final_amount.toLocaleString("en-PK", {
+                maximumFractionDigits: 0,
+              })}
             </Text>
           </View>
         ) : (
-          <View style={[styles.cardFooter, { backgroundColor: "transparent", borderTopColor: theme.borderLight }]}>
-            <Text style={[styles.footerMeta, { color: theme.textTertiary, fontFamily: "Outfit_400Regular" }]}>
+          <View
+            style={[
+              styles.cardFooter,
+              {
+                backgroundColor: "transparent",
+                borderTopColor: theme.borderLight,
+              },
+            ]}
+          >
+            <Text
+              style={[
+                styles.footerMeta,
+                { color: theme.textTertiary, fontFamily: "Outfit_400Regular" },
+              ]}
+            >
               {t.weighings(sale.rows.length)}
             </Text>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 3 }}>
-              <Text style={[{ color: theme.accent, fontSize: 12, fontFamily: "Outfit_500Medium" }]}>{t.viewDetail}</Text>
+            <View
+              style={{ flexDirection: "row", alignItems: "center", gap: 3 }}
+            >
+              <Text
+                style={[
+                  {
+                    color: theme.accent,
+                    fontSize: 12,
+                    fontFamily: "Outfit_500Medium",
+                  },
+                ]}
+              >
+                {t.viewDetail}
+              </Text>
               <Feather name="chevron-right" size={12} color={theme.accent} />
             </View>
           </View>
@@ -257,37 +381,72 @@ function SaleCard({
   );
 }
 
-function StatCell({ value, label, color, theme }: { value: string; label: string; color: string; theme: any }) {
+function StatCell({
+  value,
+  label,
+  color,
+  theme,
+}: {
+  value: string;
+  label: string;
+  color: string;
+  theme: any;
+}) {
   return (
     <View style={styles.statCell}>
-      <Text style={[styles.statCellVal, { color, fontFamily: "Outfit_700Bold" }]}>{value}</Text>
-      <Text style={[styles.statCellLabel, { color: theme.textTertiary, fontFamily: "Outfit_500Medium" }]}>{label}</Text>
+      <Text
+        style={[styles.statCellVal, { color, fontFamily: "Outfit_700Bold" }]}
+      >
+        {value}
+      </Text>
+      <Text
+        style={[
+          styles.statCellLabel,
+          { color: theme.textTertiary, fontFamily: "Outfit_500Medium" },
+        ]}
+      >
+        {label}
+      </Text>
     </View>
   );
 }
 
 // ─── Period toggle ─────────────────────────────────────────────────────────────
 
-function PeriodToggle({ options, active, onSelect }: {
+function PeriodToggle({
+  options,
+  active,
+  onSelect,
+}: {
   options: { label: string; value: ChartPeriod }[];
   active: ChartPeriod;
   onSelect: (v: ChartPeriod) => void;
 }) {
   return (
-    <View style={[styles.toggleRow, { backgroundColor: "rgba(255,255,255,0.08)" }]}>
+    <View
+      style={[styles.toggleRow, { backgroundColor: "rgba(255,255,255,0.08)" }]}
+    >
       {options.map((opt) => (
         <Pressable
           key={opt.value}
           onPress={() => onSelect(opt.value)}
           style={[
             styles.toggleBtn,
-            active === opt.value && { backgroundColor: "rgba(255,255,255,0.18)" },
+            active === opt.value && {
+              backgroundColor: "rgba(255,255,255,0.18)",
+            },
           ]}
         >
-          <Text style={[styles.toggleBtnText, {
-            color: active === opt.value ? "#fff" : "rgba(255,255,255,0.45)",
-            fontFamily: active === opt.value ? "Outfit_700Bold" : "Outfit_400Regular",
-          }]}>
+          <Text
+            style={[
+              styles.toggleBtnText,
+              {
+                color: active === opt.value ? "#fff" : "rgba(255,255,255,0.45)",
+                fontFamily:
+                  active === opt.value ? "Outfit_700Bold" : "Outfit_400Regular",
+              },
+            ]}
+          >
             {opt.label}
           </Text>
         </Pressable>
@@ -299,7 +458,15 @@ function PeriodToggle({ options, active, onSelect }: {
 // ─── Dashboard header ─────────────────────────────────────────────────────────
 
 function DashboardHeader({
-  sales, profile, plan, drafts, theme, t, insets, period, onPeriodChange,
+  sales,
+  profile,
+  plan,
+  drafts,
+  theme,
+  t,
+  insets,
+  period,
+  onPeriodChange,
 }: {
   sales: SaleRecord[];
   profile: OnboardingData | null;
@@ -313,43 +480,102 @@ function DashboardHeader({
 }) {
   const { user } = useUser();
   const isFarmer = profile?.role === "farmer";
-  const displayName = (profile?.name || user?.firstName || "").split(" ")[0] || "there";
+  const displayName =
+    (profile?.name || user?.firstName || "").split(" ")[0] || "there";
   const initials = (profile?.name || user?.firstName || "?")
-    .split(" ").map((w: string) => w[0]).join("").slice(0, 2).toUpperCase();
+    .split(" ")
+    .map((w: string) => w[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
 
   const totalSales = sales.length;
-  const totalRevenue = useMemo(() => sales.reduce((s, r) => s + (r.deduction?.final_amount ?? 0), 0), [sales]);
-  const totalWeightKg = useMemo(() => sales.reduce((s, r) => s + r.totalWeightKg, 0), [sales]);
+  const totalRevenue = useMemo(
+    () => sales.reduce((s, r) => s + (r.deduction?.final_amount ?? 0), 0),
+    [sales],
+  );
+  const totalWeightKg = useMemo(
+    () => sales.reduce((s, r) => s + r.totalWeightKg, 0),
+    [sales],
+  );
   const bars = useMemo(() => buildBars(sales, period), [sales, period]);
   const hasRevenue = bars.some((b) => b.revenue > 0);
   const isPremium = plan === "premium";
-  const totalBirds = useMemo(() => sales.reduce((s, r) => s + r.totalPcs, 0), [sales]);
+  const totalBirds = useMemo(
+    () => sales.reduce((s, r) => s + r.totalPcs, 0),
+    [sales],
+  );
   const bestPrice = useMemo(
-    () => sales.filter((s) => s.deduction).reduce((m, s) => Math.max(m, s.deduction!.price_per_kg), 0),
-    [sales]
+    () =>
+      sales
+        .filter((s) => s.deduction)
+        .reduce((m, s) => Math.max(m, s.deduction!.price_per_kg), 0),
+    [sales],
   );
 
   // Analytics
   const avgBatchKg = totalSales > 0 ? totalWeightKg / totalSales : 0;
-  const totalCullKg = sales.reduce((s, r) => s + (r.deduction?.cull_weight_kg ?? 0), 0);
+  const totalCullKg = sales.reduce(
+    (s, r) => s + (r.deduction?.cull_weight_kg ?? 0),
+    0,
+  );
   const cullRate = totalWeightKg > 0 ? (totalCullKg / totalWeightKg) * 100 : 0;
   const avgBirds = totalSales > 0 ? Math.round(totalBirds / totalSales) : 0;
-  const totalDeductionKg = sales.reduce((s, r) => s + (r.deduction?.total_deduction_kg ?? 0), 0);
+  const totalDeductionKg = sales.reduce(
+    (s, r) => s + (r.deduction?.total_deduction_kg ?? 0),
+    0,
+  );
   const ds = sales.filter((s) => s.deduction);
-  const avgPriceKg = ds.length > 0 ? ds.reduce((s, r) => s + r.deduction!.price_per_kg, 0) / ds.length : 0;
+  const avgPriceKg =
+    ds.length > 0
+      ? ds.reduce((s, r) => s + r.deduction!.price_per_kg, 0) / ds.length
+      : 0;
 
   const insights = isFarmer
     ? [
-        { icon: "scale", label: t.avgBatchWeight, value: avgBatchKg > 0 ? `${formatWeight(avgBatchKg)} KG` : "—" },
-        { icon: "bird", label: t.totalBirdsSold, value: totalBirds > 0 ? totalBirds.toLocaleString() : "—" },
-        { icon: "trending-up", label: t.bestPriceLabel, value: bestPrice > 0 ? `৳${bestPrice.toFixed(0)}/KG` : "—" },
-        { icon: "percent", label: t.cullRateLabel, value: cullRate > 0 ? `${cullRate.toFixed(1)}%` : "—" },
+        {
+          icon: "scale",
+          label: t.avgBatchWeight,
+          value: avgBatchKg > 0 ? `${formatWeight(avgBatchKg)} KG` : "—",
+        },
+        {
+          icon: "bird",
+          label: t.totalBirdsSold,
+          value: totalBirds > 0 ? totalBirds.toLocaleString() : "—",
+        },
+        {
+          icon: "trending-up",
+          label: t.bestPriceLabel,
+          value: bestPrice > 0 ? `৳${bestPrice.toFixed(0)}/KG` : "—",
+        },
+        {
+          icon: "percent",
+          label: t.cullRateLabel,
+          value: cullRate > 0 ? `${cullRate.toFixed(1)}%` : "—",
+        },
       ]
     : [
-        { icon: "counter", label: t.avgBirdsPerBatch, value: avgBirds > 0 ? avgBirds.toLocaleString() : "—" },
-        { icon: "cash", label: t.avgPurchasePrice, value: avgPriceKg > 0 ? `৳${avgPriceKg.toFixed(0)}/KG` : "—" },
-        { icon: "arrow-collapse-down", label: t.deductionSavedKg, value: totalDeductionKg > 0 ? `${formatWeight(totalDeductionKg)} KG` : "—" },
-        { icon: "chart-bar", label: t.dashTotalSales, value: totalSales > 0 ? String(totalSales) : "—" },
+        {
+          icon: "counter",
+          label: t.avgBirdsPerBatch,
+          value: avgBirds > 0 ? avgBirds.toLocaleString() : "—",
+        },
+        {
+          icon: "cash",
+          label: t.avgPurchasePrice,
+          value: avgPriceKg > 0 ? `৳${avgPriceKg.toFixed(0)}/KG` : "—",
+        },
+        {
+          icon: "arrow-collapse-down",
+          label: t.deductionSavedKg,
+          value:
+            totalDeductionKg > 0 ? `${formatWeight(totalDeductionKg)} KG` : "—",
+        },
+        {
+          icon: "chart-bar",
+          label: t.dashTotalSales,
+          value: totalSales > 0 ? String(totalSales) : "—",
+        },
       ];
 
   const wholesalerPeriods: { label: string; value: ChartPeriod }[] = [
@@ -359,31 +585,63 @@ function DashboardHeader({
 
   const chartPeriodLabel = isFarmer
     ? "Last 6 Months"
-    : period === "7d" ? "Last 7 Days" : "Last 4 Weeks";
+    : period === "7d"
+      ? "Last 7 Days"
+      : "Last 4 Weeks";
 
   const webTopInset = Platform.OS === "web" ? 67 : 0;
 
   return (
     <View>
       {/* ── Top bar ── */}
-      <View style={[styles.topBar, {
-        paddingTop: insets.top + webTopInset + 8,
-        backgroundColor: theme.surface,
-        borderBottomColor: theme.borderLight,
-      }]}>
+      <View
+        style={[
+          styles.topBar,
+          {
+            paddingTop: insets.top + webTopInset + 8,
+            backgroundColor: theme.surface,
+            borderBottomColor: theme.borderLight,
+          },
+        ]}
+      >
         <View style={styles.topBarLeft}>
-          <View style={[styles.logoMark, { backgroundColor: theme.accentLight }]}>
-            <MaterialCommunityIcons name="scale-balance" size={18} color={theme.accent} />
+          <View
+            style={[styles.logoMark, { backgroundColor: theme.accentLight }]}
+          >
+            <MaterialCommunityIcons
+              name="scale-balance"
+              size={18}
+              color={theme.accent}
+            />
           </View>
           <View>
-            <Text style={[styles.appNameText, { color: theme.text, fontFamily: "Outfit_700Bold" }]}>
+            <Text
+              style={[
+                styles.appNameText,
+                { color: theme.text, fontFamily: "Outfit_700Bold" },
+              ]}
+            >
               PoultryScale
             </Text>
-            <View style={[styles.rolePill, { backgroundColor: isFarmer ? theme.accentLight : theme.warmLight }]}>
-              <Text style={[styles.rolePillText, {
-                color: isFarmer ? theme.accent : theme.warm,
-                fontFamily: "Outfit_600SemiBold",
-              }]}>
+            <View
+              style={[
+                styles.rolePill,
+                {
+                  backgroundColor: isFarmer
+                    ? theme.accentLight
+                    : theme.warmLight,
+                },
+              ]}
+            >
+              <Text
+                style={[
+                  styles.rolePillText,
+                  {
+                    color: isFarmer ? theme.accent : theme.warm,
+                    fontFamily: "Outfit_600SemiBold",
+                  },
+                ]}
+              >
                 {isFarmer ? t.farmerRole : t.wholesalerRole}
               </Text>
             </View>
@@ -392,10 +650,19 @@ function DashboardHeader({
 
         <Pressable
           onPress={() => router.push("/profile")}
-          style={({ pressed }) => [{ opacity: pressed ? 0.7 : 1, position: "relative" }]}
+          style={({ pressed }) => [
+            { opacity: pressed ? 0.7 : 1, position: "relative" },
+          ]}
         >
-          <LinearGradient colors={["#3B82F6", "#1D4ED8"]} style={styles.avatarGrad}>
-            <Text style={[styles.avatarInitials, { fontFamily: "Outfit_700Bold" }]}>{initials}</Text>
+          <LinearGradient
+            colors={["#3B82F6", "#1D4ED8"]}
+            style={styles.avatarGrad}
+          >
+            <Text
+              style={[styles.avatarInitials, { fontFamily: "Outfit_700Bold" }]}
+            >
+              {initials}
+            </Text>
           </LinearGradient>
           {isPremium && <View style={styles.premiumDot} />}
         </Pressable>
@@ -403,10 +670,20 @@ function DashboardHeader({
 
       {/* ── Greeting ── */}
       <View style={styles.greetingRow}>
-        <Text style={[styles.greetSub, { color: theme.textTertiary, fontFamily: "Outfit_400Regular" }]}>
+        <Text
+          style={[
+            styles.greetSub,
+            { color: theme.textTertiary, fontFamily: "Outfit_400Regular" },
+          ]}
+        >
           {getGreeting(t)}
         </Text>
-        <Text style={[styles.greetName, { color: theme.text, fontFamily: "Outfit_700Bold" }]}>
+        <Text
+          style={[
+            styles.greetName,
+            { color: theme.text, fontFamily: "Outfit_700Bold" },
+          ]}
+        >
           {displayName} 👋
         </Text>
       </View>
@@ -417,11 +694,24 @@ function DashboardHeader({
           onPress={() => router.push("/drafts")}
           style={({ pressed }) => [
             styles.draftBanner,
-            { backgroundColor: theme.warmLight, borderColor: theme.warm, opacity: pressed ? 0.85 : 1 },
+            {
+              backgroundColor: theme.warmLight,
+              borderColor: theme.warm,
+              opacity: pressed ? 0.85 : 1,
+            },
           ]}
         >
-          <MaterialCommunityIcons name="progress-clock" size={16} color={theme.warm} />
-          <Text style={[styles.draftText, { color: theme.warm, fontFamily: "Outfit_600SemiBold", flex: 1 }]}>
+          <MaterialCommunityIcons
+            name="progress-clock"
+            size={16}
+            color={theme.warm}
+          />
+          <Text
+            style={[
+              styles.draftText,
+              { color: theme.warm, fontFamily: "Outfit_600SemiBold", flex: 1 },
+            ]}
+          >
             {t.homeDraftBanner(drafts.length)}
           </Text>
           <Feather name="chevron-right" size={15} color={theme.warm} />
@@ -438,16 +728,40 @@ function DashboardHeader({
         >
           <View style={styles.heroCardTop}>
             <View>
-              <Text style={[styles.heroCardLabel, { fontFamily: "Outfit_400Regular" }]}>
+              <Text
+                style={[
+                  styles.heroCardLabel,
+                  { fontFamily: "Outfit_400Regular" },
+                ]}
+              >
                 {t.dashRevenue}
               </Text>
-              <Text style={[styles.heroCardAmount, { fontFamily: "Outfit_700Bold" }]}>
+              <Text
+                style={[
+                  styles.heroCardAmount,
+                  { fontFamily: "Outfit_700Bold" },
+                ]}
+              >
                 {fmtTk(totalRevenue)}
               </Text>
             </View>
-            <View style={[styles.salesCountPill, { backgroundColor: "rgba(255,255,255,0.1)" }]}>
-              <MaterialCommunityIcons name="receipt" size={13} color="rgba(255,255,255,0.6)" />
-              <Text style={[styles.salesCountText, { fontFamily: "Outfit_600SemiBold" }]}>
+            <View
+              style={[
+                styles.salesCountPill,
+                { backgroundColor: "rgba(255,255,255,0.1)" },
+              ]}
+            >
+              <MaterialCommunityIcons
+                name="receipt"
+                size={13}
+                color="rgba(255,255,255,0.6)"
+              />
+              <Text
+                style={[
+                  styles.salesCountText,
+                  { fontFamily: "Outfit_600SemiBold" },
+                ]}
+              >
                 {totalSales} {totalSales === 1 ? "sale" : "sales"}
               </Text>
             </View>
@@ -455,7 +769,9 @@ function DashboardHeader({
 
           {/* Period label + toggle */}
           <View style={styles.periodRow}>
-            <Text style={[styles.periodLabel, { fontFamily: "Outfit_400Regular" }]}>
+            <Text
+              style={[styles.periodLabel, { fontFamily: "Outfit_400Regular" }]}
+            >
               {chartPeriodLabel}
             </Text>
             {!isFarmer && (
@@ -473,7 +789,12 @@ function DashboardHeader({
               <RevenueChart bars={bars} />
             ) : (
               <View style={styles.noChartWrap}>
-                <Text style={[styles.noChartText, { fontFamily: "Outfit_400Regular" }]}>
+                <Text
+                  style={[
+                    styles.noChartText,
+                    { fontFamily: "Outfit_400Regular" },
+                  ]}
+                >
                   {t.noRevenueData}
                 </Text>
               </View>
@@ -482,27 +803,63 @@ function DashboardHeader({
 
           {/* Bottom chips */}
           <View style={styles.heroChips}>
-            <View style={[styles.heroChip, { backgroundColor: "rgba(255,255,255,0.08)" }]}>
-              <Text style={[styles.heroChipVal, { fontFamily: "Outfit_700Bold" }]}>
+            <View
+              style={[
+                styles.heroChip,
+                { backgroundColor: "rgba(255,255,255,0.08)" },
+              ]}
+            >
+              <Text
+                style={[styles.heroChipVal, { fontFamily: "Outfit_700Bold" }]}
+              >
                 {formatWeight(totalWeightKg)} KG
               </Text>
-              <Text style={[styles.heroChipLabel, { fontFamily: "Outfit_400Regular" }]}>
+              <Text
+                style={[
+                  styles.heroChipLabel,
+                  { fontFamily: "Outfit_400Regular" },
+                ]}
+              >
                 {t.dashWeightSold}
               </Text>
             </View>
-            <View style={[styles.heroChip, { backgroundColor: "rgba(255,255,255,0.08)" }]}>
-              <Text style={[styles.heroChipVal, { fontFamily: "Outfit_700Bold" }]}>
+            <View
+              style={[
+                styles.heroChip,
+                { backgroundColor: "rgba(255,255,255,0.08)" },
+              ]}
+            >
+              <Text
+                style={[styles.heroChipVal, { fontFamily: "Outfit_700Bold" }]}
+              >
                 {totalBirds > 0 ? totalBirds.toLocaleString() : "—"}
               </Text>
-              <Text style={[styles.heroChipLabel, { fontFamily: "Outfit_400Regular" }]}>
+              <Text
+                style={[
+                  styles.heroChipLabel,
+                  { fontFamily: "Outfit_400Regular" },
+                ]}
+              >
                 {t.totalBirdsSold}
               </Text>
             </View>
-            <View style={[styles.heroChip, { backgroundColor: "rgba(255,255,255,0.08)" }]}>
-              <Text style={[styles.heroChipVal, { fontFamily: "Outfit_700Bold" }]}>
+            <View
+              style={[
+                styles.heroChip,
+                { backgroundColor: "rgba(255,255,255,0.08)" },
+              ]}
+            >
+              <Text
+                style={[styles.heroChipVal, { fontFamily: "Outfit_700Bold" }]}
+              >
                 {bestPrice > 0 ? `৳${bestPrice.toFixed(0)}` : "—"}
               </Text>
-              <Text style={[styles.heroChipLabel, { fontFamily: "Outfit_400Regular" }]}>
+              <Text
+                style={[
+                  styles.heroChipLabel,
+                  { fontFamily: "Outfit_400Regular" },
+                ]}
+              >
                 {t.bestPriceLabel}
               </Text>
             </View>
@@ -513,7 +870,12 @@ function DashboardHeader({
       {/* ── Insights scroll ── */}
       {totalSales > 0 && (
         <View style={styles.insightsSection}>
-          <Text style={[styles.sectionLabel, { color: theme.textTertiary, fontFamily: "Outfit_600SemiBold" }]}>
+          <Text
+            style={[
+              styles.sectionLabel,
+              { color: theme.textTertiary, fontFamily: "Outfit_600SemiBold" },
+            ]}
+          >
             {isFarmer ? t.farmerInsights : t.wholesalerInsights}
           </Text>
           <ScrollView
@@ -524,15 +886,43 @@ function DashboardHeader({
             {insights.map((ins, i) => (
               <View
                 key={i}
-                style={[styles.insightChip, { backgroundColor: theme.surface, borderColor: theme.borderLight }]}
+                style={[
+                  styles.insightChip,
+                  {
+                    backgroundColor: theme.surface,
+                    borderColor: theme.borderLight,
+                  },
+                ]}
               >
-                <View style={[styles.insightIconBg, { backgroundColor: theme.accentLight }]}>
-                  <MaterialCommunityIcons name={ins.icon as any} size={16} color={theme.accent} />
+                <View
+                  style={[
+                    styles.insightIconBg,
+                    { backgroundColor: theme.accentLight },
+                  ]}
+                >
+                  <MaterialCommunityIcons
+                    name={ins.icon as any}
+                    size={16}
+                    color={theme.accent}
+                  />
                 </View>
-                <Text style={[styles.insightChipVal, { color: theme.text, fontFamily: "Outfit_700Bold" }]}>
+                <Text
+                  style={[
+                    styles.insightChipVal,
+                    { color: theme.text, fontFamily: "Outfit_700Bold" },
+                  ]}
+                >
                   {ins.value}
                 </Text>
-                <Text style={[styles.insightChipLabel, { color: theme.textTertiary, fontFamily: "Outfit_500Medium" }]}>
+                <Text
+                  style={[
+                    styles.insightChipLabel,
+                    {
+                      color: theme.textTertiary,
+                      fontFamily: "Outfit_500Medium",
+                    },
+                  ]}
+                >
                   {ins.label}
                 </Text>
               </View>
@@ -543,15 +933,28 @@ function DashboardHeader({
 
       {/* ── Recent sales header ── */}
       <View style={styles.recentHeader}>
-        <Text style={[styles.sectionLabel, { color: theme.textTertiary, fontFamily: "Outfit_600SemiBold" }]}>
+        <Text
+          style={[
+            styles.sectionLabel,
+            { color: theme.textTertiary, fontFamily: "Outfit_600SemiBold" },
+          ]}
+        >
           RECENT SALES
         </Text>
         {totalSales > 3 && (
           <Pressable
             onPress={() => router.push("/sales")}
-            style={({ pressed }) => [styles.viewAllBtn, { opacity: pressed ? 0.6 : 1 }]}
+            style={({ pressed }) => [
+              styles.viewAllBtn,
+              { opacity: pressed ? 0.6 : 1 },
+            ]}
           >
-            <Text style={[styles.viewAllText, { color: theme.accent, fontFamily: "Outfit_600SemiBold" }]}>
+            <Text
+              style={[
+                styles.viewAllText,
+                { color: theme.accent, fontFamily: "Outfit_600SemiBold" },
+              ]}
+            >
               View All ({totalSales})
             </Text>
             <Feather name="chevron-right" size={14} color={theme.accent} />
@@ -587,7 +990,7 @@ export default function HomeScreen() {
         loadSales(uid),
         loadDrafts(uid),
         getUserProfile(uid),
-        loadPlan(),
+        loadPlan(uid),
       ]).then(([salesData, draftsData, profileData, planData]) => {
         setSales(salesData);
         setDrafts(draftsData);
@@ -597,21 +1000,24 @@ export default function HomeScreen() {
         setPeriod(isFarmer ? "6m" : "7d");
         setLoading(false);
       });
-    }, [user?.id])
+    }, [user?.id]),
   );
 
   const handleDelete = async (id: string) => {
     await deleteSale(id);
     setSales((prev) => prev.filter((s) => s.id !== id));
-    if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    if (Platform.OS !== "web")
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   };
 
   const handleNew = () => {
-    if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    if (Platform.OS !== "web")
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     router.push("/measurement");
   };
 
-  if (loading) return <View style={{ flex: 1, backgroundColor: theme.background }} />;
+  if (loading)
+    return <View style={{ flex: 1, backgroundColor: theme.background }} />;
 
   const recentSales = sales.slice(0, 3);
 
@@ -634,20 +1040,38 @@ export default function HomeScreen() {
           />
         }
         renderItem={({ item, index }) => (
-          <SaleCard sale={item} index={index} theme={theme} onDelete={handleDelete} t={t} />
+          <SaleCard
+            sale={item}
+            index={index}
+            theme={theme}
+            onDelete={handleDelete}
+            t={t}
+          />
         )}
         ListFooterComponent={
           sales.length > 3 ? (
             <Pressable
               onPress={() => router.push("/sales")}
-              style={({ pressed }) => [styles.viewAllCard, {
-                backgroundColor: theme.surface,
-                borderColor: theme.borderLight,
-                opacity: pressed ? 0.8 : 1,
-              }]}
+              style={({ pressed }) => [
+                styles.viewAllCard,
+                {
+                  backgroundColor: theme.surface,
+                  borderColor: theme.borderLight,
+                  opacity: pressed ? 0.8 : 1,
+                },
+              ]}
             >
-              <MaterialCommunityIcons name="history" size={18} color={theme.accent} />
-              <Text style={[styles.viewAllCardText, { color: theme.accent, fontFamily: "Outfit_600SemiBold" }]}>
+              <MaterialCommunityIcons
+                name="history"
+                size={18}
+                color={theme.accent}
+              />
+              <Text
+                style={[
+                  styles.viewAllCardText,
+                  { color: theme.accent, fontFamily: "Outfit_600SemiBold" },
+                ]}
+              >
                 View All {sales.length} Sales
               </Text>
               <Feather name="chevron-right" size={16} color={theme.accent} />
@@ -659,13 +1083,32 @@ export default function HomeScreen() {
             style={styles.emptyWrap}
             entering={Platform.OS !== "web" ? FadeIn.delay(100) : undefined}
           >
-            <View style={[styles.emptyIconBg, { backgroundColor: theme.accentLight }]}>
-              <MaterialCommunityIcons name="scale-balance" size={40} color={theme.accent} />
+            <View
+              style={[
+                styles.emptyIconBg,
+                { backgroundColor: theme.accentLight },
+              ]}
+            >
+              <MaterialCommunityIcons
+                name="scale-balance"
+                size={40}
+                color={theme.accent}
+              />
             </View>
-            <Text style={[styles.emptyTitle, { color: theme.text, fontFamily: "Outfit_600SemiBold" }]}>
+            <Text
+              style={[
+                styles.emptyTitle,
+                { color: theme.text, fontFamily: "Outfit_600SemiBold" },
+              ]}
+            >
               {t.homeNoSales}
             </Text>
-            <Text style={[styles.emptyHint, { color: theme.textTertiary, fontFamily: "Outfit_400Regular" }]}>
+            <Text
+              style={[
+                styles.emptyHint,
+                { color: theme.textTertiary, fontFamily: "Outfit_400Regular" },
+              ]}
+            >
               {t.homeNoSalesHint}
             </Text>
           </Animated.View>
@@ -678,16 +1121,26 @@ export default function HomeScreen() {
       />
 
       {/* FAB */}
-      <View style={[styles.fabWrap, { bottom: insets.bottom + webBottomInset + 20 }]}>
+      <View
+        style={[
+          styles.fabWrap,
+          { bottom: insets.bottom + webBottomInset + 20 },
+        ]}
+      >
         <Pressable
           onPress={handleNew}
           style={({ pressed }) => [
             styles.fab,
-            { backgroundColor: theme.accent, transform: [{ scale: pressed ? 0.93 : 1 }] },
+            {
+              backgroundColor: theme.accent,
+              transform: [{ scale: pressed ? 0.93 : 1 }],
+            },
           ]}
         >
           <Feather name="plus" size={26} color="#fff" />
-          <Text style={[styles.fabLabel, { fontFamily: "Outfit_600SemiBold" }]}>{t.newWeighing}</Text>
+          <Text style={[styles.fabLabel, { fontFamily: "Outfit_600SemiBold" }]}>
+            {t.newWeighing}
+          </Text>
         </Pressable>
       </View>
     </View>
@@ -700,20 +1153,47 @@ const styles = StyleSheet.create({
   root: { flex: 1 },
 
   topBar: {
-    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
-    paddingHorizontal: 20, paddingBottom: 14, borderBottomWidth: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 20,
+    paddingBottom: 14,
+    borderBottomWidth: 1,
   },
   topBarLeft: { flexDirection: "row", alignItems: "center", gap: 12 },
-  logoMark: { width: 40, height: 40, borderRadius: 13, alignItems: "center", justifyContent: "center" },
+  logoMark: {
+    width: 40,
+    height: 40,
+    borderRadius: 13,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   appNameText: { fontSize: 17, marginBottom: 2 },
-  rolePill: { alignSelf: "flex-start", paddingHorizontal: 8, paddingVertical: 2, borderRadius: 20 },
+  rolePill: {
+    alignSelf: "flex-start",
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 20,
+  },
   rolePillText: { fontSize: 11 },
-  avatarGrad: { width: 44, height: 44, borderRadius: 15, alignItems: "center", justifyContent: "center" },
+  avatarGrad: {
+    width: 44,
+    height: 44,
+    borderRadius: 15,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   avatarInitials: { fontSize: 17, color: "#fff" },
   premiumDot: {
-    position: "absolute", bottom: -1, right: -1,
-    width: 12, height: 12, borderRadius: 6,
-    backgroundColor: "#FBBF24", borderWidth: 2, borderColor: "#fff",
+    position: "absolute",
+    bottom: -1,
+    right: -1,
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: "#FBBF24",
+    borderWidth: 2,
+    borderColor: "#fff",
   },
 
   greetingRow: { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 4 },
@@ -721,40 +1201,70 @@ const styles = StyleSheet.create({
   greetName: { fontSize: 24 },
 
   draftBanner: {
-    flexDirection: "row", alignItems: "center", gap: 10,
-    marginHorizontal: 16, marginTop: 14,
-    paddingHorizontal: 14, paddingVertical: 11,
-    borderRadius: 14, borderWidth: 1.5,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginHorizontal: 16,
+    marginTop: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+    borderRadius: 14,
+    borderWidth: 1.5,
   },
   draftText: { fontSize: 13 },
 
   heroCard: {
-    marginHorizontal: 16, marginTop: 16,
-    borderRadius: 22, overflow: "hidden",
+    marginHorizontal: 16,
+    marginTop: 16,
+    borderRadius: 22,
+    overflow: "hidden",
     ...Platform.select({
-      ios: { shadowColor: "#000", shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.25, shadowRadius: 16 },
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.25,
+        shadowRadius: 16,
+      },
       android: { elevation: 10 },
     }),
   },
   heroCardInner: { padding: 20 },
   heroCardTop: {
-    flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 12,
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    marginBottom: 12,
   },
   heroCardLabel: {
-    fontSize: 12, color: "rgba(255,255,255,0.5)", marginBottom: 4,
-    textTransform: "uppercase", letterSpacing: 0.8,
+    fontSize: 12,
+    color: "rgba(255,255,255,0.5)",
+    marginBottom: 4,
+    textTransform: "uppercase",
+    letterSpacing: 0.8,
   },
   heroCardAmount: { fontSize: 36, color: "#fff", letterSpacing: -1 },
   salesCountPill: {
-    flexDirection: "row", alignItems: "center", gap: 5,
-    paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20, marginTop: 4,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 20,
+    marginTop: 4,
   },
   salesCountText: { fontSize: 12, color: "rgba(255,255,255,0.65)" },
 
   periodRow: {
-    flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 12,
   },
-  periodLabel: { fontSize: 11, color: "rgba(255,255,255,0.4)", letterSpacing: 0.5 },
+  periodLabel: {
+    fontSize: 11,
+    color: "rgba(255,255,255,0.4)",
+    letterSpacing: 0.5,
+  },
   toggleRow: { flexDirection: "row", borderRadius: 20, padding: 2 },
   toggleBtn: { paddingHorizontal: 14, paddingVertical: 5, borderRadius: 18 },
   toggleBtnText: { fontSize: 11, letterSpacing: 0.3 },
@@ -763,79 +1273,180 @@ const styles = StyleSheet.create({
   noChartWrap: { alignItems: "center", paddingVertical: 24 },
   noChartText: { fontSize: 13, color: "rgba(255,255,255,0.35)" },
   heroChips: { flexDirection: "row", gap: 8, marginTop: 4 },
-  heroChip: { flex: 1, borderRadius: 12, padding: 12, gap: 3, alignItems: "center" },
+  heroChip: {
+    flex: 1,
+    borderRadius: 12,
+    padding: 12,
+    gap: 3,
+    alignItems: "center",
+  },
   heroChipVal: { fontSize: 14, color: "#fff" },
   heroChipLabel: {
-    fontSize: 10, color: "rgba(255,255,255,0.45)",
-    textTransform: "uppercase", letterSpacing: 0.4, textAlign: "center",
+    fontSize: 10,
+    color: "rgba(255,255,255,0.45)",
+    textTransform: "uppercase",
+    letterSpacing: 0.4,
+    textAlign: "center",
   },
 
   insightsSection: { marginTop: 22 },
   sectionLabel: {
-    fontSize: 11, letterSpacing: 1.2, textTransform: "uppercase",
-    marginHorizontal: 16, marginBottom: 10,
+    fontSize: 11,
+    letterSpacing: 1.2,
+    textTransform: "uppercase",
+    marginHorizontal: 16,
+    marginBottom: 10,
   },
   insightsScroll: { paddingHorizontal: 16, gap: 10 },
-  insightChip: { width: 120, borderRadius: 16, padding: 14, borderWidth: 1, gap: 8, alignItems: "flex-start" },
-  insightIconBg: { width: 34, height: 34, borderRadius: 11, alignItems: "center", justifyContent: "center" },
+  insightChip: {
+    width: 120,
+    borderRadius: 16,
+    padding: 14,
+    borderWidth: 1,
+    gap: 8,
+    alignItems: "flex-start",
+  },
+  insightIconBg: {
+    width: 34,
+    height: 34,
+    borderRadius: 11,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   insightChipVal: { fontSize: 17 },
-  insightChipLabel: { fontSize: 10, textTransform: "uppercase", letterSpacing: 0.5 },
+  insightChipLabel: {
+    fontSize: 10,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
 
   recentHeader: {
-    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
-    marginTop: 22, marginBottom: 10, marginHorizontal: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: 22,
+    marginBottom: 10,
+    marginHorizontal: 16,
   },
   viewAllBtn: { flexDirection: "row", alignItems: "center", gap: 2 },
   viewAllText: { fontSize: 13 },
 
-  emptyWrap: { alignItems: "center", paddingTop: 48, paddingHorizontal: 40, paddingBottom: 32 },
-  emptyIconBg: { width: 80, height: 80, borderRadius: 26, alignItems: "center", justifyContent: "center", marginBottom: 18 },
+  emptyWrap: {
+    alignItems: "center",
+    paddingTop: 48,
+    paddingHorizontal: 40,
+    paddingBottom: 32,
+  },
+  emptyIconBg: {
+    width: 80,
+    height: 80,
+    borderRadius: 26,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 18,
+  },
   emptyTitle: { fontSize: 19, marginBottom: 8, textAlign: "center" },
   emptyHint: { fontSize: 14, textAlign: "center", lineHeight: 21 },
 
   card: {
-    borderRadius: 16, marginBottom: 12, borderWidth: 1, overflow: "hidden",
+    borderRadius: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    overflow: "hidden",
     ...Platform.select({
       web: { boxShadow: "0px 2px 8px rgba(0,0,0,0.06)" } as object,
-      default: { shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 8, elevation: 3 },
+      default: {
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 1,
+        shadowRadius: 8,
+        elevation: 3,
+      },
     }),
   },
   cardHead: {
-    flexDirection: "row", justifyContent: "space-between", alignItems: "center",
-    paddingHorizontal: 14, paddingTop: 12, paddingBottom: 10,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 14,
+    paddingTop: 12,
+    paddingBottom: 10,
   },
   cardDateRow: { flexDirection: "row", alignItems: "center", gap: 7 },
-  calIcon: { width: 24, height: 24, borderRadius: 7, alignItems: "center", justifyContent: "center" },
+  calIcon: {
+    width: 24,
+    height: 24,
+    borderRadius: 7,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   cardDate: { fontSize: 12 },
-  cardStats: { flexDirection: "row", paddingHorizontal: 14, paddingBottom: 12, alignItems: "center" },
+  cardStats: {
+    flexDirection: "row",
+    paddingHorizontal: 14,
+    paddingBottom: 12,
+    alignItems: "center",
+  },
   statCell: { flex: 1, alignItems: "center", gap: 2 },
   statCellVal: { fontSize: 18 },
-  statCellLabel: { fontSize: 10, textTransform: "uppercase", letterSpacing: 0.4 },
+  statCellLabel: {
+    fontSize: 10,
+    textTransform: "uppercase",
+    letterSpacing: 0.4,
+  },
   statDivider: { width: 1, height: 32, marginHorizontal: 4 },
   cardFooter: {
-    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
-    paddingHorizontal: 14, paddingVertical: 9, borderTopWidth: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    borderTopWidth: 1,
   },
   footerMeta: { fontSize: 12, flex: 1 },
   footerAmount: { fontSize: 15 },
 
   viewAllCard: {
-    flexDirection: "row", alignItems: "center", gap: 12,
-    borderRadius: 16, borderWidth: 1,
-    paddingHorizontal: 18, paddingVertical: 15, marginBottom: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    borderRadius: 16,
+    borderWidth: 1,
+    paddingHorizontal: 18,
+    paddingVertical: 15,
+    marginBottom: 12,
     ...Platform.select({
       web: { boxShadow: "0px 2px 8px rgba(0,0,0,0.06)" } as object,
-      default: { shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 8, elevation: 3 },
+      default: {
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 1,
+        shadowRadius: 8,
+        elevation: 3,
+      },
     }),
   },
   viewAllCardText: { flex: 1, fontSize: 15 },
 
-  fabWrap: { position: "absolute", alignSelf: "center", left: 0, right: 0, alignItems: "center" },
+  fabWrap: {
+    position: "absolute",
+    alignSelf: "center",
+    left: 0,
+    right: 0,
+    alignItems: "center",
+  },
   fab: {
-    flexDirection: "row", alignItems: "center", gap: 8,
-    paddingHorizontal: 24, height: 52, borderRadius: 26,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 24,
+    height: 52,
+    borderRadius: 26,
     ...Platform.select({
-      ios: { shadowColor: "#2563EB", shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.4, shadowRadius: 12 },
+      ios: {
+        shadowColor: "#2563EB",
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.4,
+        shadowRadius: 12,
+      },
       android: { elevation: 10 },
     }),
   },

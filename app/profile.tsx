@@ -118,7 +118,7 @@ export default function ProfileScreen() {
   useFocusEffect(
     useCallback(() => {
       if (!user?.id) return;
-      Promise.all([getUserProfile(user.id), loadPlan(), loadSales(user.id)]).then(
+      Promise.all([getUserProfile(user.id), loadPlan(user.id), loadSales(user.id)]).then(
         ([p, pl, sales]) => {
           setProfile(p);
           setPlanState(pl);
@@ -144,7 +144,7 @@ export default function ProfileScreen() {
   };
 
   const handleUpgrade = async () => {
-    await savePlan("premium");
+    if (user?.id) await savePlan(user.id, "premium");
     setPlanState("premium");
     setShowUpgrade(false);
   };
@@ -155,7 +155,7 @@ export default function ProfileScreen() {
       {
         text: "Switch",
         onPress: async () => {
-          await savePlan("community");
+          if (user?.id) await savePlan(user.id, "community");
           setPlanState("community");
         },
       },

@@ -114,7 +114,7 @@ export default function OnboardingScreen() {
         ...(businessName.trim() && { businessName: businessName.trim() }),
       };
       await saveUserProfile(user.id, profile);
-      await savePlan(plan);
+      await savePlan(user.id, plan);
       await markOnboardingComplete(user.id);
       await clearOnboardingDraft(user.id);
       router.replace("/");

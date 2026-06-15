@@ -7,6 +7,7 @@ import React, {
   type ReactNode,
 } from "react";
 import { useColorScheme } from "react-native";
+import { useUser } from "@clerk/expo";
 import { translations, type Language, type Translations } from "./i18n";
 import { loadLanguagePref, loadThemePref, saveLanguagePref, saveThemePref } from "./storage";
 
@@ -34,23 +35,23 @@ const SettingsContext = createContext<SettingsContextType>(defaultCtx);
 
 export function SettingsProvider({ children }: { children: ReactNode }) {
   const systemScheme = useColorScheme();
-  const [language, setLangState] = useState<Language>("en");
-  const [themePreference, setThemePrefState] =
-    useState<ThemePreference>("system");
+  const { user } = useUser();
+  const userId = user?.id ?? "";
 
+  const [language, setLangState] = useState<Language>("en");
+  const [themePreference, setThemePrefState] = useState<ThemePreference>("system");
+
+  // Reload settings whenever the signed-in user changes
   useEffect(() => {
-    Promise.all([loadLanguagePref(), loadThemePref()]).then(
+    if (!userId) return;
+    Promise.all([loadLanguagePref(userId), loadThemePref(userId)]).then(
       ([lang, theme]) => {
         if (lang === "en" || lang === "bn") setLangState(lang as Language);
-        if (
-          theme === "system" ||
-          theme === "dark" ||
-          theme === "light"
-        )
+        if (theme === "system" || theme === "dark" || theme === "light")
           setThemePrefState(theme as ThemePreference);
       }
     );
-  }, []);
+  }, [userId]);
 
   const isDark =
     themePreference === "dark"
@@ -63,13 +64,13 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
 
   const setLanguage = useCallback(async (lang: Language) => {
     setLangState(lang);
-    await saveLanguagePref(lang);
-  }, []);
+    if (userId) await saveLanguagePref(userId, lang);
+  }, [userId]);
 
   const setThemePreference = useCallback(async (pref: ThemePreference) => {
     setThemePrefState(pref);
-    await saveThemePref(pref);
-  }, []);
+    if (userId) await saveThemePref(userId, pref);
+  }, [userId]);
 
   return (
     <SettingsContext.Provider

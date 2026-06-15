@@ -41,7 +41,7 @@ export default function SaleDetailScreen() {
   useFocusEffect(
     useCallback(() => {
       if (!user?.id) return;
-      Promise.all([loadSales(user.id), loadFarmName()]).then(([sales, name]) => {
+      Promise.all([loadSales(user.id), loadFarmName(user.id)]).then(([sales, name]) => {
         const found = sales.find((s) => s.id === id) ?? null;
         setSale(found);
         setFarmName(name);
