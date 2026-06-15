@@ -34,7 +34,7 @@ export default function SettingsScreen() {
 
   const [defaultPrice, setDefaultPrice] = useState("");
   const [defaultKgPerCrate, setDefaultKgPerCrate] = useState("");
-  const [defaultDholtaG, setDefaultDholtaG] = useState("");
+  const [defaultDeductionG, setDefaultDeductionG] = useState("");
   const [farmNameValue, setFarmNameValue] = useState("");
 
   const webTopInset = Platform.OS === "web" ? 67 : 0;
@@ -49,7 +49,7 @@ export default function SettingsScreen() {
     ]).then(([price, kpc, dg, farm]) => {
       if (price) setDefaultPrice(price);
       if (kpc) setDefaultKgPerCrate(kpc);
-      if (dg) setDefaultDholtaG(dg);
+      if (dg) setDefaultDeductionG(dg);
       if (farm) setFarmNameValue(farm);
     });
   }, []);
@@ -70,7 +70,7 @@ export default function SettingsScreen() {
       defaultKgPerCrate
         ? saveLastKgPerCrate(defaultKgPerCrate)
         : Promise.resolve(),
-      defaultDholtaG ? saveLastDeductionG(defaultDholtaG) : Promise.resolve(),
+      defaultDeductionG ? saveLastDeductionG(defaultDeductionG) : Promise.resolve(),
       saveFarmName(farmNameValue.trim()),
     ]);
     if (Platform.OS !== "web") {
@@ -233,9 +233,9 @@ export default function SettingsScreen() {
             isLast={false}
           />
           <InputRow
-            label={t.defaultDholtaG}
-            value={defaultDholtaG}
-            onChange={setDefaultDholtaG}
+            label={t.defaultDeductionG}
+            value={defaultDeductionG}
+            onChange={setDefaultDeductionG}
             placeholder="e.g. 300"
             theme={theme}
             isLast={false}

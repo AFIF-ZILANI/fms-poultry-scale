@@ -17,22 +17,7 @@ export interface MeasurementRow {
   editHistory?: RowEditEntry[];
 }
 
-export interface SaleRecord {
-  id: string;
-  totalWeightKg: number;
-  totalWeightGrams: number;
-  totalPcs: number;
-  averageWeightKg: number;
-  averageWeightGrams: number;
-  rows: MeasurementRow[];
-  cullRows?: MeasurementRow[];
-  createdAt: number;
-  dholta?: DholtaDetails;
-  receivedAmount?: number;
-  buyerName?: string;
-}
-
-export interface DholtaDetails {
+export interface TradeDeduction {
   gross_weight: number;
   kg_per_crate: number;
   deduction_per_crate_g: number;
@@ -51,6 +36,23 @@ export interface DholtaDetails {
   cull_pcs?: number;
   cull_amount?: number;
   final_amount: number;
+}
+
+export interface SaleRecord {
+  id: string;
+  totalWeightKg: number;
+  totalWeightGrams: number;
+  totalPcs: number;
+  // false = user chose "Skip Count" — show dash instead of 0 in UI
+  pcsTracked?: boolean;
+  averageWeightKg: number;
+  averageWeightGrams: number;
+  rows: MeasurementRow[];
+  cullRows?: MeasurementRow[];
+  createdAt: number;
+  deduction?: TradeDeduction;
+  receivedAmount?: number;
+  buyerName?: string;
 }
 
 export interface DraftSession {

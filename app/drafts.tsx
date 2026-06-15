@@ -16,18 +16,8 @@ import Animated, { FadeInDown } from "react-native-reanimated";
 import { useTheme } from "@/lib/useTheme";
 import { useSettings } from "@/lib/SettingsContext";
 import { loadDrafts, deleteDraft } from "@/lib/storage";
-import { formatWeight } from "@/lib/utils";
+import { formatWeight, getRelativeTime } from "@/lib/utils";
 import type { DraftSession } from "@/lib/types";
-
-function formatRelative(ts: number): string {
-  const diff = Date.now() - ts;
-  const m = Math.floor(diff / 60000);
-  if (m < 1) return "just now";
-  if (m < 60) return `${m}m ago`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h ago`;
-  return `${Math.floor(h / 24)}d ago`;
-}
 
 function DraftCard({
   draft,
@@ -145,7 +135,7 @@ function DraftCard({
                   { color: theme.textTertiary, fontFamily: "Outfit_400Regular" },
                 ]}
               >
-                {formatRelative(draft.updatedAt)}
+                {getRelativeTime(draft.updatedAt, t)}
               </Text>
             </View>
           </View>
