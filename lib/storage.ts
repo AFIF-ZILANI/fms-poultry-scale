@@ -157,3 +157,6 @@ export const saveThemePref = (v: string) => setPref("theme_preference", v);
 
 export const loadFarmName = () => getPref("farm_name");
 export const saveFarmName = (v: string) => setPref("farm_name", v);
+
+export const loadSubscriptionPlan = () => getPref("subscription_plan");
+export const saveSubscriptionPlan = (v: string) => setPref("subscription_plan", v);
