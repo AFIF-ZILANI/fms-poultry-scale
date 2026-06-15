@@ -16,6 +16,7 @@ import { Ionicons, Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import Animated, { FadeInDown, FadeIn } from "react-native-reanimated";
 import * as Print from "expo-print";
 import * as Sharing from "expo-sharing";
+import { useUser } from "@clerk/expo";
 import { useTheme } from "@/lib/useTheme";
 import { useSettings } from "@/lib/SettingsContext";
 import { formatWeight, formatDateTime } from "@/lib/utils";
@@ -28,6 +29,7 @@ export default function SaleDetailScreen() {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const { t } = useSettings();
+  const { user } = useUser();
   const { id } = useLocalSearchParams<{ id: string }>();
 
   const [sale, setSale] = useState<SaleRecord | null>(null);
@@ -38,13 +40,14 @@ export default function SaleDetailScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      Promise.all([loadSales(), loadFarmName()]).then(([sales, name]) => {
+      if (!user?.id) return;
+      Promise.all([loadSales(user.id), loadFarmName()]).then(([sales, name]) => {
         const found = sales.find((s) => s.id === id) ?? null;
         setSale(found);
         setFarmName(name);
         setLoading(false);
       });
-    }, [id])
+    }, [id, user?.id])
   );
 
   const handleShare = async () => {

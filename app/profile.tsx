@@ -118,7 +118,7 @@ export default function ProfileScreen() {
   useFocusEffect(
     useCallback(() => {
       if (!user?.id) return;
-      Promise.all([getUserProfile(user.id), loadPlan(), loadSales()]).then(
+      Promise.all([getUserProfile(user.id), loadPlan(), loadSales(user.id)]).then(
         ([p, pl, sales]) => {
           setProfile(p);
           setPlanState(pl);

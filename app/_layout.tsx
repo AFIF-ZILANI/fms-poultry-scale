@@ -25,19 +25,22 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   const { isLoaded, isSignedIn } = useAuth();
   const { user } = useUser();
   const router = useRouter();
-  const handled = useRef(false);
+  // Track which userId we already checked so we re-run when the account switches
+  const handledUserId = useRef<string | null>(null);
 
   useEffect(() => {
     if (!isLoaded) return;
 
     (async () => {
       if (!isSignedIn) {
+        handledUserId.current = null;
         router.replace("/(auth)/sign-in");
         return;
       }
       if (!user?.id) return;
-      if (handled.current) return;
-      handled.current = true;
+      // Already ran the check for this exact user — skip
+      if (handledUserId.current === user.id) return;
+      handledUserId.current = user.id;
 
       const done = await isOnboardingComplete(user.id);
       if (!done) {
@@ -67,6 +70,7 @@ function AppLayout() {
         <Stack.Screen name="settings" />
         <Stack.Screen name="onboarding" />
         <Stack.Screen name="profile" />
+        <Stack.Screen name="sales" />
         <Stack.Screen name="(auth)" />
       </Stack>
     </AuthGuard>

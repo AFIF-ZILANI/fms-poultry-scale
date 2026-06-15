@@ -19,6 +19,7 @@ import { Ionicons, Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import * as Crypto from "expo-crypto";
 import Animated, { FadeInDown, FadeIn } from "react-native-reanimated";
+import { useUser } from "@clerk/expo";
 import { useTheme } from "@/lib/useTheme";
 import { useSettings } from "@/lib/SettingsContext";
 import { formatWeight, formatPcs, sumPcs, getRelativeTime } from "@/lib/utils";
@@ -416,6 +417,7 @@ function TradeDeductionModal({
   insets,
   onCancel,
   onSaved,
+  userId,
 }: {
   visible: boolean;
   totalWeight: number;
@@ -428,6 +430,7 @@ function TradeDeductionModal({
   insets: { top: number; bottom: number };
   onCancel: () => void;
   onSaved: () => void;
+  userId: string;
 }) {
   const { t } = useSettings();
   const [kgPerCrate, setKgPerCrate] = useState("");
@@ -570,7 +573,7 @@ function TradeDeductionModal({
       };
 
       await Promise.all([
-        saveSale(sale),
+        saveSale(userId, sale),
         saveLastPricePerKg(pricePerKg),
         saveLastKgPerCrate(kgPerCrate),
         saveLastDeductionG(deductionG),
@@ -1426,6 +1429,8 @@ export default function MeasurementScreen() {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const { t } = useSettings();
+  const { user } = useUser();
+  const userId = user?.id ?? "";
   const { draftId: draftIdParam } = useLocalSearchParams<{
     draftId?: string;
   }>();
@@ -1497,8 +1502,8 @@ export default function MeasurementScreen() {
       totalWeightKg: rows.reduce((s, r) => s + r.weightKg, 0),
       totalPcs: sumPcs(rows),
     };
-    saveDraft(draft);
-  }, [rows, mainRows, phase, pcsOptional]);
+    if (userId) saveDraft(userId, draft);
+  }, [rows, mainRows, phase, pcsOptional, userId]);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -1712,6 +1717,7 @@ export default function MeasurementScreen() {
         cullRows={deductionCullRows}
         theme={theme}
         insets={insets}
+        userId={userId}
         onCancel={() => setShowDeductionModal(false)}
         onSaved={async () => {
           setShowDeductionModal(false);

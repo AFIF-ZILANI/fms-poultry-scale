@@ -15,6 +15,7 @@ import * as Haptics from "expo-haptics";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { useTheme } from "@/lib/useTheme";
 import { useSettings } from "@/lib/SettingsContext";
+import { useUser } from "@clerk/expo";
 import { loadDrafts, deleteDraft } from "@/lib/storage";
 import { formatWeight, getRelativeTime } from "@/lib/utils";
 import type { DraftSession } from "@/lib/types";
@@ -170,6 +171,7 @@ export default function DraftsScreen() {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const { t } = useSettings();
+  const { user } = useUser();
   const [drafts, setDrafts] = useState<DraftSession[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -178,12 +180,13 @@ export default function DraftsScreen() {
 
   useFocusEffect(
     useCallback(() => {
+      if (!user?.id) return;
       setLoading(true);
-      loadDrafts().then((data) => {
+      loadDrafts(user.id).then((data) => {
         setDrafts(data);
         setLoading(false);
       });
-    }, [])
+    }, [user?.id])
   );
 
   const handleDelete = async (id: string) => {

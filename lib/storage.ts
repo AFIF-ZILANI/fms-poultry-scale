@@ -3,10 +3,11 @@ import type { MeasurementRow, SaleRecord, DraftSession } from "./types";
 
 // ─── Sales ────────────────────────────────────────────────────────────────────
 
-export async function loadSales(): Promise<SaleRecord[]> {
+export async function loadSales(userId: string): Promise<SaleRecord[]> {
   const db = await getDb();
   const rows = await db.getAllAsync<{ data: string }>(
-    "SELECT data FROM sales ORDER BY created_at DESC"
+    "SELECT data FROM sales WHERE user_id = ? ORDER BY created_at DESC",
+    [userId]
   );
   return rows.map((r) => {
     const parsed = JSON.parse(r.data) as SaleRecord & { dholta?: SaleRecord["deduction"] };
@@ -19,11 +20,11 @@ export async function loadSales(): Promise<SaleRecord[]> {
   });
 }
 
-export async function saveSale(sale: SaleRecord): Promise<void> {
+export async function saveSale(userId: string, sale: SaleRecord): Promise<void> {
   const db = await getDb();
   await db.runAsync(
-    "INSERT OR REPLACE INTO sales (id, data, created_at) VALUES (?, ?, ?)",
-    [sale.id, JSON.stringify(sale), sale.createdAt]
+    "INSERT OR REPLACE INTO sales (id, data, created_at, user_id) VALUES (?, ?, ?, ?)",
+    [sale.id, JSON.stringify(sale), sale.createdAt, userId]
   );
 }
 
@@ -88,10 +89,11 @@ export async function updateSale(
 
 // ─── Drafts ───────────────────────────────────────────────────────────────────
 
-export async function loadDrafts(): Promise<DraftSession[]> {
+export async function loadDrafts(userId: string): Promise<DraftSession[]> {
   const db = await getDb();
   const rows = await db.getAllAsync<{ data: string }>(
-    "SELECT data FROM drafts ORDER BY updated_at DESC"
+    "SELECT data FROM drafts WHERE user_id = ? ORDER BY updated_at DESC",
+    [userId]
   );
   return rows.map((r) => JSON.parse(r.data) as DraftSession);
 }
@@ -105,11 +107,11 @@ export async function loadDraft(id: string): Promise<DraftSession | null> {
   return row ? (JSON.parse(row.data) as DraftSession) : null;
 }
 
-export async function saveDraft(draft: DraftSession): Promise<void> {
+export async function saveDraft(userId: string, draft: DraftSession): Promise<void> {
   const db = await getDb();
   await db.runAsync(
-    "INSERT OR REPLACE INTO drafts (id, data, updated_at) VALUES (?, ?, ?)",
-    [draft.id, JSON.stringify(draft), draft.updatedAt]
+    "INSERT OR REPLACE INTO drafts (id, data, updated_at, user_id) VALUES (?, ?, ?, ?)",
+    [draft.id, JSON.stringify(draft), draft.updatedAt, userId]
   );
 }
 

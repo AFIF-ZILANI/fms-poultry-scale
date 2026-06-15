@@ -33,5 +33,17 @@ async function initDb(): Promise<SQLite.SQLiteDatabase> {
     );
   `);
 
+  // Schema migrations — keyed by PRAGMA user_version
+  const vRow = await db.getFirstAsync<{ user_version: number }>("PRAGMA user_version");
+  const version = vRow?.user_version ?? 0;
+
+  if (version < 1) {
+    // Add per-user isolation columns. Existing rows will have NULL user_id and
+    // won't appear for any logged-in user, which is the safe default.
+    await db.execAsync("ALTER TABLE sales ADD COLUMN user_id TEXT;");
+    await db.execAsync("ALTER TABLE drafts ADD COLUMN user_id TEXT;");
+    await db.execAsync("PRAGMA user_version = 1;");
+  }
+
   return db;
 }
