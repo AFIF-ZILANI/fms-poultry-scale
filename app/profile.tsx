@@ -383,6 +383,7 @@ export default function ProfileScreen() {
 
                 <Pressable
                   onPress={() => setShowUpgrade(true)}
+                  disabled
                   style={({ pressed }) => [styles.upgradeCard, { opacity: pressed ? 0.88 : 1 }]}
                 >
                   <LinearGradient

@@ -417,6 +417,7 @@ function PlanStep({ theme, t, onSelect, saving }: any) {
         </View>
         <Pressable
           onPress={() => setSelected("premium")}
+          disabled
           style={[
             styles.planCard,
             {
