@@ -8,7 +8,8 @@
     "start:lan": "npx expo start --lan",
     "start:tunnel": "npx expo start --tunnel",
     "lint": "npx expo lint",
-    "lint:fix": "npx expo lint --fix"
+    "lint:fix": "npx expo lint --fix",
+    "test": "jest"
   },
   "dependencies": {
     "@clerk/expo": "^3.4.1",
@@ -47,11 +48,13 @@
   "devDependencies": {
     "@babel/core": "^7.25.2",
     "@expo/ngrok": "^4.1.0",
+    "@types/jest": "^29.5.14",
     "@types/react": "~19.1.10",
     "babel-plugin-react-compiler": "^19.0.0-beta-e993439-20250117",
     "babel-preset-expo": "~54.0.10",
     "eslint": "^9.31.0",
     "eslint-config-expo": "~10.0.0",
+    "jest": "^29.7.0",
     "patch-package": "^8.0.0",
     "react-native-svg-transformer": "^1.5.3",
     "typescript": "~5.9.2"
