@@ -9,6 +9,7 @@ import {
   Alert,
   Dimensions,
   ScrollView,
+  ActivityIndicator,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router, useFocusEffect } from "expo-router";
@@ -999,6 +1000,8 @@ export default function HomeScreen() {
         const isFarmer = profileData?.role === "farmer";
         setPeriod(isFarmer ? "6m" : "7d");
         setLoading(false);
+      }).catch(() => {
+        setLoading(false);
       });
     }, [user?.id]),
   );
@@ -1017,7 +1020,11 @@ export default function HomeScreen() {
   };
 
   if (loading)
-    return <View style={{ flex: 1, backgroundColor: theme.background }} />;
+    return (
+      <View style={{ flex: 1, backgroundColor: theme.background, alignItems: "center", justifyContent: "center" }}>
+        <ActivityIndicator size="large" color={theme.accent} />
+      </View>
+    );
 
   const recentSales = sales.slice(0, 3);
 
