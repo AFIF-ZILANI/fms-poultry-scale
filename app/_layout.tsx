@@ -51,7 +51,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
 
   if (!isLoaded) {
     // Keep splash visible until auth resolves
-    return <View style={{ flex: 1, backgroundColor: "#0D1B30" }} />;
+    return <View style={{ flex: 1, backgroundColor: "#0C0C0F" }} />;
   }
 
   return <>{children}</>;

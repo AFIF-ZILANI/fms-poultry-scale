@@ -142,8 +142,8 @@ function RevenueChart({ bars }: { bars: Bar[] }) {
     <Svg width={W} height={H + 22}>
       <Defs>
         <SvgGradient id="barGrad" x1="0" y1="0" x2="0" y2="1">
-          <Stop offset="0" stopColor="#60A5FA" stopOpacity="1" />
-          <Stop offset="1" stopColor="#2563EB" stopOpacity="0.7" />
+          <Stop offset="0" stopColor="#6FA3FF" stopOpacity="1" />
+          <Stop offset="1" stopColor="#4080FF" stopOpacity="0.7" />
         </SvgGradient>
         <SvgGradient id="emptyGrad" x1="0" y1="0" x2="0" y2="1">
           <Stop offset="0" stopColor="#FFFFFF" stopOpacity="0.12" />
@@ -174,7 +174,7 @@ function RevenueChart({ bars }: { bars: Bar[] }) {
                 y={y - 5}
                 textAnchor="middle"
                 fontSize={9}
-                fill="#93C5FD"
+                fill="#6FA3FF"
                 fontFamily="Outfit_600SemiBold"
               >
                 {fmtTk(bar.revenue)}
@@ -656,7 +656,7 @@ function DashboardHeader({
           ]}
         >
           <LinearGradient
-            colors={["#3B82F6", "#1D4ED8"]}
+            colors={["#4080FF", "#2060D0"]}
             style={styles.avatarGrad}
           >
             <Text
@@ -722,7 +722,7 @@ function DashboardHeader({
       {/* ── Revenue hero card ── */}
       <View style={styles.heroCard}>
         <LinearGradient
-          colors={["#0F1B2D", "#162947", "#0F1B2D"]}
+          colors={["#101013", "#18181E", "#101013"]}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={styles.heroCardInner}
@@ -1449,7 +1449,7 @@ const styles = StyleSheet.create({
     borderRadius: 26,
     ...Platform.select({
       ios: {
-        shadowColor: "#2563EB",
+        shadowColor: "#4080FF",
         shadowOffset: { width: 0, height: 6 },
         shadowOpacity: 0.4,
         shadowRadius: 12,

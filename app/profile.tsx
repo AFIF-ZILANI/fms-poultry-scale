@@ -47,8 +47,8 @@ function UpgradeModal({
           <View style={[styles.sheetHandle, { backgroundColor: theme.border }]} />
 
           <View style={styles.sheetHead}>
-            <View style={[styles.sheetIconBg, { backgroundColor: "#FEF3C7" }]}>
-              <MaterialCommunityIcons name="shield-check" size={30} color="#F59E0B" />
+            <View style={[styles.sheetIconBg, { backgroundColor: theme.warmLight }]}>
+              <MaterialCommunityIcons name="shield-check" size={30} color={theme.warm} />
             </View>
             <Text style={[styles.sheetTitle, { color: theme.text, fontFamily: "Outfit_700Bold" }]}>
               {t.upgradeToPremium}
@@ -64,8 +64,8 @@ function UpgradeModal({
           <View style={styles.featureList}>
             {[t.premiumFeature1, t.premiumFeature2, t.premiumFeature3].map((f: string) => (
               <View key={f} style={[styles.featureRow, { borderBottomColor: theme.borderLight }]}>
-                <View style={[styles.featureCheck, { backgroundColor: "#D1FAE5" }]}>
-                  <MaterialCommunityIcons name="check" size={13} color="#059669" />
+                <View style={[styles.featureCheck, { backgroundColor: theme.successLight }]}>
+                  <MaterialCommunityIcons name="check" size={13} color={theme.success} />
                 </View>
                 <Text style={[styles.featureText, { color: theme.text, fontFamily: "Outfit_500Medium" }]}>
                   {f}
@@ -78,7 +78,7 @@ function UpgradeModal({
             <Pressable
               style={({ pressed }) => [
                 styles.upgradeBtn,
-                { backgroundColor: "#F59E0B", opacity: pressed ? 0.85 : 1 },
+                { backgroundColor: theme.warm, opacity: pressed ? 0.85 : 1 },
               ]}
               onPress={onUpgrade}
             >
@@ -221,7 +221,7 @@ export default function ProfileScreen() {
           {/* Avatar with ring */}
           <View style={styles.avatarWrap}>
             <View style={[styles.avatarRing, { borderColor: theme.accent + "40" }]}>
-              <LinearGradient colors={["#3B82F6", "#1D4ED8"]} style={styles.avatarGrad}>
+              <LinearGradient colors={["#4080FF", "#2060D0"]} style={styles.avatarGrad}>
                 <Text style={[styles.avatarInitials, { fontFamily: "Outfit_700Bold" }]}>{initials}</Text>
               </LinearGradient>
             </View>
@@ -257,15 +257,15 @@ export default function ProfileScreen() {
               </Text>
             </View>
             <View style={[styles.tag, {
-              backgroundColor: isPremium ? "#FEF3C7" : theme.borderLight,
+              backgroundColor: isPremium ? theme.warmLight : theme.borderLight,
             }]}>
               <MaterialCommunityIcons
                 name={isPremium ? "shield-check" : "account-group-outline"}
                 size={13}
-                color={isPremium ? "#D97706" : theme.textTertiary}
+                color={isPremium ? theme.warm : theme.textTertiary}
               />
               <Text style={[styles.tagText, {
-                color: isPremium ? "#D97706" : theme.textTertiary,
+                color: isPremium ? theme.warm : theme.textTertiary,
                 fontFamily: "Outfit_600SemiBold",
               }]}>
                 {isPremium ? t.premiumBadge : t.communityBadge}
@@ -331,16 +331,16 @@ export default function ProfileScreen() {
             <SectionLabel text={t.myPlan} theme={theme} />
 
             {isPremium ? (
-              <View style={[styles.card, styles.premiumBorderCard, { borderColor: "#F59E0B" }]}>
+              <View style={[styles.card, styles.premiumBorderCard, { borderColor: theme.warm }]}>
                 <View style={styles.planRow}>
-                  <View style={[styles.planIcon, { backgroundColor: "#FEF3C7" }]}>
-                    <MaterialCommunityIcons name="shield-check" size={22} color="#F59E0B" />
+                  <View style={[styles.planIcon, { backgroundColor: theme.warmLight }]}>
+                    <MaterialCommunityIcons name="shield-check" size={22} color={theme.warm} />
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={[styles.planName, { color: theme.text, fontFamily: "Outfit_700Bold" }]}>
                       {t.premiumPlan}
                     </Text>
-                    <Text style={[styles.planSub, { color: "#D97706", fontFamily: "Outfit_500Medium" }]}>
+                    <Text style={[styles.planSub, { color: theme.warm, fontFamily: "Outfit_500Medium" }]}>
                       {t.premiumPrice} · Active
                     </Text>
                   </View>
@@ -386,7 +386,7 @@ export default function ProfileScreen() {
                   style={({ pressed }) => [styles.upgradeCard, { opacity: pressed ? 0.88 : 1 }]}
                 >
                   <LinearGradient
-                    colors={["#F59E0B", "#D97706"]}
+                    colors={["#F0A020", "#C88010"]}
                     start={{ x: 0, y: 0 }}
                     end={{ x: 1, y: 0 }}
                     style={styles.upgradeCardInner}
@@ -602,10 +602,10 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
   },
   activePill: {
-    backgroundColor: "#D1FAE5",
+    backgroundColor: "#0D2418",
     paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20,
   },
-  activePillText: { fontSize: 11, color: "#059669" },
+  activePillText: { fontSize: 11, color: "#2ED47A" },
   subtleLink: { alignItems: "center", paddingVertical: 10, paddingBottom: 14 },
   subtleLinkText: { fontSize: 12 },
 

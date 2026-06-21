@@ -50,7 +50,7 @@ export default function SignInPage() {
     <View style={[styles.root, { backgroundColor: theme.background }]}>
       {/* Gradient top section */}
       <LinearGradient
-        colors={["#0D1B30", "#1E3A5F", "#0D1B30"]}
+        colors={["#0C0C0F", "#131320", "#0C0C0F"]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={[styles.hero, { paddingTop: insets.top + 48 }]}
@@ -105,7 +105,7 @@ export default function SignInPage() {
           style={({ pressed }) => [
             styles.googleBtn,
             {
-              backgroundColor: theme.isDark ? "#1C2840" : "#fff",
+              backgroundColor: theme.isDark ? theme.surfaceElevated : "#fff",
               borderColor: theme.border,
               opacity: pressed || loading ? 0.8 : 1,
             },
