@@ -39,3 +39,4 @@ yarn-error.*
 .vercel
 
 .env
+graphify-out/
