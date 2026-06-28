@@ -66,3 +66,12 @@ export interface DraftSession {
   totalWeightKg: number;
   totalPcs: number;
 }
+
+
+export type RowGroup = {
+  groupLabel: string;       // e.g. "1 – 10"
+  totalWeight: number;
+  totalPcs: number;
+  avgWeight: number;
+  data: MeasurementRow[];              // SectionList requires this key
+};
