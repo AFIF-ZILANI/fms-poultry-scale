@@ -942,25 +942,6 @@ function DashboardHeader({
         >
           RECENT SALES
         </Text>
-        {totalSales > 3 && (
-          <Pressable
-            onPress={() => router.push("/sales")}
-            style={({ pressed }) => [
-              styles.viewAllBtn,
-              { opacity: pressed ? 0.6 : 1 },
-            ]}
-          >
-            <Text
-              style={[
-                styles.viewAllText,
-                { color: theme.accent, fontFamily: "Outfit_600SemiBold" },
-              ]}
-            >
-              View All ({totalSales})
-            </Text>
-            <Feather name="chevron-right" size={14} color={theme.accent} />
-          </Pressable>
-        )}
       </View>
     </View>
   );
@@ -992,17 +973,19 @@ export default function HomeScreen() {
         loadDrafts(uid),
         getUserProfile(uid),
         loadPlan(uid),
-      ]).then(([salesData, draftsData, profileData, planData]) => {
-        setSales(salesData);
-        setDrafts(draftsData);
-        setProfile(profileData);
-        setPlan(planData);
-        const isFarmer = profileData?.role === "farmer";
-        setPeriod(isFarmer ? "6m" : "7d");
-        setLoading(false);
-      }).catch(() => {
-        setLoading(false);
-      });
+      ])
+        .then(([salesData, draftsData, profileData, planData]) => {
+          setSales(salesData);
+          setDrafts(draftsData);
+          setProfile(profileData);
+          setPlan(planData);
+          const isFarmer = profileData?.role === "farmer";
+          setPeriod(isFarmer ? "6m" : "7d");
+          setLoading(false);
+        })
+        .catch(() => {
+          setLoading(false);
+        });
     }, [user?.id]),
   );
 
@@ -1021,7 +1004,14 @@ export default function HomeScreen() {
 
   if (loading)
     return (
-      <View style={{ flex: 1, backgroundColor: theme.background, alignItems: "center", justifyContent: "center" }}>
+      <View
+        style={{
+          flex: 1,
+          backgroundColor: theme.background,
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
         <ActivityIndicator size="large" color={theme.accent} />
       </View>
     );
@@ -1332,7 +1322,6 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     marginTop: 22,
     marginBottom: 10,
-    marginHorizontal: 16,
   },
   viewAllBtn: { flexDirection: "row", alignItems: "center", gap: 2 },
   viewAllText: { fontSize: 13 },
