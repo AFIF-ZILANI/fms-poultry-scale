@@ -1221,7 +1221,6 @@ const styles = StyleSheet.create({
   draftText: { fontSize: 13 },
 
   heroCard: {
-    marginHorizontal: 16,
     marginTop: 16,
     borderRadius: 22,
     overflow: "hidden",
