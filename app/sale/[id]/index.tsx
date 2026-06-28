@@ -68,7 +68,7 @@ export default function SaleDetailScreen() {
         dialogTitle: "Share Receipt",
         UTI: "com.adobe.pdf",
       });
-    } catch (e) {
+    } catch {
       Alert.alert("Could not generate receipt PDF");
     } finally {
       setSharing(false);
