@@ -2,7 +2,6 @@ import { useOAuth } from "@clerk/expo";
 import * as Linking from "expo-linking";
 import * as WebBrowser from "expo-web-browser";
 import { LinearGradient } from "expo-linear-gradient";
-import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
   ActivityIndicator,
@@ -23,7 +22,6 @@ export default function SignInPage() {
   const { startOAuthFlow } = useOAuth({ strategy: "oauth_google" });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const router = useRouter();
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const { t } = useSettings();
