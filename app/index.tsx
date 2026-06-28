@@ -33,10 +33,6 @@ import { formatWeight, formatDateTime } from "@/lib/utils";
 import { getUserProfile, type OnboardingData } from "@/lib/onboarding";
 import { loadPlan, type Plan } from "@/lib/subscription";
 import type { SaleRecord, DraftSession } from "@/lib/types";
-import { Image } from "react-native";
-
-import LogoImage from "../assets/images/Slice 14.svg";
-import Logo from "@/assets/images/2.png"
 
 const SCREEN_W = Dimensions.get("window").width;
 
