@@ -1,6 +1,5 @@
 import { useUser } from "@clerk/expo";
 import { useRouter } from "expo-router";
-import { LinearGradient } from "expo-linear-gradient";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
