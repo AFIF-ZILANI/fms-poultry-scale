@@ -85,8 +85,7 @@ export function EditRowModal({
 
   // Only a genuine edit of existing data marks the row as "edited". Filling in a
   // previously-unknown bird count (or entering it for the first time) does not.
-  const isGenuineEdit =
-    weightChanged || (row.pcs !== null && pcsChanged);
+  const isGenuineEdit = weightChanged || (row.pcs !== null && pcsChanged);
 
   const editCount = row.editHistory?.length ?? 0;
 
@@ -126,9 +125,7 @@ export function EditRowModal({
       onRequestClose={onClose}
       transparent={false}
     >
-      <View
-        style={[styles.container, { backgroundColor: theme.background }]}
-      >
+      <View style={[styles.container, { backgroundColor: theme.background }]}>
         <View
           style={[
             styles.header,
@@ -154,12 +151,22 @@ export function EditRowModal({
           </Pressable>
           <View style={styles.headerCenter}>
             <View
-              style={[styles.rowBadge, { backgroundColor: enterPcsMode ? theme.warmLight : theme.accentLight }]}
+              style={[
+                styles.rowBadge,
+                {
+                  backgroundColor: enterPcsMode
+                    ? theme.warmLight
+                    : theme.accentLight,
+                },
+              ]}
             >
               <Text
                 style={[
                   styles.rowBadgeText,
-                  { color: enterPcsMode ? theme.warm : theme.accent, fontFamily: "Outfit_700Bold" },
+                  {
+                    color: enterPcsMode ? theme.warm : theme.accent,
+                    fontFamily: "Outfit_700Bold",
+                  },
                 ]}
               >
                 #{rowNumber}
@@ -187,18 +194,12 @@ export function EditRowModal({
             ]}
           >
             <Text
-              style={[
-                styles.currentLabel,
-                { fontFamily: "Outfit_400Regular" },
-              ]}
+              style={[styles.currentLabel, { fontFamily: "Outfit_400Regular" }]}
             >
               {t.currentValues}
             </Text>
             <Text
-              style={[
-                styles.currentValues,
-                { fontFamily: "Outfit_700Bold" },
-              ]}
+              style={[styles.currentValues, { fontFamily: "Outfit_700Bold" }]}
             >
               {formatWeight(row.weightKg)} KG — {formatPcs(row.pcs, t.unknown)}{" "}
               {t.birds.toLowerCase()}
@@ -206,7 +207,12 @@ export function EditRowModal({
           </View>
 
           {enterPcsMode && (
-            <Text style={[styles.enterHint, { color: theme.textTertiary, fontFamily: "Outfit_400Regular" }]}>
+            <Text
+              style={[
+                styles.enterHint,
+                { color: theme.textTertiary, fontFamily: "Outfit_400Regular" },
+              ]}
+            >
               {t.enterBirdCountHint}
             </Text>
           )}
@@ -270,8 +276,8 @@ export function EditRowModal({
               <TextInput
                 ref={pcsRef}
                 value={pcsInput}
-                onChangeText={setPcsInput}
-                keyboardType="number-pad"
+                onChangeText={(v) => setPcsInput(v.replace(/[^0-9]/g, ""))}
+                keyboardType="numeric"
                 returnKeyType="done"
                 onSubmitEditing={handleSave}
                 style={[
@@ -318,10 +324,7 @@ export function EditRowModal({
                 {t.viewEditHistory}
               </Text>
               <View
-                style={[
-                  styles.historyBadge,
-                  { backgroundColor: theme.accent },
-                ]}
+                style={[styles.historyBadge, { backgroundColor: theme.accent }]}
               >
                 <Text
                   style={[
