@@ -25,6 +25,8 @@ import {
   saveLastDeductionG,
   loadFarmName,
   saveFarmName,
+  getChunkSize,
+  setChunkSize,
 } from "@/lib/storage";
 
 export default function SettingsScreen() {
@@ -39,6 +41,7 @@ export default function SettingsScreen() {
   const [defaultKgPerCrate, setDefaultKgPerCrate] = useState("");
   const [defaultDeductionG, setDefaultDeductionG] = useState("");
   const [farmNameValue, setFarmNameValue] = useState("");
+  const [chunkSize, setChunkSizeLocal] = useState("10");
 
   const webTopInset = Platform.OS === "web" ? 67 : 0;
   const webBottomInset = Platform.OS === "web" ? 34 : 0;
@@ -50,11 +53,13 @@ export default function SettingsScreen() {
       loadLastKgPerCrate(userId),
       loadLastDeductionG(userId),
       loadFarmName(userId),
-    ]).then(([price, kpc, dg, farm]) => {
+      getChunkSize(userId),
+    ]).then(([price, kpc, dg, farm, chunk]) => {
       if (price) setDefaultPrice(price);
       if (kpc) setDefaultKgPerCrate(kpc);
       if (dg) setDefaultDeductionG(dg);
       if (farm) setFarmNameValue(farm);
+      setChunkSizeLocal(chunk.toString());
     });
   }, [userId]);
 
@@ -69,12 +74,24 @@ export default function SettingsScreen() {
   };
 
   const handleSaveDefaults = async () => {
+    const parsedChunk = parseInt(chunkSize, 10);
+
     await Promise.all([
-      defaultPrice ? saveLastPricePerKg(userId, defaultPrice) : Promise.resolve(),
-      defaultKgPerCrate ? saveLastKgPerCrate(userId, defaultKgPerCrate) : Promise.resolve(),
-      defaultDeductionG ? saveLastDeductionG(userId, defaultDeductionG) : Promise.resolve(),
+      defaultPrice
+        ? saveLastPricePerKg(userId, defaultPrice)
+        : Promise.resolve(),
+      defaultKgPerCrate
+        ? saveLastKgPerCrate(userId, defaultKgPerCrate)
+        : Promise.resolve(),
+      defaultDeductionG
+        ? saveLastDeductionG(userId, defaultDeductionG)
+        : Promise.resolve(),
       saveFarmName(userId, farmNameValue.trim()),
+      !isNaN(parsedChunk) && parsedChunk > 0
+        ? setChunkSize(userId, parsedChunk)
+        : Promise.resolve(),
     ]);
+
     if (Platform.OS !== "web") {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     }
@@ -192,8 +209,8 @@ export default function SettingsScreen() {
                     opt.key === "dark"
                       ? "moon"
                       : opt.key === "light"
-                      ? "sun"
-                      : "monitor"
+                        ? "sun"
+                        : "monitor"
                   }
                   size={18}
                   color={theme.accent}
@@ -226,6 +243,17 @@ export default function SettingsScreen() {
             { backgroundColor: theme.surface, borderColor: theme.borderLight },
           ]}
         >
+          <InputRow
+            label={t.logGroupSize}
+            value={chunkSize}
+            onChange={(v) => {
+              if (/^\d*$/.test(v)) setChunkSizeLocal(v);
+            }}
+            placeholder="e.g. 10"
+            keyboardType="numeric"
+            theme={theme}
+            isLast={false}
+          />
           <InputRow
             label={t.defaultKgPerCrate}
             value={defaultKgPerCrate}
@@ -270,7 +298,12 @@ export default function SettingsScreen() {
           ]}
         >
           <View style={[styles.inputRow, { borderBottomWidth: 0 }]}>
-            <Text style={[styles.inputLabel, { color: theme.text, fontFamily: "Outfit_500Medium" }]}>
+            <Text
+              style={[
+                styles.inputLabel,
+                { color: theme.text, fontFamily: "Outfit_500Medium" },
+              ]}
+            >
               {t.farmName}
             </Text>
             <TextInput
@@ -305,9 +338,7 @@ export default function SettingsScreen() {
           ]}
         >
           <Feather name="save" size={16} color="#FFF" />
-          <Text
-            style={[styles.saveBtnText, { fontFamily: "Outfit_700Bold" }]}
-          >
+          <Text style={[styles.saveBtnText, { fontFamily: "Outfit_700Bold" }]}>
             {t.save}
           </Text>
         </Pressable>
@@ -373,6 +404,7 @@ function InputRow({
   placeholder,
   theme,
   isLast,
+  keyboardType = "decimal-pad",
 }: {
   label: string;
   value: string;
@@ -380,6 +412,7 @@ function InputRow({
   placeholder: string;
   theme: ReturnType<typeof useTheme>;
   isLast: boolean;
+  keyboardType?: "decimal-pad" | "numeric";
 }) {
   return (
     <View
@@ -402,7 +435,7 @@ function InputRow({
       <TextInput
         value={value}
         onChangeText={onChange}
-        keyboardType="decimal-pad"
+        keyboardType={keyboardType}
         placeholder={placeholder}
         placeholderTextColor={theme.textTertiary}
         style={[
