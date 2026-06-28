@@ -1,4 +1,10 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, {
+  useState,
+  useEffect,
+  useRef,
+  useCallback,
+  useMemo,
+} from "react";
 import {
   View,
   Text,
@@ -12,9 +18,10 @@ import {
   Modal,
   ScrollView,
   ActivityIndicator,
+  SectionList,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { router, useLocalSearchParams } from "expo-router";
+import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { Ionicons, Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import * as Crypto from "expo-crypto";
@@ -34,6 +41,8 @@ import {
   loadDraft,
   saveDraft,
   deleteDraft,
+  getChunkSize,
+  DEFAULT_CHUNK_SIZE,
 } from "@/lib/storage";
 import { EditRowModal } from "@/components/EditRowModal";
 import type {
@@ -41,6 +50,7 @@ import type {
   SaleRecord,
   TradeDeduction,
   DraftSession,
+  RowGroup,
 } from "@/lib/types";
 
 function formatTimer(seconds: number): string {
@@ -56,13 +66,57 @@ function calcDeduction(
   totalWeight: number,
   kgPerCrate: number,
   deductionPerCrateG: number,
-  fullCratesOnly: boolean
+  fullCratesOnly: boolean,
 ): { totalCrates: number; totalDeductionKg: number; netWeight: number } {
   const rawCrates = totalWeight / kgPerCrate;
   const totalCrates = fullCratesOnly ? Math.floor(rawCrates) : rawCrates;
   const totalDeductionKg = (totalCrates * deductionPerCrateG) / 1000;
   const netWeight = totalWeight - totalDeductionKg;
   return { totalCrates, totalDeductionKg, netWeight };
+}
+
+function groupRows(rows: MeasurementRow[], chunkSize: number): RowGroup[] {
+  const total = rows.length;
+  const groups: RowGroup[] = [];
+
+  // rows[0] = newest = log number `total`
+  // rows[total-1] = oldest = log number 1
+  // So log number for index i = total - i
+
+  // Group boundaries are based on log numbers: 1-10, 11-20, 21-30...
+  // We need to find which group each row belongs to by its log number
+
+  // Total groups needed
+  const numGroups = Math.ceil(total / chunkSize);
+
+  for (let g = 0; g < numGroups; g++) {
+    // Log numbers in this group (1-indexed)
+    const lowLogNum = g * chunkSize + 1; // e.g. 1, 11, 21
+    const highLogNum = Math.min((g + 1) * chunkSize, total); // e.g. 10, 20, 14
+
+    // Convert log numbers back to array indices
+    // logNum = total - arrayIndex  =>  arrayIndex = total - logNum
+    const highIndex = total - lowLogNum; // array index of lowest log num
+    const lowIndex = total - highLogNum; // array index of highest log num
+
+    const chunk = rows.slice(lowIndex, highIndex + 1);
+    // chunk is newest-first within the group, which is correct
+
+    const totalWeight = chunk.reduce((sum, r) => sum + (r.weightKg ?? 0), 0);
+    const totalPcs = chunk.reduce((sum, r) => sum + (r.pcs ?? 0), 0);
+    const avgWeight = totalPcs > 0 ? totalWeight / totalPcs : 0;
+
+    groups.push({
+      groupLabel: `${lowLogNum} – ${highLogNum}`,
+      totalWeight,
+      totalPcs,
+      avgWeight,
+      data: chunk,
+    });
+  }
+
+  // Reverse so newest group (highest log numbers) shows at top
+  return groups.reverse();
 }
 
 function RowItem({
@@ -80,7 +134,7 @@ function RowItem({
   const [timeAgo, setTimeAgo] = useState(getRelativeTime(row.timestamp, t));
   const lastEdit = row.editHistory?.[0];
   const [editAgo, setEditAgo] = useState(
-    lastEdit ? getRelativeTime(lastEdit.timestamp, t) : ""
+    lastEdit ? getRelativeTime(lastEdit.timestamp, t) : "",
   );
 
   useEffect(() => {
@@ -206,8 +260,8 @@ function SummaryRow({
   const valueColor = isNegative
     ? theme.danger
     : isHighlight
-    ? theme.success
-    : theme.text;
+      ? theme.success
+      : theme.text;
   return (
     <View style={styles.summaryRow}>
       <Text
@@ -252,13 +306,32 @@ function PcsOptionalDialog({
             { backgroundColor: theme.surface, borderColor: theme.borderLight },
           ]}
         >
-          <View style={[styles.cullIconWrap, { backgroundColor: theme.accentLight }]}>
-            <MaterialCommunityIcons name="counter" size={28} color={theme.accent} />
+          <View
+            style={[
+              styles.cullIconWrap,
+              { backgroundColor: theme.accentLight },
+            ]}
+          >
+            <MaterialCommunityIcons
+              name="counter"
+              size={28}
+              color={theme.accent}
+            />
           </View>
-          <Text style={[styles.cullTitle, { color: theme.text, fontFamily: "Outfit_700Bold" }]}>
+          <Text
+            style={[
+              styles.cullTitle,
+              { color: theme.text, fontFamily: "Outfit_700Bold" },
+            ]}
+          >
             {t.pcsOptionalTitle}
           </Text>
-          <Text style={[styles.cullHint, { color: theme.textTertiary, fontFamily: "Outfit_400Regular" }]}>
+          <Text
+            style={[
+              styles.cullHint,
+              { color: theme.textTertiary, fontFamily: "Outfit_400Regular" },
+            ]}
+          >
             {t.pcsOptionalDesc}
           </Text>
           <View style={styles.cullBtns}>
@@ -269,7 +342,12 @@ function PcsOptionalDialog({
                 { borderColor: theme.border, opacity: pressed ? 0.7 : 1 },
               ]}
             >
-              <Text style={[styles.cullNoBtnText, { color: theme.text, fontFamily: "Outfit_600SemiBold" }]}>
+              <Text
+                style={[
+                  styles.cullNoBtnText,
+                  { color: theme.text, fontFamily: "Outfit_600SemiBold" },
+                ]}
+              >
                 {t.pcsOptionalSkip}
               </Text>
             </Pressable>
@@ -277,11 +355,19 @@ function PcsOptionalDialog({
               onPress={onTrack}
               style={({ pressed }) => [
                 styles.cullYesBtn,
-                { backgroundColor: theme.accent, transform: [{ scale: pressed ? 0.97 : 1 }] },
+                {
+                  backgroundColor: theme.accent,
+                  transform: [{ scale: pressed ? 0.97 : 1 }],
+                },
               ]}
             >
               <Ionicons name="checkmark" size={16} color="#FFF" />
-              <Text style={[styles.cullYesBtnText, { fontFamily: "Outfit_700Bold" }]}>
+              <Text
+                style={[
+                  styles.cullYesBtnText,
+                  { fontFamily: "Outfit_700Bold" },
+                ]}
+              >
                 {t.pcsOptionalTrack}
               </Text>
             </Pressable>
@@ -323,16 +409,9 @@ function CullDialog({
           ]}
         >
           <View
-            style={[
-              styles.cullIconWrap,
-              { backgroundColor: theme.warmLight },
-            ]}
+            style={[styles.cullIconWrap, { backgroundColor: theme.warmLight }]}
           >
-            <MaterialCommunityIcons
-              name="bird"
-              size={30}
-              color={theme.warm}
-            />
+            <MaterialCommunityIcons name="bird" size={30} color={theme.warm} />
           </View>
           <Text
             style={[
@@ -440,7 +519,9 @@ function TradeDeductionModal({
   const [receivedAmount, setReceivedAmount] = useState("");
   const [buyerName, setBuyerName] = useState("");
   const [cullSold, setCullSold] = useState(false);
-  const [cullPricingMode, setCullPricingMode] = useState<"per_kg" | "per_piece">("per_kg");
+  const [cullPricingMode, setCullPricingMode] = useState<
+    "per_kg" | "per_piece"
+  >("per_kg");
   const [cullPrice, setCullPrice] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -515,12 +596,13 @@ function TradeDeductionModal({
         : cullPcs * cullPriceNum
       : 0;
 
-  const finalAmount =
-    mainAmount !== null ? mainAmount + cullAmount : null;
+  const finalAmount = mainAmount !== null ? mainAmount + cullAmount : null;
 
   const receivedAmountNum = parseFloat(receivedAmount);
   const validReceivedAmount =
-    receivedAmount.length > 0 && !isNaN(receivedAmountNum) && receivedAmountNum > 0;
+    receivedAmount.length > 0 &&
+    !isNaN(receivedAmountNum) &&
+    receivedAmountNum > 0;
 
   const balanceDue =
     validReceivedAmount && finalAmount !== null
@@ -528,7 +610,13 @@ function TradeDeductionModal({
       : null;
 
   const handleSave = async () => {
-    if (!isValid || !calc || finalAmount === null || netMainWeight === null || mainAmount === null)
+    if (
+      !isValid ||
+      !calc ||
+      finalAmount === null ||
+      netMainWeight === null ||
+      mainAmount === null
+    )
       return;
     setSaving(true);
 
@@ -653,9 +741,7 @@ function TradeDeductionModal({
             >
               {t.grossWeight}
             </Text>
-            <Text
-              style={[styles.grossValue, { fontFamily: "Outfit_700Bold" }]}
-            >
+            <Text style={[styles.grossValue, { fontFamily: "Outfit_700Bold" }]}>
               {formatWeight(totalWeight)}{" "}
               <Text style={styles.grossUnit}>KG</Text>
             </Text>
@@ -696,7 +782,12 @@ function TradeDeductionModal({
           >
             <View style={[styles.buyerNameCard]}>
               <View style={styles.buyerNameHeader}>
-                <View style={[styles.buyerIconWrap, { backgroundColor: theme.accentLight }]}>
+                <View
+                  style={[
+                    styles.buyerIconWrap,
+                    { backgroundColor: theme.accentLight },
+                  ]}
+                >
                   <Feather name="user" size={16} color={theme.accent} />
                 </View>
                 <Text
@@ -716,7 +807,10 @@ function TradeDeductionModal({
                   <Text
                     style={[
                       styles.optionalText,
-                      { color: theme.textTertiary, fontFamily: "Outfit_400Regular" },
+                      {
+                        color: theme.textTertiary,
+                        fontFamily: "Outfit_400Regular",
+                      },
                     ]}
                   >
                     {t.optional}
@@ -932,7 +1026,10 @@ function TradeDeductionModal({
               <Text
                 style={[
                   styles.sectionLabel,
-                  { color: theme.textTertiary, fontFamily: "Outfit_600SemiBold" },
+                  {
+                    color: theme.textTertiary,
+                    fontFamily: "Outfit_600SemiBold",
+                  },
                 ]}
               >
                 {t.cullPricingSection}
@@ -947,9 +1044,21 @@ function TradeDeductionModal({
                 ]}
               >
                 {/* Sold / Not sold toggle */}
-                <View style={[styles.inputRow, { borderBottomColor: theme.borderLight, borderBottomWidth: cullSold ? 1 : 0 }]}>
+                <View
+                  style={[
+                    styles.inputRow,
+                    {
+                      borderBottomColor: theme.borderLight,
+                      borderBottomWidth: cullSold ? 1 : 0,
+                    },
+                  ]}
+                >
                   <View style={styles.inputLabelWrap}>
-                    <MaterialCommunityIcons name="bird" size={16} color={theme.warm} />
+                    <MaterialCommunityIcons
+                      name="bird"
+                      size={16}
+                      color={theme.warm}
+                    />
                     <Text
                       style={[
                         styles.inputFieldLabel,
@@ -965,7 +1074,9 @@ function TradeDeductionModal({
                       style={[
                         styles.segmentBtn,
                         {
-                          backgroundColor: !cullSold ? theme.borderLight : "transparent",
+                          backgroundColor: !cullSold
+                            ? theme.borderLight
+                            : "transparent",
                           borderColor: !cullSold ? theme.border : "transparent",
                         },
                       ]}
@@ -975,7 +1086,9 @@ function TradeDeductionModal({
                           styles.segmentText,
                           {
                             color: !cullSold ? theme.text : theme.textTertiary,
-                            fontFamily: !cullSold ? "Outfit_700Bold" : "Outfit_400Regular",
+                            fontFamily: !cullSold
+                              ? "Outfit_700Bold"
+                              : "Outfit_400Regular",
                           },
                         ]}
                       >
@@ -987,7 +1100,9 @@ function TradeDeductionModal({
                       style={[
                         styles.segmentBtn,
                         {
-                          backgroundColor: cullSold ? theme.warmLight : "transparent",
+                          backgroundColor: cullSold
+                            ? theme.warmLight
+                            : "transparent",
                           borderColor: cullSold ? theme.warm : "transparent",
                         },
                       ]}
@@ -997,7 +1112,9 @@ function TradeDeductionModal({
                           styles.segmentText,
                           {
                             color: cullSold ? theme.warm : theme.textTertiary,
-                            fontFamily: cullSold ? "Outfit_700Bold" : "Outfit_400Regular",
+                            fontFamily: cullSold
+                              ? "Outfit_700Bold"
+                              : "Outfit_400Regular",
                           },
                         ]}
                       >
@@ -1010,13 +1127,25 @@ function TradeDeductionModal({
                 {cullSold && (
                   <>
                     {/* Per kg / Per piece toggle */}
-                    <View style={[styles.inputRow, { borderBottomColor: theme.borderLight }]}>
+                    <View
+                      style={[
+                        styles.inputRow,
+                        { borderBottomColor: theme.borderLight },
+                      ]}
+                    >
                       <View style={styles.inputLabelWrap}>
-                        <Feather name="sliders" size={16} color={theme.accent} />
+                        <Feather
+                          name="sliders"
+                          size={16}
+                          color={theme.accent}
+                        />
                         <Text
                           style={[
                             styles.inputFieldLabel,
-                            { color: theme.text, fontFamily: "Outfit_500Medium" },
+                            {
+                              color: theme.text,
+                              fontFamily: "Outfit_500Medium",
+                            },
                           ]}
                         >
                           {t.cullPricingMode}
@@ -1028,8 +1157,14 @@ function TradeDeductionModal({
                           style={[
                             styles.segmentBtn,
                             {
-                              backgroundColor: cullPricingMode === "per_kg" ? theme.accentLight : "transparent",
-                              borderColor: cullPricingMode === "per_kg" ? theme.accent : theme.borderLight,
+                              backgroundColor:
+                                cullPricingMode === "per_kg"
+                                  ? theme.accentLight
+                                  : "transparent",
+                              borderColor:
+                                cullPricingMode === "per_kg"
+                                  ? theme.accent
+                                  : theme.borderLight,
                             },
                           ]}
                         >
@@ -1037,8 +1172,14 @@ function TradeDeductionModal({
                             style={[
                               styles.segmentText,
                               {
-                                color: cullPricingMode === "per_kg" ? theme.accent : theme.textTertiary,
-                                fontFamily: cullPricingMode === "per_kg" ? "Outfit_700Bold" : "Outfit_400Regular",
+                                color:
+                                  cullPricingMode === "per_kg"
+                                    ? theme.accent
+                                    : theme.textTertiary,
+                                fontFamily:
+                                  cullPricingMode === "per_kg"
+                                    ? "Outfit_700Bold"
+                                    : "Outfit_400Regular",
                               },
                             ]}
                           >
@@ -1050,8 +1191,14 @@ function TradeDeductionModal({
                           style={[
                             styles.segmentBtn,
                             {
-                              backgroundColor: cullPricingMode === "per_piece" ? theme.accentLight : "transparent",
-                              borderColor: cullPricingMode === "per_piece" ? theme.accent : theme.borderLight,
+                              backgroundColor:
+                                cullPricingMode === "per_piece"
+                                  ? theme.accentLight
+                                  : "transparent",
+                              borderColor:
+                                cullPricingMode === "per_piece"
+                                  ? theme.accent
+                                  : theme.borderLight,
                             },
                           ]}
                         >
@@ -1059,8 +1206,14 @@ function TradeDeductionModal({
                             style={[
                               styles.segmentText,
                               {
-                                color: cullPricingMode === "per_piece" ? theme.accent : theme.textTertiary,
-                                fontFamily: cullPricingMode === "per_piece" ? "Outfit_700Bold" : "Outfit_400Regular",
+                                color:
+                                  cullPricingMode === "per_piece"
+                                    ? theme.accent
+                                    : theme.textTertiary,
+                                fontFamily:
+                                  cullPricingMode === "per_piece"
+                                    ? "Outfit_700Bold"
+                                    : "Outfit_400Regular",
                               },
                             ]}
                           >
@@ -1077,10 +1230,15 @@ function TradeDeductionModal({
                         <Text
                           style={[
                             styles.inputFieldLabel,
-                            { color: theme.text, fontFamily: "Outfit_500Medium" },
+                            {
+                              color: theme.text,
+                              fontFamily: "Outfit_500Medium",
+                            },
                           ]}
                         >
-                          {cullPricingMode === "per_kg" ? t.cullPriceKg : t.cullPricePiece}
+                          {cullPricingMode === "per_kg"
+                            ? t.cullPriceKg
+                            : t.cullPricePiece}
                         </Text>
                       </View>
                       <TextInput
@@ -1111,249 +1269,264 @@ function TradeDeductionModal({
           )}
 
           {/* Calculation summary */}
-          {calc && finalAmount !== null && netMainWeight !== null && mainAmount !== null && (
-            <View
-              style={[
-                styles.summaryCard,
-                {
-                  backgroundColor: theme.surface,
-                  borderColor: theme.borderLight,
-                },
-              ]}
-            >
-              <Text
+          {calc &&
+            finalAmount !== null &&
+            netMainWeight !== null &&
+            mainAmount !== null && (
+              <View
                 style={[
-                  styles.sectionLabel,
+                  styles.summaryCard,
                   {
-                    color: theme.textTertiary,
-                    fontFamily: "Outfit_600SemiBold",
-                    marginBottom: 12,
+                    backgroundColor: theme.surface,
+                    borderColor: theme.borderLight,
                   },
                 ]}
               >
-                {t.calcSummary}
-              </Text>
-
-              {/* Gross weight */}
-              <SummaryRow
-                label={t.grossWeight}
-                value={`${formatWeight(totalWeight)} KG`}
-                theme={theme}
-              />
-
-              {/* Cull weight — always shown for full transparency */}
-              {hasCull ? (
-                <>
-                  <SummaryRow
-                    label={t.cullWeight}
-                    value={`−${formatWeight(cullWeightKg)} KG`}
-                    theme={theme}
-                    isNegative
-                  />
-                  <SummaryRow
-                    label={t.subtotalGross}
-                    value={`${formatWeight(subtotalGross)} KG`}
-                    theme={theme}
-                  />
-                </>
-              ) : (
-                <SummaryRow
-                  label={t.cullWeight}
-                  value="0 KG"
-                  theme={theme}
-                />
-              )}
-
-              {/* Explicit floor calculation */}
-              {fullCratesOnly ? (
-                <SummaryRow
-                  label={`${formatWeight(subtotalGross)} ÷ ${kgPerCrateNum} = ${rawCrates.toFixed(3)} → ${calc.totalCrates} crates`}
-                  value={`${calc.totalCrates}`}
-                  theme={theme}
-                />
-              ) : (
-                <SummaryRow
-                  label={t.totalCrates}
-                  value={`${calc.totalCrates.toFixed(3)}`}
-                  theme={theme}
-                />
-              )}
-
-              {/* Crate deduction */}
-              <SummaryRow
-                label={`${calc.totalCrates} × ${deductionGNum}g deduction`}
-                value={`−${formatWeight(calc.totalDeductionKg)} KG`}
-                theme={theme}
-                isNegative
-              />
-
-              {/* Net main weight */}
-              <SummaryRow
-                label={t.payableWeight}
-                value={`${formatWeight(netMainWeight)} KG`}
-                theme={theme}
-                isHighlight
-              />
-
-              {/* × price/kg label */}
-              <View style={styles.multiplyRow}>
-                <Text style={[styles.multiplyText, { color: theme.textTertiary, fontFamily: "Outfit_400Regular" }]}>
-                  × Tk {pricePerKgNum.toFixed(2)} / kg
-                </Text>
-              </View>
-
-              {/* Main amount */}
-              <SummaryRow
-                label={t.mainAmount}
-                value={`Tk ${mainAmount.toLocaleString("en-PK", { maximumFractionDigits: 2 })}`}
-                theme={theme}
-              />
-
-              {/* Cull revenue line */}
-              {hasCull && cullSold && cullAmount > 0 && (
-                <SummaryRow
-                  label={
-                    cullPricingMode === "per_kg"
-                      ? `${t.cullAmount} (${formatWeight(cullWeightKg)} kg × Tk ${cullPriceNum.toFixed(2)})`
-                      : `${t.cullAmount} (${cullPcs} birds × Tk ${cullPriceNum.toFixed(2)})`
-                  }
-                  value={`+ Tk ${cullAmount.toLocaleString("en-PK", { maximumFractionDigits: 2 })}`}
-                  theme={theme}
-                  isHighlight
-                />
-              )}
-
-              <View
-                style={[
-                  styles.finalAmountRow,
-                  { backgroundColor: theme.accentLight },
-                ]}
-              >
                 <Text
                   style={[
-                    styles.finalAmountLabel,
+                    styles.sectionLabel,
                     {
-                      color: theme.accent,
+                      color: theme.textTertiary,
                       fontFamily: "Outfit_600SemiBold",
+                      marginBottom: 12,
                     },
                   ]}
                 >
-                  {t.finalAmount}
+                  {t.calcSummary}
                 </Text>
-                <Text
-                  style={[
-                    styles.finalAmountValue,
-                    { color: theme.accent, fontFamily: "Outfit_700Bold" },
-                  ]}
-                >
-                  Tk{" "}
-                  {finalAmount.toLocaleString("en-PK", {
-                    maximumFractionDigits: 2,
-                  })}
-                </Text>
-              </View>
 
-              <View
-                style={[
-                  styles.receivedAmountSection,
-                  { borderTopColor: theme.borderLight },
-                ]}
-              >
-                <View style={styles.receivedAmountHeader}>
-                  <Feather
-                    name="credit-card"
-                    size={14}
-                    color={theme.textTertiary}
+                {/* Gross weight */}
+                <SummaryRow
+                  label={t.grossWeight}
+                  value={`${formatWeight(totalWeight)} KG`}
+                  theme={theme}
+                />
+
+                {/* Cull weight — always shown for full transparency */}
+                {hasCull ? (
+                  <>
+                    <SummaryRow
+                      label={t.cullWeight}
+                      value={`−${formatWeight(cullWeightKg)} KG`}
+                      theme={theme}
+                      isNegative
+                    />
+                    <SummaryRow
+                      label={t.subtotalGross}
+                      value={`${formatWeight(subtotalGross)} KG`}
+                      theme={theme}
+                    />
+                  </>
+                ) : (
+                  <SummaryRow label={t.cullWeight} value="0 KG" theme={theme} />
+                )}
+
+                {/* Explicit floor calculation */}
+                {fullCratesOnly ? (
+                  <SummaryRow
+                    label={`${formatWeight(subtotalGross)} ÷ ${kgPerCrateNum} = ${rawCrates.toFixed(3)} → ${calc.totalCrates} crates`}
+                    value={`${calc.totalCrates}`}
+                    theme={theme}
                   />
+                ) : (
+                  <SummaryRow
+                    label={t.totalCrates}
+                    value={`${calc.totalCrates.toFixed(3)}`}
+                    theme={theme}
+                  />
+                )}
+
+                {/* Crate deduction */}
+                <SummaryRow
+                  label={`${calc.totalCrates} × ${deductionGNum}g deduction`}
+                  value={`−${formatWeight(calc.totalDeductionKg)} KG`}
+                  theme={theme}
+                  isNegative
+                />
+
+                {/* Net main weight */}
+                <SummaryRow
+                  label={t.payableWeight}
+                  value={`${formatWeight(netMainWeight)} KG`}
+                  theme={theme}
+                  isHighlight
+                />
+
+                {/* × price/kg label */}
+                <View style={styles.multiplyRow}>
                   <Text
                     style={[
-                      styles.receivedAmountLabel,
+                      styles.multiplyText,
                       {
-                        color: theme.text,
+                        color: theme.textTertiary,
+                        fontFamily: "Outfit_400Regular",
+                      },
+                    ]}
+                  >
+                    × Tk {pricePerKgNum.toFixed(2)} / kg
+                  </Text>
+                </View>
+
+                {/* Main amount */}
+                <SummaryRow
+                  label={t.mainAmount}
+                  value={`Tk ${mainAmount.toLocaleString("en-PK", { maximumFractionDigits: 2 })}`}
+                  theme={theme}
+                />
+
+                {/* Cull revenue line */}
+                {hasCull && cullSold && cullAmount > 0 && (
+                  <SummaryRow
+                    label={
+                      cullPricingMode === "per_kg"
+                        ? `${t.cullAmount} (${formatWeight(cullWeightKg)} kg × Tk ${cullPriceNum.toFixed(2)})`
+                        : `${t.cullAmount} (${cullPcs} birds × Tk ${cullPriceNum.toFixed(2)})`
+                    }
+                    value={`+ Tk ${cullAmount.toLocaleString("en-PK", { maximumFractionDigits: 2 })}`}
+                    theme={theme}
+                    isHighlight
+                  />
+                )}
+
+                <View
+                  style={[
+                    styles.finalAmountRow,
+                    { backgroundColor: theme.accentLight },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.finalAmountLabel,
+                      {
+                        color: theme.accent,
                         fontFamily: "Outfit_600SemiBold",
                       },
                     ]}
                   >
-                    {t.receivedAmount}
+                    {t.finalAmount}
                   </Text>
-                  <View
+                  <Text
                     style={[
-                      styles.optionalBadge,
-                      { backgroundColor: theme.borderLight },
+                      styles.finalAmountValue,
+                      { color: theme.accent, fontFamily: "Outfit_700Bold" },
                     ]}
                   >
-                    <Text
-                      style={[
-                        styles.optionalText,
-                        {
-                          color: theme.textTertiary,
-                          fontFamily: "Outfit_400Regular",
-                        },
-                      ]}
-                    >
-                      {t.optional}
-                    </Text>
-                  </View>
+                    Tk{" "}
+                    {finalAmount.toLocaleString("en-PK", {
+                      maximumFractionDigits: 2,
+                    })}
+                  </Text>
                 </View>
-                <TextInput
-                  ref={receivedRef}
-                  value={receivedAmount}
-                  onChangeText={setReceivedAmount}
-                  keyboardType="decimal-pad"
-                  placeholder="Tk 0.00"
-                  placeholderTextColor={theme.textTertiary}
-                  returnKeyType="done"
-                  onSubmitEditing={Keyboard.dismiss}
-                  style={[
-                    styles.receivedAmountInput,
-                    {
-                      color: theme.text,
-                      fontFamily: "Outfit_600SemiBold",
-                      borderColor: theme.border,
-                      backgroundColor: theme.background,
-                    },
-                  ]}
-                  testID="received-amount-input"
-                />
 
-                {/* Balance due preview */}
-                {balanceDue !== null && (
-                  <View
-                    style={[
-                      styles.balanceDueRow,
-                      {
-                        backgroundColor: balanceDue > 0 ? theme.dangerLight : theme.successLight,
-                      },
-                    ]}
-                  >
+                <View
+                  style={[
+                    styles.receivedAmountSection,
+                    { borderTopColor: theme.borderLight },
+                  ]}
+                >
+                  <View style={styles.receivedAmountHeader}>
+                    <Feather
+                      name="credit-card"
+                      size={14}
+                      color={theme.textTertiary}
+                    />
                     <Text
                       style={[
-                        styles.balanceDueLabel,
+                        styles.receivedAmountLabel,
                         {
-                          color: balanceDue > 0 ? theme.danger : theme.success,
+                          color: theme.text,
                           fontFamily: "Outfit_600SemiBold",
                         },
                       ]}
                     >
-                      {t.balanceDue}
+                      {t.receivedAmount}
                     </Text>
-                    <Text
+                    <View
                       style={[
-                        styles.balanceDueValue,
+                        styles.optionalBadge,
+                        { backgroundColor: theme.borderLight },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.optionalText,
+                          {
+                            color: theme.textTertiary,
+                            fontFamily: "Outfit_400Regular",
+                          },
+                        ]}
+                      >
+                        {t.optional}
+                      </Text>
+                    </View>
+                  </View>
+                  <TextInput
+                    ref={receivedRef}
+                    value={receivedAmount}
+                    onChangeText={setReceivedAmount}
+                    keyboardType="decimal-pad"
+                    placeholder="Tk 0.00"
+                    placeholderTextColor={theme.textTertiary}
+                    returnKeyType="done"
+                    onSubmitEditing={Keyboard.dismiss}
+                    style={[
+                      styles.receivedAmountInput,
+                      {
+                        color: theme.text,
+                        fontFamily: "Outfit_600SemiBold",
+                        borderColor: theme.border,
+                        backgroundColor: theme.background,
+                      },
+                    ]}
+                    testID="received-amount-input"
+                  />
+
+                  {/* Balance due preview */}
+                  {balanceDue !== null && (
+                    <View
+                      style={[
+                        styles.balanceDueRow,
                         {
-                          color: balanceDue > 0 ? theme.danger : theme.success,
-                          fontFamily: "Outfit_700Bold",
+                          backgroundColor:
+                            balanceDue > 0
+                              ? theme.dangerLight
+                              : theme.successLight,
                         },
                       ]}
                     >
-                      Tk {Math.abs(balanceDue).toLocaleString("en-PK", { maximumFractionDigits: 2 })}
-                      {balanceDue < 0 ? " (overpaid)" : ""}
-                    </Text>
-                  </View>
-                )}
+                      <Text
+                        style={[
+                          styles.balanceDueLabel,
+                          {
+                            color:
+                              balanceDue > 0 ? theme.danger : theme.success,
+                            fontFamily: "Outfit_600SemiBold",
+                          },
+                        ]}
+                      >
+                        {t.balanceDue}
+                      </Text>
+                      <Text
+                        style={[
+                          styles.balanceDueValue,
+                          {
+                            color:
+                              balanceDue > 0 ? theme.danger : theme.success,
+                            fontFamily: "Outfit_700Bold",
+                          },
+                        ]}
+                      >
+                        Tk{" "}
+                        {Math.abs(balanceDue).toLocaleString("en-PK", {
+                          maximumFractionDigits: 2,
+                        })}
+                        {balanceDue < 0 ? " (overpaid)" : ""}
+                      </Text>
+                    </View>
+                  )}
+                </View>
               </View>
-            </View>
-          )}
+            )}
         </ScrollView>
 
         <View
@@ -1440,7 +1613,7 @@ export default function MeasurementScreen() {
   const [phase, setPhase] = useState<"main" | "cull">("main");
   // Show setup dialog for new sessions (not draft resumes)
   const [showPcsDialog, setShowPcsDialog] = useState(
-    !(typeof draftIdParam === "string" && draftIdParam.length > 0)
+    !(typeof draftIdParam === "string" && draftIdParam.length > 0),
   );
   const [pcsOptional, setPcsOptional] = useState(false);
   const [weightInput, setWeightInput] = useState("");
@@ -1449,6 +1622,7 @@ export default function MeasurementScreen() {
   const [showCullDialog, setShowCullDialog] = useState(false);
   const [editingRow, setEditingRow] = useState<MeasurementRow | null>(null);
   const [isEnterPcsMode, setIsEnterPcsMode] = useState(false);
+  const [chunkSize, setChunkSizeState] = useState(DEFAULT_CHUNK_SIZE);
 
   const weightRef = useRef<TextInput>(null);
   const enterPcsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -1456,17 +1630,27 @@ export default function MeasurementScreen() {
   const sessionDraftId = useRef<string>(
     typeof draftIdParam === "string" && draftIdParam.length > 0
       ? draftIdParam
-      : Crypto.randomUUID()
+      : Crypto.randomUUID(),
   );
   const hasEverHadRows = useRef(
-    typeof draftIdParam === "string" && draftIdParam.length > 0
+    typeof draftIdParam === "string" && draftIdParam.length > 0,
   );
   const draftLoaded = useRef(false);
 
+  useFocusEffect(
+    useCallback(() => {
+      getChunkSize(userId).then(setChunkSizeState);
+    }, [userId]),
+  );
+
+  const groupedRows = useMemo(() => groupRows(rows, chunkSize), [rows]);
   // Cancel any pending auto-open timer on unmount
-  useEffect(() => () => {
-    if (enterPcsTimerRef.current) clearTimeout(enterPcsTimerRef.current);
-  }, []);
+  useEffect(
+    () => () => {
+      if (enterPcsTimerRef.current) clearTimeout(enterPcsTimerRef.current);
+    },
+    [],
+  );
 
   useEffect(() => {
     if (draftLoaded.current) return;
@@ -1477,7 +1661,11 @@ export default function MeasurementScreen() {
       if (!draft) return;
       startTimeRef.current = draft.createdAt;
       if (draft.pcsOptional) setPcsOptional(true);
-      if (draft.phase === "cull" && draft.mainRows && draft.mainRows.length > 0) {
+      if (
+        draft.phase === "cull" &&
+        draft.mainRows &&
+        draft.mainRows.length > 0
+      ) {
         setPhase("cull");
         setMainRows(draft.mainRows);
         if (draft.rows.length > 0) setRows(draft.rows);
@@ -1507,9 +1695,7 @@ export default function MeasurementScreen() {
 
   useEffect(() => {
     const timer = setInterval(() => {
-      setElapsedSeconds(
-        Math.floor((Date.now() - startTimeRef.current) / 1000)
-      );
+      setElapsedSeconds(Math.floor((Date.now() - startTimeRef.current) / 1000));
     }, 1000);
     return () => clearInterval(timer);
   }, []);
@@ -1523,33 +1709,36 @@ export default function MeasurementScreen() {
   const mainWeight = mainRows.reduce((sum, r) => sum + r.weightKg, 0);
   const mainPcs = sumPcs(mainRows);
 
-  const performAddRow = useCallback((weight: number) => {
-    const newRow: MeasurementRow = {
-      id: Crypto.randomUUID(),
-      weightKg: weight,
-      // Unknown until entered. Tracked sessions capture it via the edit modal
-      // below; skipped (pcsOptional) sessions leave it unknown.
-      pcs: null,
-      timestamp: Date.now(),
-    };
+  const performAddRow = useCallback(
+    (weight: number) => {
+      const newRow: MeasurementRow = {
+        id: Crypto.randomUUID(),
+        weightKg: weight,
+        // Unknown until entered. Tracked sessions capture it via the edit modal
+        // below; skipped (pcsOptional) sessions leave it unknown.
+        pcs: null,
+        timestamp: Date.now(),
+      };
 
-    setRows((prev) => [newRow, ...prev]);
-    setWeightInput("");
-    Keyboard.dismiss();
+      setRows((prev) => [newRow, ...prev]);
+      setWeightInput("");
+      Keyboard.dismiss();
 
-    if (Platform.OS !== "web") {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    }
+      if (Platform.OS !== "web") {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      }
 
-    if (!pcsOptional) {
-      // Auto-open the edit modal to enter bird count after row animation settles
-      if (enterPcsTimerRef.current) clearTimeout(enterPcsTimerRef.current);
-      enterPcsTimerRef.current = setTimeout(() => {
-        setEditingRow(newRow);
-        setIsEnterPcsMode(true);
-      }, 800);
-    }
-  }, [pcsOptional]);
+      if (!pcsOptional) {
+        // Auto-open the edit modal to enter bird count after row animation settles
+        if (enterPcsTimerRef.current) clearTimeout(enterPcsTimerRef.current);
+        enterPcsTimerRef.current = setTimeout(() => {
+          setEditingRow(newRow);
+          setIsEnterPcsMode(true);
+        }, 800);
+      }
+    },
+    [pcsOptional],
+  );
 
   const handleAddRow = useCallback(() => {
     const weight = parseFloat(weightInput);
@@ -1584,9 +1773,7 @@ export default function MeasurementScreen() {
           style: "destructive",
           onPress: () => {
             setRows((prev) => prev.slice(1));
-            Haptics.notificationAsync(
-              Haptics.NotificationFeedbackType.Success
-            );
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
           },
         },
       ]);
@@ -1631,7 +1818,7 @@ export default function MeasurementScreen() {
 
   const handleEditSave = (updatedRow: MeasurementRow) => {
     setRows((prev) =>
-      prev.map((r) => (r.id === updatedRow.id ? updatedRow : r))
+      prev.map((r) => (r.id === updatedRow.id ? updatedRow : r)),
     );
     setEditingRow(null);
     setIsEnterPcsMode(false);
@@ -1685,8 +1872,14 @@ export default function MeasurementScreen() {
       <PcsOptionalDialog
         visible={showPcsDialog}
         theme={theme}
-        onTrack={() => { setPcsOptional(false); setShowPcsDialog(false); }}
-        onSkip={() => { setPcsOptional(true); setShowPcsDialog(false); }}
+        onTrack={() => {
+          setPcsOptional(false);
+          setShowPcsDialog(false);
+        }}
+        onSkip={() => {
+          setPcsOptional(true);
+          setShowPcsDialog(false);
+        }}
       />
 
       <EditRowModal
@@ -1809,11 +2002,7 @@ export default function MeasurementScreen() {
             },
           ]}
         >
-          <Ionicons
-            name="checkmark-circle"
-            size={14}
-            color={theme.accent}
-          />
+          <Ionicons name="checkmark-circle" size={14} color={theme.accent} />
           <Text
             style={[
               styles.mainSummaryText,
@@ -1858,10 +2047,7 @@ export default function MeasurementScreen() {
               color="rgba(255,255,255,0.5)"
             />
             <Text
-              style={[
-                styles.displayStatVal,
-                { fontFamily: "Outfit_700Bold" },
-              ]}
+              style={[styles.displayStatVal, { fontFamily: "Outfit_700Bold" }]}
             >
               {pcsOptional ? t.unknown : totalPcs}
             </Text>
@@ -1913,9 +2099,19 @@ export default function MeasurementScreen() {
         ]}
       >
         {!pcsOptional && (
-          <View style={[styles.pcsTrackingBadge, { backgroundColor: theme.accentLight }]}>
+          <View
+            style={[
+              styles.pcsTrackingBadge,
+              { backgroundColor: theme.accentLight },
+            ]}
+          >
             <Ionicons name="checkmark-circle" size={12} color={theme.accent} />
-            <Text style={[styles.pcsTrackingText, { color: theme.accent, fontFamily: "Outfit_600SemiBold" }]}>
+            <Text
+              style={[
+                styles.pcsTrackingText,
+                { color: theme.accent, fontFamily: "Outfit_600SemiBold" },
+              ]}
+            >
               {t.pcsOptionalTrack}
             </Text>
           </View>
@@ -1972,7 +2168,7 @@ export default function MeasurementScreen() {
         </View>
       </View>
 
-      <FlatList
+      {/* <FlatList
         data={rows}
         keyExtractor={(item) => item.id}
         renderItem={({ item, index }) => (
@@ -1982,7 +2178,8 @@ export default function MeasurementScreen() {
             theme={theme}
             onEdit={(row) => {
               // Cancel auto-open timer if user manually taps edit
-              if (enterPcsTimerRef.current) clearTimeout(enterPcsTimerRef.current);
+              if (enterPcsTimerRef.current)
+                clearTimeout(enterPcsTimerRef.current);
               setIsEnterPcsMode(false);
               setEditingRow(row);
             }}
@@ -2007,6 +2204,56 @@ export default function MeasurementScreen() {
                   color: theme.textTertiary,
                   fontFamily: "Outfit_400Regular",
                 },
+              ]}
+            >
+              {t.noRowsYet}
+            </Text>
+          </View>
+        }
+      /> */}
+
+      <SectionList
+        sections={groupedRows}
+        keyExtractor={(item) => item.id}
+        renderItem={({ item, section }) => {
+          // Compute rowNumber from the full rows array
+          const globalIndex = rows.findIndex((r) => r.id === item.id);
+          const rowNumber = rows.length - globalIndex;
+
+          return (
+            <RowItem
+              row={item}
+              rowNumber={rowNumber}
+              theme={theme}
+              onEdit={(row) => {
+                if (enterPcsTimerRef.current)
+                  clearTimeout(enterPcsTimerRef.current);
+                setIsEnterPcsMode(false);
+                setEditingRow(row);
+              }}
+            />
+          );
+        }}
+        renderSectionHeader={({ section }) => (
+          <GroupHeader section={section} theme={theme} />
+        )}
+        contentContainerStyle={{
+          paddingHorizontal: 16,
+          paddingTop: 8,
+          paddingBottom: 20,
+        }}
+        showsVerticalScrollIndicator={false}
+        scrollEnabled={!!rows.length}
+        keyboardDismissMode="on-drag"
+        keyboardShouldPersistTaps="handled"
+        stickySectionHeadersEnabled={false} // set true if you want sticky group headers
+        ListEmptyComponent={
+          <View style={styles.emptyRows}>
+            <Feather name="inbox" size={28} color={theme.textTertiary} />
+            <Text
+              style={[
+                styles.emptyRowsText,
+                { color: theme.textTertiary, fontFamily: "Outfit_400Regular" },
               ]}
             >
               {t.noRowsYet}
@@ -2072,6 +2319,115 @@ export default function MeasurementScreen() {
           )}
         </Pressable>
       </View>
+    </View>
+  );
+}
+
+// function GroupHeader({
+//   section,
+//   theme,
+// }: {
+//   section: RowGroup;
+//   theme: ReturnType<typeof useTheme>;
+// }) {
+//   return (
+//     <View
+//       style={[
+//         styles.groupHeader,
+//         { backgroundColor: theme.surface, borderColor: theme.border },
+//       ]}
+//     >
+//       <Text
+//         style={[
+//           styles.groupLabel,
+//           { color: theme.textSecondary, fontFamily: "Outfit_600SemiBold" },
+//         ]}
+//       >
+//         ({section.groupLabel})
+//       </Text>
+//       <View style={styles.groupStats}>
+//         <View style={styles.groupStat}>
+//           <Text
+//             style={[
+//               styles.statValue,
+//               { color: theme.text, fontFamily: "Outfit_600SemiBold" },
+//             ]}
+//           >
+//             {section.totalWeight.toFixed(2)} kg
+//           </Text>
+//           <Text
+//             style={[
+//               styles.statLabel,
+//               { color: theme.textTertiary, fontFamily: "Outfit_400Regular" },
+//             ]}
+//           >
+//             total wt
+//           </Text>
+//         </View>
+//         <View style={styles.groupStat}>
+//           <Text
+//             style={[
+//               styles.statValue,
+//               { color: theme.text, fontFamily: "Outfit_600SemiBold" },
+//             ]}
+//           >
+//             {section.totalPcs}
+//           </Text>
+//           <Text
+//             style={[
+//               styles.statLabel,
+//               { color: theme.textTertiary, fontFamily: "Outfit_400Regular" },
+//             ]}
+//           >
+//             total pcs
+//           </Text>
+//         </View>
+//         <View style={styles.groupStat}>
+//           <Text
+//             style={[
+//               styles.statValue,
+//               { color: theme.text, fontFamily: "Outfit_600SemiBold" },
+//             ]}
+//           >
+//             {section.avgWeight.toFixed(3)} kg
+//           </Text>
+//           <Text
+//             style={[
+//               styles.statLabel,
+//               { color: theme.textTertiary, fontFamily: "Outfit_400Regular" },
+//             ]}
+//           >
+//             avg wt
+//           </Text>
+//         </View>
+//       </View>
+//     </View>
+//   );
+// }
+
+function GroupHeader({
+  section,
+  theme,
+}: {
+  section: RowGroup;
+  theme: ReturnType<typeof useTheme>;
+}) {
+  return (
+    <View style={[styles.groupHeader]}>
+      <View style={[styles.groupDivider, { backgroundColor: theme.border }]} />
+      <Text
+        style={[
+          styles.groupLabel,
+          { color: theme.textTertiary, fontFamily: "Outfit_400Regular" },
+        ]}
+      >
+        {section.groupLabel}
+        {"     |     "}
+        {section.totalWeight.toFixed(2)} kg{"     |     "}
+        {section.totalPcs} pcs{"     |     "}avg {section.avgWeight.toFixed(3)}{" "}
+        kg
+      </Text>
+      <View style={[styles.groupDivider, { backgroundColor: theme.border }]} />
     </View>
   );
 }
@@ -2258,6 +2614,47 @@ const styles = StyleSheet.create({
   },
   endBtnBadgeText: { fontSize: 12, color: "#FFF" },
 
+  // groupHeader: {
+  //   borderWidth: 1,
+  //   borderRadius: 10,
+  //   padding: 12,
+  //   marginBottom: 6,
+  //   marginTop: 10,
+  // },
+  // groupLabel: {
+  //   fontSize: 13,
+  //   marginBottom: 8,
+  // },
+  // groupStats: {
+  //   flexDirection: "row",
+  //   justifyContent: "space-between",
+  // },
+  // groupStat: {
+  //   alignItems: "center",
+  //   flex: 1,
+  // },
+  // statValue: {
+  //   fontSize: 15,
+  // },
+  // statLabel: {
+  //   fontSize: 11,
+  //   marginTop: 2,
+  // },
+  groupHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginVertical: 8,
+    paddingHorizontal: 4,
+  },
+  groupDivider: {
+    flex: 1,
+    height: 1,
+  },
+  groupLabel: {
+    fontSize: 11,
+    opacity: 0.7,
+  },
   cullOverlay: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.55)",
@@ -2282,7 +2679,12 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   cullTitle: { fontSize: 20, textAlign: "center" },
-  cullHint: { fontSize: 13, textAlign: "center", lineHeight: 20, marginBottom: 8 },
+  cullHint: {
+    fontSize: 13,
+    textAlign: "center",
+    lineHeight: 20,
+    marginBottom: 8,
+  },
   cullBtns: {
     flexDirection: "row",
     gap: 10,
