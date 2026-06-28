@@ -47,7 +47,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
         router.replace("/onboarding");
       }
     })();
-  }, [isLoaded, isSignedIn, user?.id]);
+  }, [isLoaded, isSignedIn, user?.id, router]);
 
   if (!isLoaded) {
     // Keep splash visible until auth resolves
