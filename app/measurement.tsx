@@ -11,7 +11,6 @@ import {
   StyleSheet,
   TextInput,
   Pressable,
-  FlatList,
   Platform,
   Alert,
   Keyboard,
@@ -546,7 +545,7 @@ function TradeDeductionModal({
         if (dg) setDeductionG(dg);
       });
     }
-  }, [visible]);
+  }, [visible, userId]);
 
   const kgPerCrateNum = parseFloat(kgPerCrate);
   const deductionGNum = parseFloat(deductionG);
@@ -1643,7 +1642,7 @@ export default function MeasurementScreen() {
     }, [userId]),
   );
 
-  const groupedRows = useMemo(() => groupRows(rows, chunkSize), [rows]);
+  const groupedRows = useMemo(() => groupRows(rows, chunkSize), [rows, chunkSize]);
   // Cancel any pending auto-open timer on unmount
   useEffect(
     () => () => {
