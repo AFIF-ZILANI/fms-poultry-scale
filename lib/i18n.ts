@@ -14,8 +14,7 @@ const en = {
   optional: "Optional",
   unknown: "Unknown",
 
-  homeSalesRecorded: (n: number) =>
-    `${n} sale${n !== 1 ? "s" : ""} recorded`,
+  homeSalesRecorded: (n: number) => `${n} sale${n !== 1 ? "s" : ""} recorded`,
   homeReadyToWeigh: "Ready to weigh",
   homeDraftBanner: (n: number) =>
     `${n} draft session${n !== 1 ? "s" : ""} — tap to continue`,
@@ -73,7 +72,8 @@ const en = {
 
   // PCS optional setup dialog
   pcsOptionalTitle: "Bird Count",
-  pcsOptionalDesc: "Without a per-entry bird count, average weight per bird won't be accurate and flock analysis will be limited.",
+  pcsOptionalDesc:
+    "Without a per-entry bird count, average weight per bird won't be accurate and flock analysis will be limited.",
   pcsOptionalTrack: "Track Count",
   pcsOptionalSkip: "Skip Count",
   enterBirdCount: "Add Bird Count",
@@ -124,8 +124,7 @@ const en = {
   saveToHistory: "Save to History",
 
   draftsTitle: "Draft Sessions",
-  draftsPaused: (n: number) =>
-    `${n} session${n !== 1 ? "s" : ""} paused`,
+  draftsPaused: (n: number) => `${n} session${n !== 1 ? "s" : ""} paused`,
   noDraftsSaved: "No drafts saved",
   noDraftSessions: "No draft sessions",
   draftsAutoSave: "Sessions are saved automatically when you go back",
@@ -199,8 +198,10 @@ const en = {
   planSubtitle: "You can change this anytime from your profile",
   communityPlan: "Community",
   premiumPlan: "Premium",
-  communityDesc: "Free forever. Your anonymized data helps improve PoultryScale for all Bangladesh farmers.",
-  premiumDesc: "৳299/month. Your data stays completely private and is never shared.",
+  communityDesc:
+    "Free forever. Your anonymized data helps improve PoultryScale for all Bangladesh farmers.",
+  premiumDesc:
+    "৳299/month. Your data stays completely private and is never shared.",
   startFree: "Start Free",
   startPremium: "Start Premium (৳299/mo)",
   recommended: "RECOMMENDED",
@@ -239,7 +240,8 @@ const en = {
   premiumFeature2: "Priority support",
   premiumFeature3: "Advanced analytics (coming soon)",
   communityNoteLabel: "Community Member",
-  communityNote: "Your anonymized usage data helps us improve PoultryScale for Bangladesh's poultry farmers.",
+  communityNote:
+    "Your anonymized usage data helps us improve PoultryScale for Bangladesh's poultry farmers.",
   editProfile: "Edit Profile",
   farmLabel: "Farm",
   businessLabel: "Business",
@@ -250,6 +252,7 @@ const en = {
   appSettings: "App Settings",
   accountSection: "ACCOUNT",
   infoSection: "YOUR INFO",
+  logGroupSize: "Log Group Size",
 };
 
 const bn: typeof en = {
@@ -322,7 +325,8 @@ const bn: typeof en = {
   addAnyway: "তবুও যোগ করুন",
 
   pcsOptionalTitle: "মুরগির সংখ্যা",
-  pcsOptionalDesc: "প্রতিটি এন্ট্রিতে সংখ্যা না রাখলে গড় ওজন নির্ভুল হবে না এবং বিশ্লেষণ সীমিত হবে।",
+  pcsOptionalDesc:
+    "প্রতিটি এন্ট্রিতে সংখ্যা না রাখলে গড় ওজন নির্ভুল হবে না এবং বিশ্লেষণ সীমিত হবে।",
   pcsOptionalTrack: "সংখ্যা রাখুন",
   pcsOptionalSkip: "এড়িয়ে যান",
   enterBirdCount: "সংখ্যা দিন",
@@ -440,7 +444,8 @@ const bn: typeof en = {
   planSubtitle: "প্রোফাইল থেকে যেকোনো সময় পরিবর্তন করতে পারবেন",
   communityPlan: "কমিউনিটি",
   premiumPlan: "প্রিমিয়াম",
-  communityDesc: "সম্পূর্ণ বিনামূল্যে। আপনার তথ্য বাংলাদেশের কৃষকদের জন্য অ্যাপ উন্নত করতে সাহায্য করে।",
+  communityDesc:
+    "সম্পূর্ণ বিনামূল্যে। আপনার তথ্য বাংলাদেশের কৃষকদের জন্য অ্যাপ উন্নত করতে সাহায্য করে।",
   premiumDesc: "৳২৯৯/মাস। আপনার সব ডেটা ব্যক্তিগত থাকে, কখনও শেয়ার হয় না।",
   startFree: "বিনামূল্যে শুরু করুন",
   startPremium: "প্রিমিয়াম শুরু করুন (৳২৯৯/মাস)",
@@ -478,7 +483,8 @@ const bn: typeof en = {
   premiumFeature2: "অগ্রাধিকার সহায়তা",
   premiumFeature3: "উন্নত বিশ্লেষণ (শীঘ্রই)",
   communityNoteLabel: "কমিউনিটি সদস্য",
-  communityNote: "আপনার বেনামী ব্যবহার ডেটা বাংলাদেশের কৃষকদের জন্য অ্যাপ উন্নত করতে সাহায্য করে।",
+  communityNote:
+    "আপনার বেনামী ব্যবহার ডেটা বাংলাদেশের কৃষকদের জন্য অ্যাপ উন্নত করতে সাহায্য করে।",
   editProfile: "প্রোফাইল সম্পাদনা",
   farmLabel: "খামার",
   businessLabel: "ব্যবসা",
@@ -489,6 +495,7 @@ const bn: typeof en = {
   appSettings: "সেটিংস",
   accountSection: "অ্যাকাউন্ট",
   infoSection: "আপনার তথ্য",
+  logGroupSize: "লগ গ্রুপ সাইজ",
 };
 
 export const translations = { en, bn };
