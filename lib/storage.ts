@@ -143,6 +143,21 @@ async function setPref(key: string, value: string): Promise<void> {
 // key format: "${userId}:${settingName}"
 const uk = (userId: string, name: string) => `${userId}:${name}`;
 
+// ─── Preferences Chunk size ───────────────────────────────────────────────────
+
+const CHUNK_SIZE_KEY = "chunkSize";
+export const DEFAULT_CHUNK_SIZE = 10;
+
+export async function getChunkSize(userId: string): Promise<number> {
+  const val = await getPref(uk(userId, CHUNK_SIZE_KEY));
+  return val ? parseInt(val, 10) : DEFAULT_CHUNK_SIZE;
+}
+
+export async function setChunkSize(userId: string, size: number): Promise<void> {
+  await setPref(uk(userId, CHUNK_SIZE_KEY), size.toString());
+}
+
+
 export const loadLastPricePerKg = (uid: string) => getPref(uk(uid, "last_price_per_kg"));
 export const saveLastPricePerKg = (uid: string, v: string) => setPref(uk(uid, "last_price_per_kg"), v);
 
