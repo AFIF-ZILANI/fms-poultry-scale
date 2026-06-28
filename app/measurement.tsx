@@ -2167,51 +2167,6 @@ export default function MeasurementScreen() {
           </Pressable>
         </View>
       </View>
-
-      {/* <FlatList
-        data={rows}
-        keyExtractor={(item) => item.id}
-        renderItem={({ item, index }) => (
-          <RowItem
-            row={item}
-            rowNumber={rows.length - index}
-            theme={theme}
-            onEdit={(row) => {
-              // Cancel auto-open timer if user manually taps edit
-              if (enterPcsTimerRef.current)
-                clearTimeout(enterPcsTimerRef.current);
-              setIsEnterPcsMode(false);
-              setEditingRow(row);
-            }}
-          />
-        )}
-        contentContainerStyle={{
-          paddingHorizontal: 16,
-          paddingTop: 8,
-          paddingBottom: 20,
-        }}
-        showsVerticalScrollIndicator={false}
-        scrollEnabled={!!rows.length}
-        keyboardDismissMode="on-drag"
-        keyboardShouldPersistTaps="handled"
-        ListEmptyComponent={
-          <View style={styles.emptyRows}>
-            <Feather name="inbox" size={28} color={theme.textTertiary} />
-            <Text
-              style={[
-                styles.emptyRowsText,
-                {
-                  color: theme.textTertiary,
-                  fontFamily: "Outfit_400Regular",
-                },
-              ]}
-            >
-              {t.noRowsYet}
-            </Text>
-          </View>
-        }
-      /> */}
-
       <SectionList
         sections={groupedRows}
         keyExtractor={(item) => item.id}
@@ -2322,88 +2277,6 @@ export default function MeasurementScreen() {
     </View>
   );
 }
-
-// function GroupHeader({
-//   section,
-//   theme,
-// }: {
-//   section: RowGroup;
-//   theme: ReturnType<typeof useTheme>;
-// }) {
-//   return (
-//     <View
-//       style={[
-//         styles.groupHeader,
-//         { backgroundColor: theme.surface, borderColor: theme.border },
-//       ]}
-//     >
-//       <Text
-//         style={[
-//           styles.groupLabel,
-//           { color: theme.textSecondary, fontFamily: "Outfit_600SemiBold" },
-//         ]}
-//       >
-//         ({section.groupLabel})
-//       </Text>
-//       <View style={styles.groupStats}>
-//         <View style={styles.groupStat}>
-//           <Text
-//             style={[
-//               styles.statValue,
-//               { color: theme.text, fontFamily: "Outfit_600SemiBold" },
-//             ]}
-//           >
-//             {section.totalWeight.toFixed(2)} kg
-//           </Text>
-//           <Text
-//             style={[
-//               styles.statLabel,
-//               { color: theme.textTertiary, fontFamily: "Outfit_400Regular" },
-//             ]}
-//           >
-//             total wt
-//           </Text>
-//         </View>
-//         <View style={styles.groupStat}>
-//           <Text
-//             style={[
-//               styles.statValue,
-//               { color: theme.text, fontFamily: "Outfit_600SemiBold" },
-//             ]}
-//           >
-//             {section.totalPcs}
-//           </Text>
-//           <Text
-//             style={[
-//               styles.statLabel,
-//               { color: theme.textTertiary, fontFamily: "Outfit_400Regular" },
-//             ]}
-//           >
-//             total pcs
-//           </Text>
-//         </View>
-//         <View style={styles.groupStat}>
-//           <Text
-//             style={[
-//               styles.statValue,
-//               { color: theme.text, fontFamily: "Outfit_600SemiBold" },
-//             ]}
-//           >
-//             {section.avgWeight.toFixed(3)} kg
-//           </Text>
-//           <Text
-//             style={[
-//               styles.statLabel,
-//               { color: theme.textTertiary, fontFamily: "Outfit_400Regular" },
-//             ]}
-//           >
-//             avg wt
-//           </Text>
-//         </View>
-//       </View>
-//     </View>
-//   );
-// }
 
 function GroupHeader({
   section,
@@ -2614,32 +2487,6 @@ const styles = StyleSheet.create({
   },
   endBtnBadgeText: { fontSize: 12, color: "#FFF" },
 
-  // groupHeader: {
-  //   borderWidth: 1,
-  //   borderRadius: 10,
-  //   padding: 12,
-  //   marginBottom: 6,
-  //   marginTop: 10,
-  // },
-  // groupLabel: {
-  //   fontSize: 13,
-  //   marginBottom: 8,
-  // },
-  // groupStats: {
-  //   flexDirection: "row",
-  //   justifyContent: "space-between",
-  // },
-  // groupStat: {
-  //   alignItems: "center",
-  //   flex: 1,
-  // },
-  // statValue: {
-  //   fontSize: 15,
-  // },
-  // statLabel: {
-  //   fontSize: 11,
-  //   marginTop: 2,
-  // },
   groupHeader: {
     flexDirection: "row",
     alignItems: "center",
