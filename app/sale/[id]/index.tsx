@@ -41,13 +41,15 @@ export default function SaleDetailScreen() {
   useFocusEffect(
     useCallback(() => {
       if (!user?.id) return;
-      Promise.all([loadSales(user.id), loadFarmName(user.id)]).then(([sales, name]) => {
-        const found = sales.find((s) => s.id === id) ?? null;
-        setSale(found);
-        setFarmName(name);
-        setLoading(false);
-      });
-    }, [id, user?.id])
+      Promise.all([loadSales(user.id), loadFarmName(user.id)]).then(
+        ([sales, name]) => {
+          const found = sales.find((s) => s.id === id) ?? null;
+          setSale(found);
+          setFarmName(name);
+          setLoading(false);
+        },
+      );
+    }, [id, user?.id]),
   );
 
   const handleShare = async () => {
@@ -78,7 +80,13 @@ export default function SaleDetailScreen() {
 
   if (loading) {
     return (
-      <View style={[styles.container, styles.centered, { backgroundColor: theme.background }]}>
+      <View
+        style={[
+          styles.container,
+          styles.centered,
+          { backgroundColor: theme.background },
+        ]}
+      >
         <ActivityIndicator color={theme.accent} />
       </View>
     );
@@ -86,8 +94,19 @@ export default function SaleDetailScreen() {
 
   if (!sale) {
     return (
-      <View style={[styles.container, styles.centered, { backgroundColor: theme.background }]}>
-        <Text style={[styles.notFound, { color: theme.textTertiary, fontFamily: "Outfit_400Regular" }]}>
+      <View
+        style={[
+          styles.container,
+          styles.centered,
+          { backgroundColor: theme.background },
+        ]}
+      >
+        <Text
+          style={[
+            styles.notFound,
+            { color: theme.textTertiary, fontFamily: "Outfit_400Regular" },
+          ]}
+        >
           {t.saleNotFound}
         </Text>
       </View>
@@ -96,10 +115,16 @@ export default function SaleDetailScreen() {
 
   const { deduction } = sale;
   const hasCull = (sale.cullRows?.length ?? 0) > 0;
-  const cullTotalKg = hasCull ? (sale.cullRows ?? []).reduce((s, r) => s + r.weightKg, 0) : 0;
-  const cullTotalPcs = hasCull ? (sale.cullRows ?? []).reduce((s, r) => s + (r.pcs ?? 0), 0) : 0;
+  const cullTotalKg = hasCull
+    ? (sale.cullRows ?? []).reduce((s, r) => s + r.weightKg, 0)
+    : 0;
+  const cullTotalPcs = hasCull
+    ? (sale.cullRows ?? []).reduce((s, r) => s + (r.pcs ?? 0), 0)
+    : 0;
 
-  const mainAmount = deduction?.main_amount ?? (deduction ? deduction.net_weight * deduction.price_per_kg : 0);
+  const mainAmount =
+    deduction?.main_amount ??
+    (deduction ? deduction.net_weight * deduction.price_per_kg : 0);
   const cullAmount = deduction?.cull_amount ?? 0;
   const cullSold = deduction?.cull_sold ?? false;
   const balanceDue =
@@ -107,7 +132,9 @@ export default function SaleDetailScreen() {
       ? deduction.final_amount - sale.receivedAmount
       : null;
 
-  const subtotalGross = deduction ? deduction.gross_weight - deduction.cull_weight_kg : 0;
+  const subtotalGross = deduction
+    ? deduction.gross_weight - deduction.cull_weight_kg
+    : 0;
   const rawCrates = deduction ? subtotalGross / deduction.kg_per_crate : 0;
 
   return (
@@ -119,7 +146,9 @@ export default function SaleDetailScreen() {
         presentationStyle="pageSheet"
         onRequestClose={() => setShowReceipt(false)}
       >
-        <View style={[styles.receiptModal, { backgroundColor: theme.background }]}>
+        <View
+          style={[styles.receiptModal, { backgroundColor: theme.background }]}
+        >
           <View
             style={[
               styles.receiptModalHeader,
@@ -135,12 +164,20 @@ export default function SaleDetailScreen() {
               hitSlop={16}
               style={({ pressed }) => [
                 styles.navBtn,
-                { backgroundColor: theme.borderLight, opacity: pressed ? 0.6 : 1 },
+                {
+                  backgroundColor: theme.borderLight,
+                  opacity: pressed ? 0.6 : 1,
+                },
               ]}
             >
               <Ionicons name="close" size={20} color={theme.text} />
             </Pressable>
-            <Text style={[styles.receiptModalTitle, { color: theme.text, fontFamily: "Outfit_700Bold" }]}>
+            <Text
+              style={[
+                styles.receiptModalTitle,
+                { color: theme.text, fontFamily: "Outfit_700Bold" },
+              ]}
+            >
               {t.receiptPreview}
             </Text>
             <Pressable
@@ -148,7 +185,10 @@ export default function SaleDetailScreen() {
               disabled={sharing}
               style={({ pressed }) => [
                 styles.shareBtn,
-                { backgroundColor: theme.accent, opacity: pressed || sharing ? 0.7 : 1 },
+                {
+                  backgroundColor: theme.accent,
+                  opacity: pressed || sharing ? 0.7 : 1,
+                },
               ]}
             >
               {sharing ? (
@@ -156,7 +196,12 @@ export default function SaleDetailScreen() {
               ) : (
                 <>
                   <Feather name="share-2" size={16} color="#FFF" />
-                  <Text style={[styles.shareBtnText, { fontFamily: "Outfit_700Bold" }]}>
+                  <Text
+                    style={[
+                      styles.shareBtnText,
+                      { fontFamily: "Outfit_700Bold" },
+                    ]}
+                  >
                     {t.shareReceipt}
                   </Text>
                 </>
@@ -191,7 +236,12 @@ export default function SaleDetailScreen() {
         >
           <Ionicons name="chevron-back" size={20} color={theme.text} />
         </Pressable>
-        <Text style={[styles.topBarTitle, { color: theme.text, fontFamily: "Outfit_600SemiBold" }]}>
+        <Text
+          style={[
+            styles.topBarTitle,
+            { color: theme.text, fontFamily: "Outfit_600SemiBold" },
+          ]}
+        >
           {t.saleDetail}
         </Text>
         <Pressable
@@ -219,14 +269,22 @@ export default function SaleDetailScreen() {
         >
           <View style={styles.heroTop}>
             <View style={styles.heroCheck}>
-              <Feather name="calendar" size={18} color="rgba(255,255,255,0.7)" />
+              <Feather
+                name="calendar"
+                size={18}
+                color="rgba(255,255,255,0.7)"
+              />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={[styles.heroTitle, { fontFamily: "Outfit_700Bold" }]}>
+              <Text
+                style={[styles.heroTitle, { fontFamily: "Outfit_700Bold" }]}
+              >
                 {formatDateTime(sale.createdAt)}
               </Text>
               {sale.buyerName ? (
-                <Text style={[styles.heroBuyer, { fontFamily: "Outfit_500Medium" }]}>
+                <Text
+                  style={[styles.heroBuyer, { fontFamily: "Outfit_500Medium" }]}
+                >
                   {sale.buyerName}
                 </Text>
               ) : null}
@@ -234,28 +292,49 @@ export default function SaleDetailScreen() {
           </View>
           <View style={styles.heroStats}>
             <View style={styles.heroStatItem}>
-              <Text style={[styles.heroStatVal, { fontFamily: "Outfit_700Bold" }]}>
+              <Text
+                style={[styles.heroStatVal, { fontFamily: "Outfit_700Bold" }]}
+              >
                 {formatWeight(sale.totalWeightKg)}
               </Text>
-              <Text style={[styles.heroStatUnit, { fontFamily: "Outfit_400Regular" }]}>
+              <Text
+                style={[
+                  styles.heroStatUnit,
+                  { fontFamily: "Outfit_400Regular" },
+                ]}
+              >
                 {t.grossKg}
               </Text>
             </View>
             <View style={styles.heroDot} />
             <View style={styles.heroStatItem}>
-              <Text style={[styles.heroStatVal, { fontFamily: "Outfit_700Bold" }]}>
+              <Text
+                style={[styles.heroStatVal, { fontFamily: "Outfit_700Bold" }]}
+              >
                 {sale.pcsTracked === false ? "—" : sale.totalPcs}
               </Text>
-              <Text style={[styles.heroStatUnit, { fontFamily: "Outfit_400Regular" }]}>
+              <Text
+                style={[
+                  styles.heroStatUnit,
+                  { fontFamily: "Outfit_400Regular" },
+                ]}
+              >
                 {t.birds}
               </Text>
             </View>
             <View style={styles.heroDot} />
             <View style={styles.heroStatItem}>
-              <Text style={[styles.heroStatVal, { fontFamily: "Outfit_700Bold" }]}>
+              <Text
+                style={[styles.heroStatVal, { fontFamily: "Outfit_700Bold" }]}
+              >
                 {formatWeight(sale.averageWeightKg)}
               </Text>
-              <Text style={[styles.heroStatUnit, { fontFamily: "Outfit_400Regular" }]}>
+              <Text
+                style={[
+                  styles.heroStatUnit,
+                  { fontFamily: "Outfit_400Regular" },
+                ]}
+              >
                 {t.avgKg}
               </Text>
             </View>
@@ -266,20 +345,34 @@ export default function SaleDetailScreen() {
         {deduction && (
           <Animated.View
             entering={
-              Platform.OS !== "web" ? FadeInDown.delay(120).springify() : undefined
+              Platform.OS !== "web"
+                ? FadeInDown.delay(120).springify()
+                : undefined
             }
           >
-            <Text style={[styles.sectionLabel, { color: theme.textTertiary, fontFamily: "Outfit_600SemiBold" }]}>
+            <Text
+              style={[
+                styles.sectionLabel,
+                { color: theme.textTertiary, fontFamily: "Outfit_600SemiBold" },
+              ]}
+            >
               {t.tradeDeductionHeader}
             </Text>
             <View
               style={[
                 styles.deductionCard,
-                { backgroundColor: theme.surface, borderColor: theme.borderLight },
+                {
+                  backgroundColor: theme.surface,
+                  borderColor: theme.borderLight,
+                },
               ]}
             >
               {/* Gross */}
-              <DeductionRow label={t.grossWeight} value={`${formatWeight(deduction.gross_weight)} KG`} theme={theme} />
+              <DeductionRow
+                label={t.grossWeight}
+                value={`${formatWeight(deduction.gross_weight)} KG`}
+                theme={theme}
+              />
 
               {/* Cull weight — always shown for transparency */}
               {deduction.cull_weight_kg > 0 ? (
@@ -297,11 +390,7 @@ export default function SaleDetailScreen() {
                   />
                 </>
               ) : (
-                <DeductionRow
-                  label={t.cullWeight}
-                  value="0 KG"
-                  theme={theme}
-                />
+                <DeductionRow label={t.cullWeight} value="0 KG" theme={theme} />
               )}
 
               {/* Explicit crate floor calculation */}
@@ -330,7 +419,9 @@ export default function SaleDetailScreen() {
 
               {/* Net main weight */}
               <DeductionRow
-                label={deduction.cull_weight_kg > 0 ? t.payableWeight : t.netWeight}
+                label={
+                  deduction.cull_weight_kg > 0 ? t.payableWeight : t.netWeight
+                }
                 value={`${formatWeight(deduction.net_weight)} KG`}
                 theme={theme}
                 isHighlight
@@ -338,7 +429,15 @@ export default function SaleDetailScreen() {
 
               {/* × price/kg */}
               <View style={styles.multiplyHint}>
-                <Text style={[styles.multiplyHintText, { color: theme.textTertiary, fontFamily: "Outfit_400Regular" }]}>
+                <Text
+                  style={[
+                    styles.multiplyHintText,
+                    {
+                      color: theme.textTertiary,
+                      fontFamily: "Outfit_400Regular",
+                    },
+                  ]}
+                >
                   × Tk {deduction.price_per_kg.toFixed(2)} / kg
                 </Text>
               </View>
@@ -365,23 +464,62 @@ export default function SaleDetailScreen() {
               )}
 
               {/* Final amount */}
-              <View style={[styles.finalRow, { backgroundColor: theme.accentLight }]}>
-                <Text style={[styles.finalLabel, { color: theme.accent, fontFamily: "Outfit_600SemiBold" }]}>
+              <View
+                style={[
+                  styles.finalRow,
+                  { backgroundColor: theme.accentLight },
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.finalLabel,
+                    { color: theme.accent, fontFamily: "Outfit_600SemiBold" },
+                  ]}
+                >
                   {t.finalAmount}
                 </Text>
-                <Text style={[styles.finalValue, { color: theme.accent, fontFamily: "Outfit_700Bold" }]}>
-                  Tk {deduction.final_amount.toLocaleString("en-PK", { maximumFractionDigits: 2 })}
+                <Text
+                  style={[
+                    styles.finalValue,
+                    { color: theme.accent, fontFamily: "Outfit_700Bold" },
+                  ]}
+                >
+                  Tk{" "}
+                  {deduction.final_amount.toLocaleString("en-PK", {
+                    maximumFractionDigits: 2,
+                  })}
                 </Text>
               </View>
 
               {/* Received */}
               {sale.receivedAmount != null && sale.receivedAmount > 0 && (
-                <View style={[styles.receivedRow, { backgroundColor: theme.successLight }]}>
-                  <Text style={[styles.finalLabel, { color: theme.success, fontFamily: "Outfit_600SemiBold" }]}>
+                <View
+                  style={[
+                    styles.receivedRow,
+                    { backgroundColor: theme.successLight },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.finalLabel,
+                      {
+                        color: theme.success,
+                        fontFamily: "Outfit_600SemiBold",
+                      },
+                    ]}
+                  >
                     {t.receivedAmount}
                   </Text>
-                  <Text style={[styles.finalValue, { color: theme.success, fontFamily: "Outfit_700Bold" }]}>
-                    Tk {sale.receivedAmount.toLocaleString("en-PK", { maximumFractionDigits: 2 })}
+                  <Text
+                    style={[
+                      styles.finalValue,
+                      { color: theme.success, fontFamily: "Outfit_700Bold" },
+                    ]}
+                  >
+                    Tk{" "}
+                    {sale.receivedAmount.toLocaleString("en-PK", {
+                      maximumFractionDigits: 2,
+                    })}
                   </Text>
                 </View>
               )}
@@ -391,7 +529,10 @@ export default function SaleDetailScreen() {
                 <View
                   style={[
                     styles.balanceRow,
-                    { backgroundColor: balanceDue > 0 ? theme.dangerLight : theme.successLight },
+                    {
+                      backgroundColor:
+                        balanceDue > 0 ? theme.dangerLight : theme.successLight,
+                    },
                   ]}
                 >
                   <Text
@@ -408,10 +549,16 @@ export default function SaleDetailScreen() {
                   <Text
                     style={[
                       styles.finalValue,
-                      { color: balanceDue > 0 ? theme.danger : theme.success, fontFamily: "Outfit_700Bold" },
+                      {
+                        color: balanceDue > 0 ? theme.danger : theme.success,
+                        fontFamily: "Outfit_700Bold",
+                      },
                     ]}
                   >
-                    Tk {Math.abs(balanceDue).toLocaleString("en-PK", { maximumFractionDigits: 2 })}
+                    Tk{" "}
+                    {Math.abs(balanceDue).toLocaleString("en-PK", {
+                      maximumFractionDigits: 2,
+                    })}
                     {balanceDue < 0 ? " ✓" : ""}
                   </Text>
                 </View>
@@ -428,11 +575,24 @@ export default function SaleDetailScreen() {
               : undefined
           }
         >
-          <Text style={[styles.sectionLabel, { color: theme.textTertiary, fontFamily: "Outfit_600SemiBold" }]}>
+          <Text
+            style={[
+              styles.sectionLabel,
+              { color: theme.textTertiary, fontFamily: "Outfit_600SemiBold" },
+            ]}
+          >
             {t.weighingLogs}
           </Text>
 
-          <View style={[styles.logCard, { backgroundColor: theme.surface, borderColor: theme.borderLight }]}>
+          <View
+            style={[
+              styles.logCard,
+              {
+                backgroundColor: theme.surface,
+                borderColor: theme.borderLight,
+              },
+            ]}
+          >
             <LogEntryRow
               label={t.mainSession}
               totalKg={sale.totalWeightKg}
@@ -446,7 +606,12 @@ export default function SaleDetailScreen() {
             />
             {hasCull && (
               <>
-                <View style={[styles.logDivider, { backgroundColor: theme.borderLight }]} />
+                <View
+                  style={[
+                    styles.logDivider,
+                    { backgroundColor: theme.borderLight },
+                  ]}
+                />
                 <LogEntryRow
                   label={t.cullSession}
                   totalKg={cullTotalKg}
@@ -490,7 +655,10 @@ function LogEntryRow({
   return (
     <Pressable
       onPress={onPress}
-      style={({ pressed }) => [styles.logEntry, { opacity: pressed ? 0.65 : 1 }]}
+      style={({ pressed }) => [
+        styles.logEntry,
+        { opacity: pressed ? 0.65 : 1 },
+      ]}
     >
       <View
         style={[
@@ -506,21 +674,41 @@ function LogEntryRow({
       </View>
 
       <View style={styles.logEntryInfo}>
-        <Text style={[styles.logEntryLabel, { color: theme.text, fontFamily: "Outfit_600SemiBold" }]}>
+        <Text
+          style={[
+            styles.logEntryLabel,
+            { color: theme.text, fontFamily: "Outfit_600SemiBold" },
+          ]}
+        >
           {label}
         </Text>
-        <Text style={[styles.logEntrySub, { color: theme.textTertiary, fontFamily: "Outfit_400Regular" }]}>
+        <Text
+          style={[
+            styles.logEntrySub,
+            { color: theme.textTertiary, fontFamily: "Outfit_400Regular" },
+          ]}
+        >
           {t.sessionRows(rowCount)}
         </Text>
       </View>
 
       <View style={styles.logEntryRight}>
-        <Text style={[styles.logEntryKg, { color: theme.text, fontFamily: "Outfit_700Bold" }]}>
+        <Text
+          style={[
+            styles.logEntryKg,
+            { color: theme.text, fontFamily: "Outfit_700Bold" },
+          ]}
+        >
           {formatWeight(totalKg)} KG
         </Text>
         <View style={styles.logEntryPcsRow}>
           <MaterialCommunityIcons name="bird" size={11} color={theme.warm} />
-          <Text style={[styles.logEntryPcs, { color: theme.warm, fontFamily: "Outfit_500Medium" }]}>
+          <Text
+            style={[
+              styles.logEntryPcs,
+              { color: theme.warm, fontFamily: "Outfit_500Medium" },
+            ]}
+          >
             {!isCull && pcsTracked === false ? "—" : totalPcs}
           </Text>
         </View>
@@ -549,8 +737,8 @@ function DeductionRow({
   const valueColor = isNegative
     ? theme.danger
     : isHighlight
-    ? theme.success
-    : theme.text;
+      ? theme.success
+      : theme.text;
   return (
     <View style={[styles.deductionRow, isIndent && styles.deductionRowIndent]}>
       <Text
@@ -563,7 +751,12 @@ function DeductionRow({
         {label}
       </Text>
       {value != null && (
-        <Text style={[styles.deductionRowValue, { color: valueColor, fontFamily: "Outfit_600SemiBold" }]}>
+        <Text
+          style={[
+            styles.deductionRowValue,
+            { color: valueColor, fontFamily: "Outfit_600SemiBold" },
+          ]}
+        >
           {value}
         </Text>
       )}
@@ -622,7 +815,12 @@ const styles = StyleSheet.create({
 
   // Hero
   heroCard: { borderRadius: 22, padding: 20, marginBottom: 20 },
-  heroTop: { flexDirection: "row", alignItems: "flex-start", gap: 10, marginBottom: 16 },
+  heroTop: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+    marginBottom: 16,
+  },
   heroCheck: {
     width: 32,
     height: 32,
@@ -642,7 +840,12 @@ const styles = StyleSheet.create({
   heroStatItem: { alignItems: "center" },
   heroStatVal: { fontSize: 22, color: "#FFF" },
   heroStatUnit: { fontSize: 11, color: "rgba(255,255,255,0.5)", marginTop: 2 },
-  heroDot: { width: 4, height: 4, borderRadius: 2, backgroundColor: "rgba(255,255,255,0.2)" },
+  heroDot: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: "rgba(255,255,255,0.2)",
+  },
 
   sectionLabel: {
     fontSize: 11,
@@ -699,7 +902,12 @@ const styles = StyleSheet.create({
   finalLabel: { fontSize: 14 },
   finalValue: { fontSize: 20 },
 
-  logCard: { borderRadius: 18, borderWidth: 1, overflow: "hidden", marginBottom: 8 },
+  logCard: {
+    borderRadius: 18,
+    borderWidth: 1,
+    overflow: "hidden",
+    marginBottom: 8,
+  },
   logDivider: { height: 1 },
   logEntry: {
     flexDirection: "row",
@@ -708,7 +916,13 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     gap: 12,
   },
-  logEntryIcon: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+  logEntryIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   logEntryInfo: { flex: 1 },
   logEntryLabel: { fontSize: 15 },
   logEntrySub: { fontSize: 12, marginTop: 2 },
