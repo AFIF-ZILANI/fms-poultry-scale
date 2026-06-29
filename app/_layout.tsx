@@ -15,10 +15,23 @@ import {
   Outfit_600SemiBold,
   Outfit_700Bold,
 } from "@expo-google-fonts/outfit";
+import * as SecureStore from "expo-secure-store";
 
 if (Platform.OS !== "web") {
   SplashScreen.preventAutoHideAsync().catch(() => {});
 }
+
+const tokenCache = {
+  async getToken(key: string) {
+    return SecureStore.getItemAsync(key);
+  },
+  async saveToken(key: string, value: string) {
+    return SecureStore.setItemAsync(key, value);
+  },
+  async deleteToken(key: string) {
+    return SecureStore.deleteItemAsync(key);
+  },
+};
 
 // Handles routing after Clerk loads: unauthed → sign-in, no onboarding → onboarding
 function AuthGuard({ children }: { children: React.ReactNode }) {
@@ -98,7 +111,10 @@ export default function RootLayout() {
   if (!fontsLoaded && !fontError && Platform.OS !== "web") return null;
 
   return (
-    <ClerkProvider publishableKey={process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY!}>
+    <ClerkProvider
+      publishableKey={process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY!}
+      tokenCache={tokenCache}
+    >
       <ClerkLoaded>
         <ErrorBoundary>
           <SettingsProvider>
