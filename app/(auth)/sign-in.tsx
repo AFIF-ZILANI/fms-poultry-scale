@@ -15,6 +15,9 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useTheme } from "@/lib/useTheme";
 import { useSettings } from "@/lib/SettingsContext";
+import { Image } from "react-native";
+import Logo from "@/assets/images/icon.png";
+import GoogleLogo from "@/assets/images/google.png";
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -55,15 +58,15 @@ export default function SignInPage() {
       >
         {/* App icon */}
         <View style={styles.iconWrap}>
-          <View style={[styles.iconOuter, { backgroundColor: "rgba(59,130,246,0.25)" }]}>
-            <View style={[styles.iconInner, { backgroundColor: theme.accent }]}>
-              <MaterialCommunityIcons name="scale-balance" size={36} color="#fff" />
-            </View>
-          </View>
+          <Image
+            source={Logo}
+            style={{ width: 100, height: 100, borderRadius: 25 }}
+            resizeMode="contain"
+          />
         </View>
 
         <Text style={[styles.appName, { fontFamily: "Outfit_700Bold" }]}>
-          PoultryScale
+          Poultry Scale
         </Text>
         <Text style={[styles.tagline, { fontFamily: "Outfit_400Regular" }]}>
           {t.signInSubtitle}
@@ -73,26 +76,56 @@ export default function SignInPage() {
         <View style={styles.pills}>
           {["Digital Weighing", "Sales Records", "Analytics"].map((f) => (
             <View key={f} style={styles.pill}>
-              <Text style={[styles.pillText, { fontFamily: "Outfit_500Medium" }]}>{f}</Text>
+              <Text
+                style={[styles.pillText, { fontFamily: "Outfit_500Medium" }]}
+              >
+                {f}
+              </Text>
             </View>
           ))}
         </View>
       </LinearGradient>
 
       {/* Sign in card */}
-      <View style={[styles.card, { backgroundColor: theme.surface, paddingBottom: insets.bottom + 32 }]}>
-        <Text style={[styles.cardTitle, { color: theme.text, fontFamily: "Outfit_700Bold" }]}>
+      <View
+        style={[
+          styles.card,
+          { backgroundColor: theme.surface, paddingBottom: insets.bottom + 32 },
+        ]}
+      >
+        <Text
+          style={[
+            styles.cardTitle,
+            { color: theme.text, fontFamily: "Outfit_700Bold" },
+          ]}
+        >
           {t.signInTitle}
         </Text>
-        <Text style={[styles.cardSub, { color: theme.textSecondary, fontFamily: "Outfit_400Regular" }]}>
+        <Text
+          style={[
+            styles.cardSub,
+            { color: theme.textSecondary, fontFamily: "Outfit_400Regular" },
+          ]}
+        >
           Sign in to access your records
         </Text>
 
         {/* Error */}
         {!!error && (
-          <View style={[styles.errorBox, { backgroundColor: theme.dangerLight }]}>
-            <MaterialCommunityIcons name="alert-circle-outline" size={16} color={theme.danger} />
-            <Text style={[styles.errorText, { color: theme.danger, fontFamily: "Outfit_400Regular" }]}>
+          <View
+            style={[styles.errorBox, { backgroundColor: theme.dangerLight }]}
+          >
+            <MaterialCommunityIcons
+              name="alert-circle-outline"
+              size={16}
+              color={theme.danger}
+            />
+            <Text
+              style={[
+                styles.errorText,
+                { color: theme.danger, fontFamily: "Outfit_400Regular" },
+              ]}
+            >
               {error}
             </Text>
           </View>
@@ -116,17 +149,31 @@ export default function SignInPage() {
           ) : (
             <>
               {/* Google G logo via SVG-like shape */}
-              <View style={styles.googleLogo}>
-                <Text style={styles.googleG}>G</Text>
-              </View>
-              <Text style={[styles.googleBtnText, { color: theme.text, fontFamily: "Outfit_600SemiBold" }]}>
+
+              <Image
+                source={GoogleLogo}
+                style={{ width: 20, height: 20 }}
+                resizeMode="contain"
+              />
+
+              <Text
+                style={[
+                  styles.googleBtnText,
+                  { color: theme.text, fontFamily: "Outfit_600SemiBold" },
+                ]}
+              >
                 {t.signInWithGoogle}
               </Text>
             </>
           )}
         </Pressable>
 
-        <Text style={[styles.terms, { color: theme.textTertiary, fontFamily: "Outfit_400Regular" }]}>
+        <Text
+          style={[
+            styles.terms,
+            { color: theme.textTertiary, fontFamily: "Outfit_400Regular" },
+          ]}
+        >
           By continuing, you agree to our Terms of Service and Privacy Policy.
         </Text>
       </View>
