@@ -1,8 +1,8 @@
 import { ClerkProvider, ClerkLoaded, useAuth, useUser } from "@clerk/expo";
 import { Stack, useRouter } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
-import React, { useEffect, useRef } from "react";
-import { Platform, View } from "react-native";
+import React, { useEffect, useRef, useState } from "react";
+import { Platform, View, Text } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
@@ -16,6 +16,8 @@ import {
   Outfit_700Bold,
 } from "@expo-google-fonts/outfit";
 import * as SecureStore from "expo-secure-store";
+import { Image } from "react-native";
+import SplashImage from "@/assets/images/splash-icon.png";
 
 if (Platform.OS !== "web") {
   SplashScreen.preventAutoHideAsync().catch(() => {});
@@ -89,8 +91,8 @@ function AppLayout() {
     </AuthGuard>
   );
 }
-
 export default function RootLayout() {
+  const [splashVisible, setSplashVisible] = useState(true);
   const [fontsLoaded, fontError] = useFonts({
     Outfit_400Regular,
     Outfit_500Medium,
@@ -105,10 +107,52 @@ export default function RootLayout() {
     }
     if (fontsLoaded || fontError) {
       SplashScreen.hideAsync().catch(() => {});
+      // small delay so transition feels intentional
+      setTimeout(() => setSplashVisible(false), 300);
     }
   }, [fontsLoaded, fontError]);
 
-  if (!fontsLoaded && !fontError && Platform.OS !== "web") return null;
+  // ← REMOVE the `return null` line, replace with custom splash
+  if (splashVisible && Platform.OS !== "web") {
+    return (
+      <View
+        style={{
+          flex: 1,
+          backgroundColor: "#000000",
+          justifyContent: "center",
+          alignItems: "center",
+        }}
+      >
+        {/* Your app icon */}
+        <Image
+          source={SplashImage}
+          style={{ width: 300, height: 300, borderRadius: 25 }}
+          resizeMode="contain"
+        />
+
+        {/* Bottom text */}
+        <View
+          style={{
+            position: "absolute",
+            bottom: 48,
+            alignItems: "center",
+            gap: 4,
+          }}
+        >
+          <Text
+            style={{
+              fontSize: 10,
+              color: "#aaaaaa",
+              letterSpacing: 1,
+              // textTransform: "uppercase",
+            }}
+          >
+            Developed by ZeroD Software
+          </Text>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <ClerkProvider
