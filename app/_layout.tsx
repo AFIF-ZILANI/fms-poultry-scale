@@ -108,7 +108,7 @@ export default function RootLayout() {
     if (fontsLoaded || fontError) {
       SplashScreen.hideAsync().catch(() => {});
       // small delay so transition feels intentional
-      setTimeout(() => setSplashVisible(false), 300);
+      setTimeout(() => setSplashVisible(false), 1500);
     }
   }, [fontsLoaded, fontError]);
 
