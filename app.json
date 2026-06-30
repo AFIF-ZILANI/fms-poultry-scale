@@ -21,7 +21,7 @@
       "package": "com.poultryscale",
       "adaptiveIcon": {
         "backgroundColor": "#000000",
-        "foregroundImage": "./assets/images/icon.png",
+        "foregroundImage": "./assets/images/icon.png"
       }
     },
     "web": {
@@ -37,11 +37,14 @@
         {
           "android": {
             "packagingOptions": {
-              "exclude": ["META-INF/versions/9/OSGI-INF/MANIFEST.MF"]
+              "exclude": [
+                "META-INF/versions/9/OSGI-INF/MANIFEST.MF"
+              ]
             }
           }
         }
-      ]
+      ],
+      "expo-sqlite"
     ],
     "experiments": {
       "typedRoutes": true,
