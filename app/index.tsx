@@ -967,6 +967,11 @@ export default function HomeScreen() {
       ])
         .then(([salesData, draftsData, profileData, planData]) => {
           setSales(salesData);
+          console.log("SALES DATA", JSON.stringify(salesData))
+          console.log("DRAFT DATA", JSON.stringify(draftsData))
+          console.log("PROFILE DATA", JSON.stringify(profileData))
+          console.log("Plan DATA", JSON.stringify(planData))
+
           setDrafts(draftsData);
           setProfile(profileData);
           setPlan(planData);
@@ -1008,6 +1013,7 @@ export default function HomeScreen() {
     );
 
   const recentSales = sales.slice(0, 3);
+
 
   return (
     <View style={[styles.root, { backgroundColor: theme.background }]}>
