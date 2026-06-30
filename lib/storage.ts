@@ -1,19 +1,15 @@
 // lib/storage.ts
 import { db } from "../db/client";
 import {
+  users,
   sales,
+  saleMetaData,
   measurementRows,
-  tradeDeductions,
-  drafts,
-  prefs,
+  rowEditHistory,
+  userPrefs,
 } from "../db/schema";
-import { eq, and, desc } from "drizzle-orm";
-import type {
-  MeasurementRow,
-  SaleRecord,
-  DraftSession,
-  TradeDeduction,
-} from "./types";
+import { eq, and, ne, desc } from "drizzle-orm";
+import type { MeasurementRow, SaleRecord, SaleMetaData } from "./types";
 
 // ─── Sales ────────────────────────────────────────────────────────────────────
 
@@ -26,65 +22,61 @@ async function hydrateSale(
     .where(eq(measurementRows.saleId, saleRow.id));
 
   const rows: MeasurementRow[] = allRows
-    .filter((r) => r.kind === "main")
+    .filter((r) => r.type === "main")
     .map((r) => ({
       id: r.id,
-      weightKg: r.weightKg,
+      weightKg: r.weight,
       pcs: r.pcs,
-      timestamp: r.timestamp.getTime(),
+      timestamp: r.createdAt.getTime(),
     }));
 
   const cullRows: MeasurementRow[] = allRows
-    .filter((r) => r.kind === "cull")
+    .filter((r) => r.type === "cull")
     .map((r) => ({
       id: r.id,
-      weightKg: r.weightKg,
+      weightKg: r.weight,
       pcs: r.pcs,
-      timestamp: r.timestamp.getTime(),
+      timestamp: r.createdAt.getTime(),
     }));
 
-  const deductionRow = await db
+  const metaRow = db
     .select()
-    .from(tradeDeductions)
-    .where(eq(tradeDeductions.saleId, saleRow.id))
+    .from(saleMetaData)
+    .where(eq(saleMetaData.saleId, saleRow.id))
     .get();
-
-  const deduction: TradeDeduction | undefined = deductionRow
-    ? {
-        gross_weight: deductionRow.grossWeight,
-        kg_per_crate: deductionRow.kgPerCrate,
-        deduction_per_crate_g: deductionRow.deductionPerCrateG,
-        full_crates_only: deductionRow.fullCratesOnly,
-        total_crates: deductionRow.totalCrates,
-        total_deduction_kg: deductionRow.totalDeductionKg,
-        cull_weight_kg: deductionRow.cullWeightKg,
-        net_weight: deductionRow.netWeight,
-        price_per_kg: deductionRow.pricePerKg,
-        main_amount: deductionRow.mainAmount ?? undefined,
-        cull_session_mode: deductionRow.cullSessionMode ?? undefined,
-        cull_sold: deductionRow.cullSold ?? undefined,
-        cull_pricing_mode: deductionRow.cullPricingMode ?? undefined,
-        cull_price: deductionRow.cullPrice ?? undefined,
-        cull_pcs: deductionRow.cullPcs ?? undefined,
-        cull_amount: deductionRow.cullAmount ?? undefined,
-        final_amount: deductionRow.finalAmount,
-      }
-    : undefined;
 
   return {
     id: saleRow.id,
-    totalWeightKg: saleRow.totalWeightKg,
-    totalWeightGrams: saleRow.totalWeightGrams,
-    totalPcs: saleRow.totalPcs,
-    pcsTracked: saleRow.pcsTracked ?? undefined,
-    averageWeightKg: saleRow.averageWeightKg,
-    averageWeightGrams: saleRow.averageWeightGrams,
-    rows,
-    cullRows: cullRows.length ? cullRows : undefined,
+    userId: saleRow.userId,
+    phase: saleRow.phase,
+    isPcsTracked: saleRow.isPcsTracked,
+    hasCull: saleRow.hasCull,
     createdAt: saleRow.createdAt.getTime(),
-    deduction,
-    receivedAmount: saleRow.receivedAmount ?? undefined,
-    buyerName: saleRow.buyerName ?? undefined,
+    updatedAt: saleRow.updatedAt.getTime(),
+    syncedAt: saleRow.syncedAt?.getTime() ?? undefined,
+    rows,
+    isFinished: saleRow.isFinished,
+    cullRows: cullRows.length ? cullRows : undefined,
+    meta: metaRow
+      ? {
+          mainWeightKg: metaRow.mainWeightKg,
+          totalPcs: metaRow.totalPcs ?? undefined,
+          buyerName: metaRow.buyerName ?? undefined,
+          kgPerCrate: metaRow.kgPerCrate,
+          deductionPerCrateG: metaRow.deductionPerCrateG,
+          isFullCratesOnly: metaRow.isFullCratesOnly,
+          mainPrice: metaRow.mainPrice,
+          mainAmount: metaRow.mainAmount,
+          cullWeightKg: metaRow.cullWeightKg,
+          isCullSold: metaRow.isCullSold ?? undefined,
+          cullSaleType: metaRow.cullSaleType ?? undefined,
+          cullPrice: metaRow.cullPrice ?? undefined,
+          cullPcs: metaRow.cullPcs ?? undefined,
+          cullAmount: metaRow.cullAmount ?? undefined,
+          finalAmount: metaRow.finalAmount,
+          receivedAmount: metaRow.receivedAmount ?? undefined,
+        }
+      : undefined,
   };
 }
 
@@ -94,10 +86,43 @@ export async function loadSales(userId: string): Promise<SaleRecord[]> {
     .from(sales)
     .where(eq(sales.userId, userId))
     .orderBy(desc(sales.createdAt));
-
-  // N+1 by design here — fine at local-device scale (dozens/hundreds of sales),
-  // revisit with a single joined query if a user's sale count grows large.
   return Promise.all(saleRows.map(hydrateSale));
+}
+
+// "Drafts" = anything not yet finished
+export async function loadDrafts(userId: string): Promise<SaleRecord[]> {
+  const saleRows = await db
+    .select()
+    .from(sales)
+    .where(and(eq(sales.userId, userId), eq(sales.isFinished, false)))
+    .orderBy(desc(sales.updatedAt));
+  return Promise.all(saleRows.map(hydrateSale));
+}
+
+export async function loadSale(id: string): Promise<SaleRecord | null> {
+  const saleRow = await db.select().from(sales).where(eq(sales.id, id)).get();
+  return saleRow ? hydrateSale(saleRow) : null;
+}
+
+// Starts a brand new sale, always in "main" phase. No way to start
+// directly in "cull" — matches your stated flow.
+export async function createSale(
+  userId: string,
+  isPcsTracked: boolean,
+): Promise<string> {
+  const id = crypto.randomUUID();
+  const now = new Date();
+  await db.insert(sales).values({
+    id,
+    userId,
+    phase: "main",
+    isPcsTracked,
+    hasCull: false,
+    isFinished: false,
+    createdAt: now,
+    updatedAt: now,
+  });
+  return id;
 }
 
 export async function saveSale(
@@ -110,88 +135,101 @@ export async function saveSale(
       .values({
         id: sale.id,
         userId,
-        totalWeightKg: sale.totalWeightKg,
-        totalWeightGrams: sale.totalWeightGrams,
-        totalPcs: sale.totalPcs,
-        pcsTracked: sale.pcsTracked,
-        averageWeightKg: sale.averageWeightKg,
-        averageWeightGrams: sale.averageWeightGrams,
-        buyerName: sale.buyerName,
-        receivedAmount: sale.receivedAmount,
+        phase: sale.phase,
+        isPcsTracked: sale.isPcsTracked,
+        hasCull: sale.hasCull,
         createdAt: new Date(sale.createdAt),
+        updatedAt: new Date(sale.updatedAt),
+        syncedAt: sale.syncedAt ? new Date(sale.syncedAt) : null,
       })
       .onConflictDoUpdate({
         target: sales.id,
         set: {
-          totalWeightKg: sale.totalWeightKg,
-          totalWeightGrams: sale.totalWeightGrams,
-          totalPcs: sale.totalPcs,
-          pcsTracked: sale.pcsTracked,
-          averageWeightKg: sale.averageWeightKg,
-          averageWeightGrams: sale.averageWeightGrams,
-          buyerName: sale.buyerName,
-          receivedAmount: sale.receivedAmount,
+          phase: sale.phase,
+          isPcsTracked: sale.isPcsTracked,
+          hasCull: sale.hasCull,
+          updatedAt: new Date(sale.updatedAt),
+          syncedAt: sale.syncedAt ? new Date(sale.syncedAt) : null,
         },
       });
 
-    // Replace-all strategy for rows, same effective behavior as your old
-    // INSERT OR REPLACE on the whole blob.
     await tx.delete(measurementRows).where(eq(measurementRows.saleId, sale.id));
-
     const rowsToInsert = [
-      ...sale.rows.map((r) => ({ ...r, kind: "main" as const })),
-      ...(sale.cullRows ?? []).map((r) => ({ ...r, kind: "cull" as const })),
+      ...sale.rows.map((r) => ({ ...r, type: "main" as const })),
+      ...(sale.cullRows ?? []).map((r) => ({ ...r, type: "cull" as const })),
     ];
     if (rowsToInsert.length) {
       await tx.insert(measurementRows).values(
         rowsToInsert.map((r) => ({
           id: r.id,
           saleId: sale.id,
-          draftId: null,
-          kind: r.kind,
-          weightKg: r.weightKg,
+          type: r.type,
+          weight: r.weightKg,
           pcs: r.pcs,
-          timestamp: new Date(r.timestamp),
+          createdAt: new Date(r.timestamp),
         })),
       );
     }
 
-    await tx.delete(tradeDeductions).where(eq(tradeDeductions.saleId, sale.id));
-    if (sale.deduction) {
-      const d = sale.deduction;
-      await tx.insert(tradeDeductions).values({
+    await tx.delete(saleMetaData).where(eq(saleMetaData.saleId, sale.id));
+    if (sale.meta) {
+      const m = sale.meta;
+      await tx.insert(saleMetaData).values({
         id: crypto.randomUUID(),
         saleId: sale.id,
-        grossWeight: d.gross_weight,
-        kgPerCrate: d.kg_per_crate,
-        deductionPerCrateG: d.deduction_per_crate_g,
-        fullCratesOnly: d.full_crates_only,
-        totalCrates: d.total_crates,
-        totalDeductionKg: d.total_deduction_kg,
-        cullWeightKg: d.cull_weight_kg,
-        netWeight: d.net_weight,
-        pricePerKg: d.price_per_kg,
-        mainAmount: d.main_amount,
-        cullSessionMode: d.cull_session_mode,
-        cullSold: d.cull_sold,
-        cullPricingMode: d.cull_pricing_mode,
-        cullPrice: d.cull_price,
-        cullPcs: d.cull_pcs,
-        cullAmount: d.cull_amount,
-        finalAmount: d.final_amount,
+        mainWeightKg: m.mainWeightKg,
+        totalPcs: m.totalPcs,
+        buyerName: m.buyerName,
+        kgPerCrate: m.kgPerCrate,
+        deductionPerCrateG: m.deductionPerCrateG,
+        isFullCratesOnly: m.isFullCratesOnly,
+        mainPrice: m.mainPrice,
+        mainAmount: m.mainAmount,
+        cullWeightKg: m.cullWeightKg,
+        isCullSold: m.isCullSold,
+        cullSaleType: m.cullSaleType,
+        cullPrice: m.cullPrice,
+        cullPcs: m.cullPcs,
+        cullAmount: m.cullAmount,
+        finalAmount: m.finalAmount,
+        receivedAmount: m.receivedAmount,
+        createdAt: new Date(sale.createdAt),
       });
     }
   });
 }
 
 export async function deleteSale(id: string): Promise<void> {
-  // Cascade handles measurementRows + tradeDeductions, IF foreign_keys pragma is ON.
   await db.delete(sales).where(eq(sales.id, id));
+}
+
+// User tapped "Finish" on the main session, then said YES to the
+// cull dialog. Locks nothing — main rows stay editable in theory,
+// but UI should treat them as committed at this point.
+export async function startCullPhase(saleId: string): Promise<void> {
+  await db
+    .update(sales)
+    .set({ phase: "cull", hasCull: true, updatedAt: new Date() })
+    .where(and(eq(sales.id, saleId), eq(sales.phase, "main")));
+  // Guard: only transitions out of "main". Calling this on a sale
+  // already in "cull" or "finished" is a no-op, not an error —
+  // decide if you'd rather it throw. Right now it silently does nothing,
+  // which can hide a bug in your UI flow if you call this twice.
+}
+
+// User tapped "Finish" and said NO to the cull dialog (locks immediately),
+// OR user finished an active cull session.
+export async function finishSale(saleId: string): Promise<void> {
+  await db
+    .update(sales)
+    .set({ isFinished: true, updatedAt: new Date() })
+    .where(eq(sales.id, saleId));
 }
 
 export async function updateSale(
   saleId: string,
   updatedRows: MeasurementRow[],
+  reason?: string,
 ): Promise<void> {
   await db.transaction(async (tx) => {
     const saleRow = await tx
@@ -201,11 +239,48 @@ export async function updateSale(
       .get();
     if (!saleRow) return;
 
-    const deductionRow = await tx
+    if (saleRow.isFinished) {
+      // Hard stop — editing a finished sale silently was exactly the
+      // bug risk I flagged last time. Throwing here, not swallowing it.
+      throw new Error(`Cannot edit rows on finished sale ${saleId}`);
+    }
+
+    const metaRow = await tx
       .select()
-      .from(tradeDeductions)
-      .where(eq(tradeDeductions.saleId, saleId))
+      .from(saleMetaData)
+      .where(eq(saleMetaData.saleId, saleId))
       .get();
+
+    const editableType = saleRow.phase; // "main" or "cull"
+    const existingRows = await tx
+      .select()
+      .from(measurementRows)
+      .where(
+        and(
+          eq(measurementRows.saleId, saleId),
+          eq(measurementRows.type, editableType),
+        ),
+      );
+
+    const existingById = new Map(existingRows.map((r) => [r.id, r]));
+    for (const updated of updatedRows) {
+      const prev = existingById.get(updated.id);
+      if (
+        prev &&
+        (prev.weight !== updated.weightKg || prev.pcs !== updated.pcs)
+      ) {
+        await tx.insert(rowEditHistory).values({
+          id: crypto.randomUUID(),
+          rowId: prev.id,
+          previousWeight: prev.weight,
+          previousPcs: prev.pcs,
+          newWeight: updated.weightKg,
+          newPcs: updated.pcs,
+          reason: reason ?? null,
+          createdAt: new Date(),
+        });
+      }
+    }
 
     const totalWeightKg = updatedRows.reduce((s, r) => s + r.weightKg, 0);
     const totalPcs = updatedRows.reduce((s, r) => s + (r.pcs ?? 0), 0);
@@ -213,228 +288,130 @@ export async function updateSale(
 
     await tx
       .update(sales)
-      .set({
-        totalWeightKg,
-        totalWeightGrams: Math.round(totalWeightKg * 1000),
-        totalPcs,
-        averageWeightKg: avgWeightKg,
-        averageWeightGrams: Math.round(avgWeightKg * 1000),
-      })
+      .set({ updatedAt: new Date() })
       .where(eq(sales.id, saleId));
 
-    // Only main rows are editable here — cull rows are untouched, matching old behavior.
     await tx
       .delete(measurementRows)
       .where(
         and(
           eq(measurementRows.saleId, saleId),
-          eq(measurementRows.kind, "main"),
+          eq(measurementRows.type, editableType),
         ),
       );
     await tx.insert(measurementRows).values(
       updatedRows.map((r) => ({
         id: r.id,
         saleId,
-        draftId: null,
-        kind: "main" as const,
-        weightKg: r.weightKg,
+        type: editableType,
+        weight: r.weightKg,
         pcs: r.pcs,
-        timestamp: new Date(r.timestamp),
+        createdAt: new Date(r.timestamp),
       })),
     );
 
-    if (deductionRow) {
-      const rawCrates = totalWeightKg / deductionRow.kgPerCrate;
-      const totalCrates = deductionRow.fullCratesOnly
+    // Only recompute main-side financials when editing main rows.
+    // Editing cull rows during cull phase should recompute cull amounts —
+    // not implemented here since you haven't given me the cull pricing
+    // formula explicitly (per-kg vs per-piece math). Flagging, not guessing.
+    if (metaRow && editableType === "main") {
+      const rawCrates = totalWeightKg / metaRow.kgPerCrate;
+      const totalCrates = metaRow.isFullCratesOnly
         ? Math.floor(rawCrates)
         : rawCrates;
       const totalDeductionKg =
-        (totalCrates * deductionRow.deductionPerCrateG) / 1000;
+        (totalCrates * metaRow.deductionPerCrateG) / 1000;
       const netWeight = Math.max(
         0,
-        totalWeightKg - totalDeductionKg - deductionRow.cullWeightKg,
+        totalWeightKg - totalDeductionKg - metaRow.cullWeightKg,
       );
-      const mainAmount = netWeight * deductionRow.pricePerKg;
-      const finalAmount = mainAmount + (deductionRow.cullAmount ?? 0);
+      const mainAmount = netWeight * metaRow.mainPrice;
+      const finalAmount = mainAmount + (metaRow.cullAmount ?? 0);
 
       await tx
-        .update(tradeDeductions)
+        .update(saleMetaData)
         .set({
-          grossWeight: totalWeightKg,
-          totalCrates,
-          totalDeductionKg,
-          netWeight,
+          mainWeightKg: totalWeightKg,
+          totalPcs,
           mainAmount,
           finalAmount,
         })
-        .where(eq(tradeDeductions.saleId, saleId));
+        .where(eq(saleMetaData.saleId, saleId));
     }
   });
 }
 
-// ─── Drafts ───────────────────────────────────────────────────────────────────
+// ─── User Prefs ───────────────────────────────────────────────────────────────
 
-async function hydrateDraft(
-  draftRow: typeof drafts.$inferSelect,
-): Promise<DraftSession> {
-  const allRows = await db
-    .select()
-    .from(measurementRows)
-    .where(eq(measurementRows.draftId, draftRow.id));
-
-  const activeRows = allRows
-    .filter((r) => r.kind === (draftRow.phase ?? "main"))
-    .map((r) => ({
-      id: r.id,
-      weightKg: r.weightKg,
-      pcs: r.pcs,
-      timestamp: r.timestamp.getTime(),
-    }));
-
-  return {
-    id: draftRow.id,
-    rows: activeRows,
-    phase: (draftRow.phase as "main" | "cull") ?? undefined,
-    pcsOptional: draftRow.pcsOptional ?? undefined,
-    createdAt: draftRow.createdAt.getTime(),
-    updatedAt: draftRow.updatedAt.getTime(),
-    totalWeightKg: draftRow.totalWeightKg,
-    totalPcs: draftRow.totalPcs,
-  };
+export async function getUserPrefs(userId: string) {
+  return db.select().from(userPrefs).where(eq(userPrefs.userId, userId)).get();
 }
 
-export async function loadDrafts(userId: string): Promise<DraftSession[]> {
-  const draftRows = await db
-    .select()
-    .from(drafts)
-    .where(eq(drafts.userId, userId))
-    .orderBy(desc(drafts.updatedAt));
-  return Promise.all(draftRows.map(hydrateDraft));
-}
-
-export async function loadDraft(id: string): Promise<DraftSession | null> {
-  const draftRow = await db
-    .select()
-    .from(drafts)
-    .where(eq(drafts.id, id))
-    .get();
-  return draftRow ? hydrateDraft(draftRow) : null;
-}
-
-export async function saveDraft(
+export async function saveUserPrefs(
   userId: string,
-  draft: DraftSession,
+  prefs: {
+    language?: "en" | "bn";
+    theme?: "light" | "dark" | "system";
+    logGroupSize?: number;
+    kgPerCrate?: number;
+    deductionWtG?: number;
+    priceKg?: number;
+  },
 ): Promise<void> {
-  await db.transaction(async (tx) => {
-    await tx
-      .insert(drafts)
-      .values({
-        id: draft.id,
-        userId,
-        phase: draft.phase,
-        pcsOptional: draft.pcsOptional,
-        totalWeightKg: draft.totalWeightKg,
-        totalPcs: draft.totalPcs,
-        createdAt: new Date(draft.createdAt),
-        updatedAt: new Date(draft.updatedAt),
-      })
-      .onConflictDoUpdate({
-        target: drafts.id,
-        set: {
-          phase: draft.phase,
-          pcsOptional: draft.pcsOptional,
-          totalWeightKg: draft.totalWeightKg,
-          totalPcs: draft.totalPcs,
-          updatedAt: new Date(draft.updatedAt),
-        },
-      });
-
-    // Only replace rows for the CURRENT phase — locked main rows from a
-    // prior phase must never be touched here, per your "locked after
-    // phase switch" rule.
-    const currentKind = draft.phase ?? "main";
-    await tx
-      .delete(measurementRows)
-      .where(
-        and(
-          eq(measurementRows.draftId, draft.id),
-          eq(measurementRows.kind, currentKind),
-        ),
-      );
-
-    if (draft.rows.length) {
-      await tx.insert(measurementRows).values(
-        draft.rows.map((r) => ({
-          id: r.id,
-          saleId: null,
-          draftId: draft.id,
-          kind: currentKind,
-          weightKg: r.weightKg,
-          pcs: r.pcs,
-          timestamp: new Date(r.timestamp),
-        })),
-      );
-    }
-  });
-}
-
-export async function deleteDraft(id: string): Promise<void> {
-  await db.delete(drafts).where(eq(drafts.id, id));
-}
-
-// ─── Preferences ──────────────────────────────────────────────────────────────
-// Unchanged in shape — prefs stays correctly key-value, no normalization needed.
-
-async function getPref(key: string): Promise<string> {
-  const row = await db.select().from(prefs).where(eq(prefs.key, key)).get();
-  return row?.value ?? "";
-}
-
-async function setPref(key: string, value: string): Promise<void> {
   await db
-    .insert(prefs)
-    .values({ key, value })
-    .onConflictDoUpdate({ target: prefs.key, set: { value } });
+    .insert(userPrefs)
+    .values({
+      userId,
+      language: prefs.language ?? "en",
+      theme: prefs.theme ?? "system",
+      logGroupSize: prefs.logGroupSize ?? 10,
+      kgPerCrate: prefs.kgPerCrate ?? 0,
+      deductionWtG: prefs.deductionWtG ?? 0,
+      priceKg: prefs.priceKg ?? 0,
+    })
+    .onConflictDoUpdate({ target: userPrefs.userId, set: prefs });
 }
 
-const uk = (userId: string, name: string) => `${userId}:${name}`;
-const CHUNK_SIZE_KEY = "chunkSize";
-export const DEFAULT_CHUNK_SIZE = 10;
+export const getChunkSize = async (userId: string) =>
+  (await getUserPrefs(userId))?.logGroupSize ?? 10;
+export const setChunkSize = (userId: string, size: number) =>
+  saveUserPrefs(userId, { logGroupSize: size });
 
-export async function getChunkSize(userId: string): Promise<number> {
-  const val = await getPref(uk(userId, CHUNK_SIZE_KEY));
-  return val ? parseInt(val, 10) : DEFAULT_CHUNK_SIZE;
-}
-export async function setChunkSize(
+export const loadLastPricePerKg = async (userId: string) =>
+  (await getUserPrefs(userId))?.priceKg ?? 0;
+export const saveLastPricePerKg = (userId: string, v: number) =>
+  saveUserPrefs(userId, { priceKg: v });
+
+export const loadLastKgPerCrate = async (userId: string) =>
+  (await getUserPrefs(userId))?.kgPerCrate ?? 0;
+export const saveLastKgPerCrate = (userId: string, v: number) =>
+  saveUserPrefs(userId, { kgPerCrate: v });
+
+export const loadLastDeductionG = async (userId: string) =>
+  (await getUserPrefs(userId))?.deductionWtG ?? 0;
+export const saveLastDeductionG = (userId: string, v: number) =>
+  saveUserPrefs(userId, { deductionWtG: v });
+
+export const loadLanguagePref = async (userId: string) =>
+  (await getUserPrefs(userId))?.language ?? "en";
+export const saveLanguagePref = (userId: string, v: "en" | "bn") =>
+  saveUserPrefs(userId, { language: v });
+
+export const loadThemePref = async (userId: string) =>
+  (await getUserPrefs(userId))?.theme ?? "system";
+export const saveThemePref = (userId: string, v: "light" | "dark" | "system") =>
+  saveUserPrefs(userId, { theme: v });
+
+export const loadFarmName = async (userId: string) =>
+  (await db.select().from(users).where(eq(users.id, userId)).get())?.farmName ??
+  "";
+export const saveFarmName = (userId: string, v: string) =>
+  db.update(users).set({ farmName: v }).where(eq(users.id, userId));
+
+export const loadSubscriptionPlan = async (userId: string) =>
+  (await db.select().from(users).where(eq(users.id, userId)).get())
+    ?.subscriptionPlan ?? "community";
+export const saveSubscriptionPlan = (
   userId: string,
-  size: number,
-): Promise<void> {
-  await setPref(uk(userId, CHUNK_SIZE_KEY), size.toString());
-}
-
-export const loadLastPricePerKg = (uid: string) =>
-  getPref(uk(uid, "last_price_per_kg"));
-export const saveLastPricePerKg = (uid: string, v: string) =>
-  setPref(uk(uid, "last_price_per_kg"), v);
-export const loadLastKgPerCrate = (uid: string) =>
-  getPref(uk(uid, "last_kg_per_crate"));
-export const saveLastKgPerCrate = (uid: string, v: string) =>
-  setPref(uk(uid, "last_kg_per_crate"), v);
-export const loadLastDeductionG = (uid: string) =>
-  getPref(uk(uid, "last_deduction_g"));
-export const saveLastDeductionG = (uid: string, v: string) =>
-  setPref(uk(uid, "last_deduction_g"), v);
-export const loadLanguagePref = (uid: string) => getPref(uk(uid, "language"));
-export const saveLanguagePref = (uid: string, v: string) =>
-  setPref(uk(uid, "language"), v);
-export const loadThemePref = (uid: string) =>
-  getPref(uk(uid, "theme_preference"));
-export const saveThemePref = (uid: string, v: string) =>
-  setPref(uk(uid, "theme_preference"), v);
-export const loadFarmName = (uid: string) => getPref(uk(uid, "farm_name"));
-export const saveFarmName = (uid: string, v: string) =>
-  setPref(uk(uid, "farm_name"), v);
-export const loadSubscriptionPlan = (uid: string) =>
-  getPref(uk(uid, "subscription_plan"));
-export const saveSubscriptionPlan = (uid: string, v: string) =>
-  setPref(uk(uid, "subscription_plan"), v);
+  v: "community" | "premium",
+) => db.update(users).set({ subscriptionPlan: v }).where(eq(users.id, userId));
