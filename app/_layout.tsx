@@ -18,6 +18,8 @@ import {
 import * as SecureStore from "expo-secure-store";
 import { Image } from "react-native";
 import SplashImage from "@/assets/images/splash-icon.png";
+import { useDbMigrations } from "@/db/client";
+import { DbErrorScreen } from "@/components/DBErrorScreen";
 
 if (Platform.OS !== "web") {
   SplashScreen.preventAutoHideAsync().catch(() => {});
@@ -93,6 +95,7 @@ function AppLayout() {
 }
 export default function RootLayout() {
   const [splashVisible, setSplashVisible] = useState(true);
+  const { success: dbReady, error: dbError } = useDbMigrations();
   const [fontsLoaded, fontError] = useFonts({
     Outfit_400Regular,
     Outfit_500Medium,
@@ -108,12 +111,28 @@ export default function RootLayout() {
     if (fontsLoaded || fontError) {
       SplashScreen.hideAsync().catch(() => {});
       // small delay so transition feels intentional
-      setTimeout(() => setSplashVisible(false), 1500);
+      setTimeout(() => setSplashVisible(false), 3000);
     }
   }, [fontsLoaded, fontError]);
 
-  // ← REMOVE the `return null` line, replace with custom splash
-  if (splashVisible && Platform.OS !== "web") {
+  useEffect(() => {
+    if (dbError) {
+      console.log("FULL MIGRATION ERROR:", JSON.stringify(dbError, null, 2));
+      console.log("MIGRATION ERROR MESSAGE:", dbError.message);
+      console.log("MIGRATION ERROR CAUSE:", dbError.cause);
+      console.log(
+        "FULL:",
+        JSON.stringify(dbError, Object.getOwnPropertyNames(dbError)),
+      );
+    }
+  }, [dbError]);
+
+  if (dbError) {
+    // Don't render AppLayout at all — every screen assumes a working db
+    return <DbErrorScreen error={dbError} />;
+  }
+
+  if ((splashVisible || !dbReady) && Platform.OS !== "web") {
     return (
       <View
         style={{
