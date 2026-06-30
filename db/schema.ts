@@ -1,96 +1,140 @@
 import { sqliteTable, text, real, integer } from "drizzle-orm/sqlite-core";
 import { relations } from "drizzle-orm";
 
+// ─── Users ───
+export const users = sqliteTable("users", {
+  id: text("id").primaryKey(),
+  name: text("name"),
+  phone: text("phone"),
+  location: text("location").notNull(),
+  farmName: text("farm_name"),
+  businessName: text("business_name"),
+  role: text("role", { enum: ["farmer", "wholesaler"] }).notNull(),
+  subscriptionPlan: text("subscription_plan", {
+    enum: ["community", "premium"],
+  })
+    .notNull()
+    .default("community"),
+  farmCapacity: integer("farm_capacity"),
+  buyingCapacity: integer("buying_capacity"),
+  supplyRegions: text("supply_regions"),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
+});
+
+// ─── Sales ───
 export const sales = sqliteTable("sales", {
   id: text("id").primaryKey(),
-  userId: text("user_id").notNull(),
-
-  totalWeightKg: real("total_weight_kg").notNull(),
-  totalWeightGrams: integer("total_weight_grams").notNull(),
-  totalPcs: integer("total_pcs").notNull(),
-  pcsTracked: integer("pcs_tracked", { mode: "boolean" }),
-  averageWeightKg: real("average_weight_kg").notNull(),
-  averageWeightGrams: integer("average_weight_grams").notNull(),
-  buyerName: text("buyer_name"),
-  receivedAmount: real("received_amount"),
-
+  userId: text("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  phase: text("phase", { enum: ["main", "cull"] }).notNull(),
+  isPcsTracked: integer("is_pcs_tracked", { mode: "boolean" }).notNull(),
+  hasCull: integer("has_cull", { mode: "boolean" }).notNull().default(false),
+  isFinished: integer("is_finished", { mode: "boolean" })
+    .notNull()
+    .default(false),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
+  updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
   synced: integer("synced", { mode: "boolean" }).notNull().default(false),
   syncedAt: integer("synced_at", { mode: "timestamp" }),
 });
 
-// One row per MeasurementRow, with a "kind" discriminator instead of two separate tables
-export const measurementRows = sqliteTable("measurement_rows", {
+// ─── Sale Meta Data ───
+export const saleMetaData = sqliteTable("sale_meta_data", {
   id: text("id").primaryKey(),
-  saleId: text("sale_id").references(() => sales.id, { onDelete: "cascade" }),
-  draftId: text("draft_id").references(() => drafts.id, {
-    onDelete: "cascade",
-  }),
-  kind: text("kind", { enum: ["main", "cull"] }).notNull(),
-  weightKg: real("weight_kg").notNull(),
-  pcs: integer("pcs"), // nullable = unknown, per your type comment
-  timestamp: integer("timestamp", { mode: "timestamp" }).notNull(),
+  saleId: text("sale_id")
+    .notNull()
+    .references(() => sales.id, { onDelete: "cascade" }),
+
+  mainWeightKg: real("main_weight_kg").notNull(),
+  totalPcs: integer("total_pcs"),
+  
+  buyerName: text("buyer_name"),
+
+  kgPerCrate: real("kg_per_crate").notNull(),
+  deductionPerCrateG: real("deduction_per_crate_g").notNull(),
+  isFullCratesOnly: integer("is_full_crates_only", {
+    mode: "boolean",
+  }).notNull(),
+  mainPrice: real("main_price").notNull(),
+  mainAmount: real("main_amount").notNull(),
+
+  cullWeightKg: real("cull_weight_kg").notNull().default(0),
+  isCullSold: integer("is_cull_sold", { mode: "boolean" }),
+  cullSaleType: text("cull_sale_type", { enum: ["pcs", "weight"] }),
+  cullPrice: real("cull_price"),
+  cullPcs: integer("cull_pcs"),
+  cullAmount: real("cull_amount"),
+
+  finalAmount: real("final_amount").notNull(),
+
+  receivedAmount: real("received_amount"),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
 });
 
+// ─── Measurement Rows ───
+export const measurementRows = sqliteTable("measurement_rows", {
+  id: text("id").primaryKey(),
+  saleId: text("sale_id")
+    .notNull()
+    .references(() => sales.id, { onDelete: "cascade" }),
+  type: text("type", { enum: ["main", "cull"] }).notNull(),
+  weight: real("weight").notNull(),
+  pcs: integer("pcs"), // null if not pcs-tracked
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
+});
+
+// ─── Row Edit History ───
 export const rowEditHistory = sqliteTable("row_edit_history", {
   id: text("id").primaryKey(),
   rowId: text("row_id")
     .notNull()
     .references(() => measurementRows.id, { onDelete: "cascade" }),
-  timestamp: integer("timestamp", { mode: "timestamp" }).notNull(),
-  previousWeightKg: real("previous_weight_kg").notNull(),
+  previousWeight: real("previous_weight").notNull(),
   previousPcs: integer("previous_pcs"),
-  newWeightKg: real("new_weight_kg").notNull(),
+  newWeight: real("new_weight").notNull(), // ADDED — was missing in your spec, see note above
   newPcs: integer("new_pcs"),
-});
-
-export const tradeDeductions = sqliteTable("trade_deductions", {
-  id: text("id").primaryKey(),
-  saleId: text("sale_id")
-    .notNull()
-    .references(() => sales.id, { onDelete: "cascade" }),
-  grossWeight: real("gross_weight").notNull(),
-  kgPerCrate: real("kg_per_crate").notNull(),
-  deductionPerCrateG: real("deduction_per_crate_g").notNull(),
-  fullCratesOnly: integer("full_crates_only", { mode: "boolean" }).notNull(),
-  totalCrates: real("total_crates").notNull(),
-  totalDeductionKg: real("total_deduction_kg").notNull(),
-  cullWeightKg: real("cull_weight_kg").notNull(),
-  netWeight: real("net_weight").notNull(),
-  pricePerKg: real("price_per_kg").notNull(),
-  mainAmount: real("main_amount"),
-  cullSessionMode: text("cull_session_mode", { enum: ["weigh", "pcs_only"] }),
-  cullSold: integer("cull_sold", { mode: "boolean" }),
-  cullPricingMode: text("cull_pricing_mode", { enum: ["per_kg", "per_piece"] }),
-  cullPrice: real("cull_price"),
-  cullPcs: integer("cull_pcs"),
-  cullAmount: real("cull_amount"),
-  finalAmount: real("final_amount").notNull(),
-});
-
-export const drafts = sqliteTable("drafts", {
-  id: text("id").primaryKey(),
-  userId: text("user_id").notNull(),
-  phase: text("phase", { enum: ["main", "cull"] }),
-  pcsOptional: integer("pcs_optional", { mode: "boolean" }),
-  totalWeightKg: real("total_weight_kg").notNull(),
-  totalPcs: integer("total_pcs").notNull(),
+  reason: text("reason"),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
-  updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
 });
 
-export const prefs = sqliteTable("prefs", {
-  key: text("key").primaryKey(),
-  value: text("value").notNull(),
+// ─── User Prefs ───
+export const userPrefs = sqliteTable("user_prefs", {
+  userId: text("user_id")
+    .primaryKey()
+    .references(() => users.id, { onDelete: "cascade" }),
+  language: text("language", { enum: ["en", "bn"] })
+    .notNull()
+    .default("en"),
+  theme: text("theme", { enum: ["light", "dark", "system"] })
+    .notNull()
+    .default("system"),
+  logGroupSize: integer("log_group_size").notNull().default(10),
+  kgPerCrate: real("kg_per_crate").notNull(),
+  deductionWtG: real("deduction_wt_g").notNull(),
+  priceKg: real("price_kg").notNull(),
 });
 
 // ─── Relations ───
-export const salesRelations = relations(sales, ({ many, one }) => ({
-  rows: many(measurementRows),
-  deduction: one(tradeDeductions, {
-    fields: [sales.id],
-    references: [tradeDeductions.saleId],
+export const usersRelations = relations(users, ({ many, one }) => ({
+  sales: many(sales),
+  prefs: one(userPrefs, {
+    fields: [users.id],
+    references: [userPrefs.userId],
   }),
+}));
+
+export const salesRelations = relations(sales, ({ one, many }) => ({
+  user: one(users, { fields: [sales.userId], references: [users.id] }),
+  metaData: one(saleMetaData, {
+    fields: [sales.id],
+    references: [saleMetaData.saleId],
+  }),
+  rows: many(measurementRows),
+}));
+
+export const saleMetaDataRelations = relations(saleMetaData, ({ one }) => ({
+  sale: one(sales, { fields: [saleMetaData.saleId], references: [sales.id] }),
 }));
 
 export const measurementRowsRelations = relations(
@@ -99,10 +143,6 @@ export const measurementRowsRelations = relations(
     sale: one(sales, {
       fields: [measurementRows.saleId],
       references: [sales.id],
-    }),
-    draft: one(drafts, {
-      fields: [measurementRows.draftId],
-      references: [drafts.id],
     }),
     editHistory: many(rowEditHistory),
   }),
