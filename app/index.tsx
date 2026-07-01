@@ -32,7 +32,7 @@ import { loadSales, deleteSale, loadDrafts } from "@/lib/storage";
 import { formatWeight, formatDateTime } from "@/lib/utils";
 import { getUserProfile, type OnboardingData } from "@/lib/onboarding";
 import { loadPlan, type Plan } from "@/lib/subscription";
-import type { SaleRecord, DraftSession } from "@/lib/types";
+import type { SaleRecord } from "@/lib/types";
 
 const SCREEN_W = Dimensions.get("window").width;
 
@@ -75,7 +75,7 @@ function buildBars(sales: SaleRecord[], period: ChartPeriod): Bar[] {
       const end = start + 86_400_000;
       const rev = sales
         .filter((s) => s.createdAt >= start && s.createdAt < end)
-        .reduce((sum, s) => sum + (s.deduction?.final_amount ?? 0), 0);
+        .reduce((sum, s) => sum + (s.meta?.finalAmount ?? 0), 0);
       return { label: DAY_LABELS[new Date(start).getDay()], revenue: rev };
     });
   }
@@ -91,7 +91,7 @@ function buildBars(sales: SaleRecord[], period: ChartPeriod): Bar[] {
       const end = start + 7 * 86_400_000;
       const rev = sales
         .filter((s) => s.createdAt >= start && s.createdAt < end)
-        .reduce((sum, s) => sum + (s.deduction?.final_amount ?? 0), 0);
+        .reduce((sum, s) => sum + (s.meta?.finalAmount ?? 0), 0);
       const d = new Date(start);
       return { label: `${d.getDate()}/${d.getMonth() + 1}`, revenue: rev };
     });
@@ -104,7 +104,7 @@ function buildBars(sales: SaleRecord[], period: ChartPeriod): Bar[] {
     const end = new Date(d.getFullYear(), d.getMonth() + 1, 1).getTime();
     const rev = sales
       .filter((s) => s.createdAt >= start && s.createdAt < end)
-      .reduce((sum, s) => sum + (s.deduction?.final_amount ?? 0), 0);
+      .reduce((sum, s) => sum + (s.meta?.finalAmount ?? 0), 0);
     return { label: MONTH_SHORT[d.getMonth()], revenue: rev };
   });
 }
@@ -212,7 +212,20 @@ function SaleCard({
   onDelete: (id: string) => void;
   t: ReturnType<typeof useSettings>["t"];
 }) {
-  const { deduction } = sale;
+  const { meta } = sale;
+
+  // Derive gross weight: prefer meta (persisted), fall back to summing rows
+  // for unfinished sales that don't have meta yet.
+  const grossWeightKg =
+    meta?.mainWeightKg ?? sale.rows.reduce((s, r) => s + r.weightKg, 0);
+
+  // Derive avg weight from meta.avgWtGrams (grams → kg) or compute from rows
+  const avgWeightKg =
+    meta?.avgWtGrams != null
+      ? meta.avgWtGrams / 1000
+      : sale.rows.length > 0
+        ? grossWeightKg / sale.rows.length
+        : 0;
 
   const handleDelete = () => {
     if (Platform.OS === "web") {
@@ -274,7 +287,7 @@ function SaleCard({
 
         <View style={styles.cardStats}>
           <StatCell
-            value={`${formatWeight(sale.totalWeightKg)} KG`}
+            value={`${formatWeight(grossWeightKg)} KG`}
             label={t.grossKg}
             color={theme.accent}
             theme={theme}
@@ -283,7 +296,14 @@ function SaleCard({
             style={[styles.statDivider, { backgroundColor: theme.borderLight }]}
           />
           <StatCell
-            value={sale.pcsTracked === false ? "—" : String(sale.totalPcs)}
+            value={
+              !sale.isPcsTracked
+                ? "—"
+                : String(
+                    meta?.totalPcs ??
+                      sale.rows.reduce((s, r) => s + (r.pcs ?? 0), 0),
+                  )
+            }
             label={t.birds}
             color={theme.warm}
             theme={theme}
@@ -293,17 +313,17 @@ function SaleCard({
           />
           <StatCell
             value={
-              deduction
-                ? `${formatWeight(deduction.net_weight)} KG`
-                : `${formatWeight(sale.averageWeightKg)} KG`
+              meta
+                ? `${formatWeight(meta.netWeightKg)} KG`
+                : `${formatWeight(avgWeightKg)} KG`
             }
-            label={deduction ? t.netKg : t.avgKg}
+            label={meta ? t.netKg : t.avgKg}
             color={theme.text}
             theme={theme}
           />
         </View>
 
-        {deduction ? (
+        {meta ? (
           <View
             style={[
               styles.cardFooter,
@@ -325,7 +345,7 @@ function SaleCard({
                   fontFamily: "Outfit_600SemiBold",
                 }}
               >
-                −{formatWeight(deduction.total_deduction_kg)} KG
+                −{formatWeight(meta.totalDeductionWtKg)} KG
               </Text>
               {"  deduction"}
             </Text>
@@ -336,7 +356,7 @@ function SaleCard({
               ]}
             >
               Tk{" "}
-              {deduction.final_amount.toLocaleString("en-PK", {
+              {meta.finalAmount.toLocaleString("en-PK", {
                 maximumFractionDigits: 0,
               })}
             </Text>
@@ -472,7 +492,7 @@ function DashboardHeader({
   sales: SaleRecord[];
   profile: OnboardingData | null;
   plan: Plan;
-  drafts: DraftSession[];
+  drafts: SaleRecord[]; // was DraftSession[] — DraftSession is deleted
   theme: ReturnType<typeof useTheme>;
   t: any;
   insets: ReturnType<typeof useSafeAreaInsets>;
@@ -491,45 +511,72 @@ function DashboardHeader({
     .toUpperCase();
 
   const totalSales = sales.length;
+
   const totalRevenue = useMemo(
-    () => sales.reduce((s, r) => s + (r.deduction?.final_amount ?? 0), 0),
+    () => sales.reduce((s, r) => s + (r.meta?.finalAmount ?? 0), 0),
     [sales],
   );
+
+  // meta is optional (sale might be unfinished / no deduction entered yet)
+  // fall back to summing rows directly so the dashboard isn't blank
+  // for in-progress sales
   const totalWeightKg = useMemo(
-    () => sales.reduce((s, r) => s + r.totalWeightKg, 0),
+    () =>
+      sales.reduce(
+        (s, r) =>
+          s +
+          (r.meta?.mainWeightKg ??
+            r.rows.reduce((rs, row) => rs + row.weightKg, 0)),
+        0,
+      ),
     [sales],
   );
+
+  const totalBirds = useMemo(
+    () =>
+      sales.reduce(
+        (s, r) =>
+          s +
+          (r.meta?.totalPcs ??
+            r.rows.reduce((rs, row) => rs + (row.pcs ?? 0), 0)),
+        0,
+      ),
+    [sales],
+  );
+
   const bars = useMemo(() => buildBars(sales, period), [sales, period]);
   const hasRevenue = bars.some((b) => b.revenue > 0);
   const isPremium = plan === "premium";
-  const totalBirds = useMemo(
-    () => sales.reduce((s, r) => s + r.totalPcs, 0),
-    [sales],
-  );
+
   const bestPrice = useMemo(
     () =>
       sales
-        .filter((s) => s.deduction)
-        .reduce((m, s) => Math.max(m, s.deduction!.price_per_kg), 0),
+        .filter((s) => s.meta)
+        .reduce((m, s) => Math.max(m, s.meta!.mainPrice), 0),
     [sales],
   );
 
   // Analytics
   const avgBatchKg = totalSales > 0 ? totalWeightKg / totalSales : 0;
-  const totalCullKg = sales.reduce(
-    (s, r) => s + (r.deduction?.cull_weight_kg ?? 0),
-    0,
+
+  const totalCullKg = useMemo(
+    () => sales.reduce((s, r) => s + (r.meta?.cullWeightKg ?? 0), 0),
+    [sales],
   );
+
   const cullRate = totalWeightKg > 0 ? (totalCullKg / totalWeightKg) * 100 : 0;
   const avgBirds = totalSales > 0 ? Math.round(totalBirds / totalSales) : 0;
-  const totalDeductionKg = sales.reduce(
-    (s, r) => s + (r.deduction?.total_deduction_kg ?? 0),
-    0,
+
+  const totalDeductionKg = useMemo(
+    () => sales.reduce((s, r) => s + (r.meta?.totalDeductionWtKg ?? 0), 0),
+    [sales],
   );
-  const ds = sales.filter((s) => s.deduction);
+
+  const salesWithMeta = sales.filter((s) => s.meta);
   const avgPriceKg =
-    ds.length > 0
-      ? ds.reduce((s, r) => s + r.deduction!.price_per_kg, 0) / ds.length
+    salesWithMeta.length > 0
+      ? salesWithMeta.reduce((s, r) => s + r.meta!.mainPrice, 0) /
+        salesWithMeta.length
       : 0;
 
   const insights = isFarmer
@@ -759,7 +806,6 @@ function DashboardHeader({
             </View>
           </View>
 
-          {/* Period label + toggle */}
           <View style={styles.periodRow}>
             <Text
               style={[styles.periodLabel, { fontFamily: "Outfit_400Regular" }]}
@@ -775,7 +821,6 @@ function DashboardHeader({
             )}
           </View>
 
-          {/* Chart */}
           <View style={styles.chartArea}>
             {hasRevenue ? (
               <RevenueChart bars={bars} />
@@ -793,7 +838,6 @@ function DashboardHeader({
             )}
           </View>
 
-          {/* Bottom chips */}
           <View style={styles.heroChips}>
             <View
               style={[
@@ -923,7 +967,6 @@ function DashboardHeader({
         </View>
       )}
 
-      {/* ── Recent sales header ── */}
       <View style={styles.recentHeader}>
         <Text
           style={[
@@ -947,7 +990,7 @@ export default function HomeScreen() {
   const { user } = useUser();
 
   const [sales, setSales] = useState<SaleRecord[]>([]);
-  const [drafts, setDrafts] = useState<DraftSession[]>([]);
+  const [drafts, setDrafts] = useState<SaleRecord[]>([]);
   const [profile, setProfile] = useState<OnboardingData | null>(null);
   const [plan, setPlan] = useState<Plan>("community");
   const [loading, setLoading] = useState(true);
@@ -967,10 +1010,10 @@ export default function HomeScreen() {
       ])
         .then(([salesData, draftsData, profileData, planData]) => {
           setSales(salesData);
-          console.log("SALES DATA", JSON.stringify(salesData))
-          console.log("DRAFT DATA", JSON.stringify(draftsData))
-          console.log("PROFILE DATA", JSON.stringify(profileData))
-          console.log("Plan DATA", JSON.stringify(planData))
+          console.log("SALES DATA", JSON.stringify(salesData));
+          console.log("DRAFT DATA", JSON.stringify(draftsData));
+          console.log("PROFILE DATA", JSON.stringify(profileData));
+          console.log("Plan DATA", JSON.stringify(planData));
 
           setDrafts(draftsData);
           setProfile(profileData);
@@ -1013,7 +1056,6 @@ export default function HomeScreen() {
     );
 
   const recentSales = sales.slice(0, 3);
-
 
   return (
     <View style={[styles.root, { backgroundColor: theme.background }]}>
