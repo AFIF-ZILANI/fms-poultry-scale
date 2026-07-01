@@ -122,7 +122,7 @@ export default function ProfileScreen() {
           setProfile(p);
           setPlanState(pl);
           setTotalSales(sales.length);
-          setTotalRevenue(sales.reduce((s, r) => s + (r.deduction?.final_amount ?? 0), 0));
+          setTotalRevenue(sales.reduce((s, r) => s + (r.meta?.finalAmount ?? 0), 0));
         }
       );
     }, [user?.id])
