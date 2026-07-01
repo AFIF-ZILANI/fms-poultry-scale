@@ -8,6 +8,48 @@
       "when": 1782805519924,
       "tag": "0000_high_steel_serpent",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1782883241594,
+      "tag": "0001_clammy_human_fly",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1782883777715,
+      "tag": "0002_whole_sabretooth",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1782886871186,
+      "tag": "0003_loving_risque",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1782887377738,
+      "tag": "0004_amused_doctor_octopus",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1782889422876,
+      "tag": "0005_wonderful_chat",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1782889790204,
+      "tag": "0006_dizzy_deathstrike",
+      "breakpoints": true
     }
   ]
 }
