@@ -23,7 +23,6 @@ import { useSettings } from "@/lib/SettingsContext";
 import {
   type OnboardingData,
   type UserRole,
-  clearOnboardingDraft,
   loadOnboardingDraft,
   markOnboardingComplete,
   saveOnboardingDraft,
@@ -78,7 +77,9 @@ export default function OnboardingScreen() {
     saveOnboardingDraft(user.id, draft);
   }, [user, role, name, phone, location, farmName, businessName]);
 
-  useEffect(() => { persistDraft(); }, [persistDraft]);
+  useEffect(() => {
+    persistDraft();
+  }, [persistDraft]);
 
   const animateToStep = (next: number) => {
     const dir = next > step ? 1 : -1;
@@ -92,8 +93,14 @@ export default function OnboardingScreen() {
     setStep(next);
   };
 
-  const goNext = () => { Keyboard.dismiss(); if (step < TOTAL_STEPS - 1) animateToStep(step + 1); };
-  const goBack = () => { Keyboard.dismiss(); if (step > 0) animateToStep(step - 1); };
+  const goNext = () => {
+    Keyboard.dismiss();
+    if (step < TOTAL_STEPS - 1) animateToStep(step + 1);
+  };
+  const goBack = () => {
+    Keyboard.dismiss();
+    if (step > 0) animateToStep(step - 1);
+  };
 
   const handleRoleSelect = (r: UserRole) => {
     setRole(r);
@@ -108,14 +115,16 @@ export default function OnboardingScreen() {
         role: role!,
         name: name.trim(),
         phone: phone.trim(),
-        ...(location.trim() && { location: location.trim() }),
+        email: user.emailAddresses[0]?.emailAddress ?? "",
+        location: location.trim(),
+        subscriptionPlan: plan,
         ...(farmName.trim() && { farmName: farmName.trim() }),
         ...(businessName.trim() && { businessName: businessName.trim() }),
       };
       await saveUserProfile(user.id, profile);
       await savePlan(user.id, plan);
       await markOnboardingComplete(user.id);
-      await clearOnboardingDraft(user.id);
+      // await clearOnboardingDraft(user.id);
       router.replace("/");
     } catch {
       setSaving(false);
@@ -131,7 +140,11 @@ export default function OnboardingScreen() {
         <View style={styles.headerSide}>
           {step > 0 && (
             <Pressable onPress={goBack} style={styles.backBtn} hitSlop={12}>
-              <MaterialCommunityIcons name="arrow-left" size={22} color={theme.text} />
+              <MaterialCommunityIcons
+                name="arrow-left"
+                size={22}
+                color={theme.text}
+              />
             </Pressable>
           )}
         </View>
@@ -150,36 +163,73 @@ export default function OnboardingScreen() {
           ))}
         </View>
         <View style={styles.headerSide}>
-          <Text style={[styles.stepLabel, { color: theme.textTertiary, fontFamily: "Outfit_400Regular" }]}>
+          <Text
+            style={[
+              styles.stepLabel,
+              { color: theme.textTertiary, fontFamily: "Outfit_400Regular" },
+            ]}
+          >
             {step + 1}/{TOTAL_STEPS}
           </Text>
         </View>
       </View>
 
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
-        <Animated.View style={[styles.slide, { transform: [{ translateX: slideAnim }] }]}>
-          {step === 0 && <RoleStep role={role} onSelect={handleRoleSelect} theme={theme} t={t} />}
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+      >
+        <Animated.View
+          style={[styles.slide, { transform: [{ translateX: slideAnim }] }]}
+        >
+          {step === 0 && (
+            <RoleStep
+              role={role}
+              onSelect={handleRoleSelect}
+              theme={theme}
+              t={t}
+            />
+          )}
           {step === 1 && (
             <BasicInfoStep
-              name={name} phone={phone} location={location}
-              onName={setName} onPhone={setPhone} onLocation={setLocation}
-              theme={theme} t={t} canProceed={step2CanProceed} onNext={goNext}
+              name={name}
+              phone={phone}
+              location={location}
+              onName={setName}
+              onPhone={setPhone}
+              onLocation={setLocation}
+              theme={theme}
+              t={t}
+              canProceed={step2CanProceed}
+              onNext={goNext}
             />
           )}
           {step === 2 && (
             <BusinessStep
-              role={role!} farmName={farmName} businessName={businessName}
-              onFarmName={setFarmName} onBusinessName={setBusinessName}
-              theme={theme} t={t} onNext={goNext} saving={saving}
+              role={role!}
+              farmName={farmName}
+              businessName={businessName}
+              onFarmName={setFarmName}
+              onBusinessName={setBusinessName}
+              theme={theme}
+              t={t}
+              onNext={goNext}
+              saving={saving}
             />
           )}
           {step === 3 && (
-            <PlanStep theme={theme} t={t} onSelect={handleFinish} saving={saving} />
+            <PlanStep
+              theme={theme}
+              t={t}
+              onSelect={handleFinish}
+              saving={saving}
+            />
           )}
         </Animated.View>
 
         {step === 1 && (
-          <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 16 }]}>
+          <View
+            style={[styles.bottomBar, { paddingBottom: insets.bottom + 16 }]}
+          >
             <Pressable
               style={({ pressed }) => [
                 styles.primaryBtn,
@@ -189,8 +239,20 @@ export default function OnboardingScreen() {
               onPress={goNext}
               disabled={!step2CanProceed}
             >
-              <Text style={[styles.primaryBtnText, { fontFamily: "Outfit_600SemiBold" }]}>Continue</Text>
-              <MaterialCommunityIcons name="arrow-right" size={20} color="#fff" style={{ marginLeft: 8 }} />
+              <Text
+                style={[
+                  styles.primaryBtnText,
+                  { fontFamily: "Outfit_600SemiBold" },
+                ]}
+              >
+                Continue
+              </Text>
+              <MaterialCommunityIcons
+                name="arrow-right"
+                size={20}
+                color="#fff"
+                style={{ marginLeft: 8 }}
+              />
             </Pressable>
           </View>
         )}
@@ -211,19 +273,46 @@ function RoleStep({ role, onSelect, theme, t }: any) {
     Animated.spring(a, { toValue: 1, useNativeDriver: true }).start();
 
   return (
-    <ScrollView contentContainerStyle={styles.stepContainer} keyboardShouldPersistTaps="handled">
-      <Text style={[styles.stepTitle, { color: theme.text, fontFamily: "Outfit_700Bold" }]}>
+    <ScrollView
+      contentContainerStyle={styles.stepContainer}
+      keyboardShouldPersistTaps="handled"
+    >
+      <Text
+        style={[
+          styles.stepTitle,
+          { color: theme.text, fontFamily: "Outfit_700Bold" },
+        ]}
+      >
         Who are you?
       </Text>
-      <Text style={[styles.stepSub, { color: theme.textSecondary, fontFamily: "Outfit_400Regular" }]}>
+      <Text
+        style={[
+          styles.stepSub,
+          { color: theme.textSecondary, fontFamily: "Outfit_400Regular" },
+        ]}
+      >
         Select your role to personalise your experience
       </Text>
 
       <View style={styles.roleCards}>
-        {([
-          { key: "farmer" as UserRole, icon: "tractor", title: t.farmerRole, desc: "I raise and sell poultry", anim: scaleA },
-          { key: "wholesaler" as UserRole, icon: "store-outline", title: t.wholesalerRole, desc: "I buy and distribute poultry", anim: scaleB },
-        ] as const).map(({ key, icon, title, desc, anim }) => (
+        {(
+          [
+            {
+              key: "farmer" as UserRole,
+              icon: "tractor",
+              title: t.farmerRole,
+              desc: "I raise and sell poultry",
+              anim: scaleA,
+            },
+            {
+              key: "wholesaler" as UserRole,
+              icon: "store-outline",
+              title: t.wholesalerRole,
+              desc: "I buy and distribute poultry",
+              anim: scaleB,
+            },
+          ] as const
+        ).map(({ key, icon, title, desc, anim }) => (
           <Animated.View key={key} style={{ transform: [{ scale: anim }] }}>
             <Pressable
               onPressIn={() => pressIn(anim)}
@@ -238,13 +327,44 @@ function RoleStep({ role, onSelect, theme, t }: any) {
                 },
               ]}
             >
-              <View style={[styles.roleIconBg, { backgroundColor: role === key ? theme.accent : theme.accentLight }]}>
-                <MaterialCommunityIcons name={icon as any} size={44} color={role === key ? "#fff" : theme.accent} />
+              <View
+                style={[
+                  styles.roleIconBg,
+                  {
+                    backgroundColor:
+                      role === key ? theme.accent : theme.accentLight,
+                  },
+                ]}
+              >
+                <MaterialCommunityIcons
+                  name={icon as any}
+                  size={44}
+                  color={role === key ? "#fff" : theme.accent}
+                />
               </View>
-              <Text style={[styles.roleCardTitle, { color: theme.text, fontFamily: "Outfit_700Bold" }]}>{title}</Text>
-              <Text style={[styles.roleCardDesc, { color: theme.textSecondary, fontFamily: "Outfit_400Regular" }]}>{desc}</Text>
+              <Text
+                style={[
+                  styles.roleCardTitle,
+                  { color: theme.text, fontFamily: "Outfit_700Bold" },
+                ]}
+              >
+                {title}
+              </Text>
+              <Text
+                style={[
+                  styles.roleCardDesc,
+                  {
+                    color: theme.textSecondary,
+                    fontFamily: "Outfit_400Regular",
+                  },
+                ]}
+              >
+                {desc}
+              </Text>
               {role === key && (
-                <View style={[styles.checkBadge, { backgroundColor: theme.accent }]}>
+                <View
+                  style={[styles.checkBadge, { backgroundColor: theme.accent }]}
+                >
                   <MaterialCommunityIcons name="check" size={14} color="#fff" />
                 </View>
               )}
@@ -258,13 +378,37 @@ function RoleStep({ role, onSelect, theme, t }: any) {
 
 // ─── Step 2: Basic Info ──────────────────────────────────────────────────────
 
-function BasicInfoStep({ name, phone, location, onName, onPhone, onLocation, theme, t, canProceed, onNext }: any) {
+function BasicInfoStep({
+  name,
+  phone,
+  location,
+  onName,
+  onPhone,
+  onLocation,
+  theme,
+  t,
+  canProceed,
+  onNext,
+}: any) {
   return (
-    <ScrollView contentContainerStyle={styles.stepContainer} keyboardShouldPersistTaps="handled">
-      <Text style={[styles.stepTitle, { color: theme.text, fontFamily: "Outfit_700Bold" }]}>
+    <ScrollView
+      contentContainerStyle={styles.stepContainer}
+      keyboardShouldPersistTaps="handled"
+    >
+      <Text
+        style={[
+          styles.stepTitle,
+          { color: theme.text, fontFamily: "Outfit_700Bold" },
+        ]}
+      >
         Tell us about yourself
       </Text>
-      <Text style={[styles.stepSub, { color: theme.textSecondary, fontFamily: "Outfit_400Regular" }]}>
+      <Text
+        style={[
+          styles.stepSub,
+          { color: theme.textSecondary, fontFamily: "Outfit_400Regular" },
+        ]}
+      >
         This helps personalise your records
       </Text>
 
@@ -305,17 +449,46 @@ function BasicInfoStep({ name, phone, location, onName, onPhone, onLocation, the
 
 // ─── Step 3: Business/Farm ───────────────────────────────────────────────────
 
-function BusinessStep({ role, farmName, businessName, onFarmName, onBusinessName, theme, t, onNext }: any) {
+function BusinessStep({
+  role,
+  farmName,
+  businessName,
+  onFarmName,
+  onBusinessName,
+  theme,
+  t,
+  onNext,
+}: any) {
   const isFarmer = role === "farmer";
   return (
-    <ScrollView contentContainerStyle={styles.stepContainer} keyboardShouldPersistTaps="handled">
+    <ScrollView
+      contentContainerStyle={styles.stepContainer}
+      keyboardShouldPersistTaps="handled"
+    >
       <View style={[styles.optBadge, { backgroundColor: theme.accentLight }]}>
-        <Text style={[styles.optText, { color: theme.accent, fontFamily: "Outfit_600SemiBold" }]}>Optional</Text>
+        <Text
+          style={[
+            styles.optText,
+            { color: theme.accent, fontFamily: "Outfit_600SemiBold" },
+          ]}
+        >
+          Optional
+        </Text>
       </View>
-      <Text style={[styles.stepTitle, { color: theme.text, fontFamily: "Outfit_700Bold" }]}>
+      <Text
+        style={[
+          styles.stepTitle,
+          { color: theme.text, fontFamily: "Outfit_700Bold" },
+        ]}
+      >
         {isFarmer ? "About your farm" : "Your business"}
       </Text>
-      <Text style={[styles.stepSub, { color: theme.textSecondary, fontFamily: "Outfit_400Regular" }]}>
+      <Text
+        style={[
+          styles.stepSub,
+          { color: theme.textSecondary, fontFamily: "Outfit_400Regular" },
+        ]}
+      >
         Add details now or fill in later from your profile
       </Text>
 
@@ -347,14 +520,34 @@ function BusinessStep({ role, farmName, businessName, onFarmName, onBusinessName
 
       <View style={[styles.finishBtns, { marginTop: 32 }]}>
         <Pressable
-          style={({ pressed }) => [styles.primaryBtn, { backgroundColor: theme.accent, opacity: pressed ? 0.85 : 1 }]}
+          style={({ pressed }) => [
+            styles.primaryBtn,
+            { backgroundColor: theme.accent, opacity: pressed ? 0.85 : 1 },
+          ]}
           onPress={onNext}
         >
-          <Text style={[styles.primaryBtnText, { fontFamily: "Outfit_600SemiBold" }]}>Continue</Text>
-          <MaterialCommunityIcons name="arrow-right" size={20} color="#fff" style={{ marginLeft: 8 }} />
+          <Text
+            style={[
+              styles.primaryBtnText,
+              { fontFamily: "Outfit_600SemiBold" },
+            ]}
+          >
+            Continue
+          </Text>
+          <MaterialCommunityIcons
+            name="arrow-right"
+            size={20}
+            color="#fff"
+            style={{ marginLeft: 8 }}
+          />
         </Pressable>
         <Pressable onPress={onNext} style={styles.skipBtn}>
-          <Text style={[styles.skipText, { color: theme.textTertiary, fontFamily: "Outfit_400Regular" }]}>
+          <Text
+            style={[
+              styles.skipText,
+              { color: theme.textTertiary, fontFamily: "Outfit_400Regular" },
+            ]}
+          >
             Skip for now
           </Text>
         </Pressable>
@@ -369,11 +562,24 @@ function PlanStep({ theme, t, onSelect, saving }: any) {
   const [selected, setSelected] = useState<Plan>("community");
 
   return (
-    <ScrollView contentContainerStyle={styles.stepContainer} keyboardShouldPersistTaps="handled">
-      <Text style={[styles.stepTitle, { color: theme.text, fontFamily: "Outfit_700Bold" }]}>
+    <ScrollView
+      contentContainerStyle={styles.stepContainer}
+      keyboardShouldPersistTaps="handled"
+    >
+      <Text
+        style={[
+          styles.stepTitle,
+          { color: theme.text, fontFamily: "Outfit_700Bold" },
+        ]}
+      >
         {t.choosePlan}
       </Text>
-      <Text style={[styles.stepSub, { color: theme.textSecondary, fontFamily: "Outfit_400Regular" }]}>
+      <Text
+        style={[
+          styles.stepSub,
+          { color: theme.textSecondary, fontFamily: "Outfit_400Regular" },
+        ]}
+      >
         {t.planSubtitle}
       </Text>
 
@@ -390,12 +596,32 @@ function PlanStep({ theme, t, onSelect, saving }: any) {
         ]}
       >
         <View style={styles.planCardRow}>
-          <View style={[styles.planIconBg, { backgroundColor: theme.accentLight }]}>
-            <MaterialCommunityIcons name="account-group-outline" size={28} color={theme.accent} />
+          <View
+            style={[styles.planIconBg, { backgroundColor: theme.accentLight }]}
+          >
+            <MaterialCommunityIcons
+              name="account-group-outline"
+              size={28}
+              color={theme.accent}
+            />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={[styles.planName, { color: theme.text, fontFamily: "Outfit_700Bold" }]}>{t.communityPlan}</Text>
-            <Text style={[styles.planPrice, { color: theme.accent, fontFamily: "Outfit_600SemiBold" }]}>Free forever</Text>
+            <Text
+              style={[
+                styles.planName,
+                { color: theme.text, fontFamily: "Outfit_700Bold" },
+              ]}
+            >
+              {t.communityPlan}
+            </Text>
+            <Text
+              style={[
+                styles.planPrice,
+                { color: theme.accent, fontFamily: "Outfit_600SemiBold" },
+              ]}
+            >
+              Free forever
+            </Text>
           </View>
           {selected === "community" && (
             <View style={[styles.planCheck, { backgroundColor: theme.accent }]}>
@@ -403,7 +629,12 @@ function PlanStep({ theme, t, onSelect, saving }: any) {
             </View>
           )}
         </View>
-        <Text style={[styles.planDesc, { color: theme.textSecondary, fontFamily: "Outfit_400Regular" }]}>
+        <Text
+          style={[
+            styles.planDesc,
+            { color: theme.textSecondary, fontFamily: "Outfit_400Regular" },
+          ]}
+        >
           {t.communityDesc}
         </Text>
       </Pressable>
@@ -412,7 +643,9 @@ function PlanStep({ theme, t, onSelect, saving }: any) {
       <View style={{ position: "relative" }}>
         {/* Recommended badge */}
         <View style={[styles.recBadge, { backgroundColor: theme.warm }]}>
-          <Text style={[styles.recBadgeText, { fontFamily: "Outfit_700Bold" }]}>★ {t.recommended}</Text>
+          <Text style={[styles.recBadgeText, { fontFamily: "Outfit_700Bold" }]}>
+            ★ {t.recommended}
+          </Text>
         </View>
         <Pressable
           onPress={() => setSelected("premium")}
@@ -428,12 +661,32 @@ function PlanStep({ theme, t, onSelect, saving }: any) {
           ]}
         >
           <View style={styles.planCardRow}>
-            <View style={[styles.planIconBg, { backgroundColor: theme.warmLight }]}>
-              <MaterialCommunityIcons name="shield-check-outline" size={28} color={theme.warm} />
+            <View
+              style={[styles.planIconBg, { backgroundColor: theme.warmLight }]}
+            >
+              <MaterialCommunityIcons
+                name="shield-check-outline"
+                size={28}
+                color={theme.warm}
+              />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={[styles.planName, { color: theme.text, fontFamily: "Outfit_700Bold" }]}>{t.premiumPlan}</Text>
-              <Text style={[styles.planPrice, { color: theme.warm, fontFamily: "Outfit_600SemiBold" }]}>{t.premiumPrice}</Text>
+              <Text
+                style={[
+                  styles.planName,
+                  { color: theme.text, fontFamily: "Outfit_700Bold" },
+                ]}
+              >
+                {t.premiumPlan}
+              </Text>
+              <Text
+                style={[
+                  styles.planPrice,
+                  { color: theme.warm, fontFamily: "Outfit_600SemiBold" },
+                ]}
+              >
+                {t.premiumPrice}
+              </Text>
             </View>
             {selected === "premium" && (
               <View style={[styles.planCheck, { backgroundColor: theme.warm }]}>
@@ -441,16 +694,37 @@ function PlanStep({ theme, t, onSelect, saving }: any) {
               </View>
             )}
           </View>
-          <Text style={[styles.planDesc, { color: theme.textSecondary, fontFamily: "Outfit_400Regular" }]}>
+          <Text
+            style={[
+              styles.planDesc,
+              { color: theme.textSecondary, fontFamily: "Outfit_400Regular" },
+            ]}
+          >
             {t.premiumDesc}
           </Text>
           <View style={styles.premiumFeatures}>
-            {[t.premiumFeature1, t.premiumFeature2, t.premiumFeature3].map((f: string) => (
-              <View key={f} style={styles.featureRow}>
-                <MaterialCommunityIcons name="check-circle" size={14} color={theme.warm} />
-                <Text style={[styles.featureText, { color: theme.textSecondary, fontFamily: "Outfit_400Regular" }]}>{f}</Text>
-              </View>
-            ))}
+            {[t.premiumFeature1, t.premiumFeature2, t.premiumFeature3].map(
+              (f: string) => (
+                <View key={f} style={styles.featureRow}>
+                  <MaterialCommunityIcons
+                    name="check-circle"
+                    size={14}
+                    color={theme.warm}
+                  />
+                  <Text
+                    style={[
+                      styles.featureText,
+                      {
+                        color: theme.textSecondary,
+                        fontFamily: "Outfit_400Regular",
+                      },
+                    ]}
+                  >
+                    {f}
+                  </Text>
+                </View>
+              ),
+            )}
           </View>
         </Pressable>
       </View>
@@ -460,7 +734,8 @@ function PlanStep({ theme, t, onSelect, saving }: any) {
           style={({ pressed }) => [
             styles.primaryBtn,
             {
-              backgroundColor: selected === "premium" ? theme.warm : theme.accent,
+              backgroundColor:
+                selected === "premium" ? theme.warm : theme.accent,
               opacity: pressed || saving ? 0.85 : 1,
             },
             saving && styles.btnDisabled,
@@ -472,10 +747,20 @@ function PlanStep({ theme, t, onSelect, saving }: any) {
             <ActivityIndicator color="#fff" size="small" />
           ) : (
             <>
-              <Text style={[styles.primaryBtnText, { fontFamily: "Outfit_600SemiBold" }]}>
+              <Text
+                style={[
+                  styles.primaryBtnText,
+                  { fontFamily: "Outfit_600SemiBold" },
+                ]}
+              >
                 {selected === "community" ? t.startFree : t.startPremium}
               </Text>
-              <MaterialCommunityIcons name="check" size={20} color="#fff" style={{ marginLeft: 8 }} />
+              <MaterialCommunityIcons
+                name="check"
+                size={20}
+                color="#fff"
+                style={{ marginLeft: 8 }}
+              />
             </>
           )}
         </Pressable>
@@ -486,14 +771,44 @@ function PlanStep({ theme, t, onSelect, saving }: any) {
 
 // ─── Shared field component ──────────────────────────────────────────────────
 
-function InfoField({ icon, label, value, onChange, placeholder, keyboardType = "default", theme, returnKeyType, onSubmitEditing }: any) {
+function InfoField({
+  icon,
+  label,
+  value,
+  onChange,
+  placeholder,
+  keyboardType = "default",
+  theme,
+  returnKeyType,
+  onSubmitEditing,
+}: any) {
   return (
     <View style={styles.fieldGroup}>
-      <Text style={[styles.fieldLabel, { color: theme.textSecondary, fontFamily: "Outfit_500Medium" }]}>{label}</Text>
-      <View style={[styles.inputRow, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-        <MaterialCommunityIcons name={icon} size={20} color={theme.textTertiary} style={styles.inputIcon} />
+      <Text
+        style={[
+          styles.fieldLabel,
+          { color: theme.textSecondary, fontFamily: "Outfit_500Medium" },
+        ]}
+      >
+        {label}
+      </Text>
+      <View
+        style={[
+          styles.inputRow,
+          { backgroundColor: theme.surface, borderColor: theme.border },
+        ]}
+      >
+        <MaterialCommunityIcons
+          name={icon}
+          size={20}
+          color={theme.textTertiary}
+          style={styles.inputIcon}
+        />
         <TextInput
-          style={[styles.input, { color: theme.text, fontFamily: "Outfit_400Regular" }]}
+          style={[
+            styles.input,
+            { color: theme.text, fontFamily: "Outfit_400Regular" },
+          ]}
           value={value}
           onChangeText={onChange}
           placeholder={placeholder}
@@ -517,7 +832,13 @@ const styles = StyleSheet.create({
     paddingBottom: 12,
   },
   headerSide: { width: 44, alignItems: "flex-start" },
-  dotsRow: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6 },
+  dotsRow: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+  },
   dot: { height: 8, borderRadius: 4 },
   stepLabel: { fontSize: 13 },
   backBtn: { padding: 4 },
@@ -541,25 +862,65 @@ const styles = StyleSheet.create({
     minHeight: 160,
     justifyContent: "center",
   },
-  roleIconBg: { width: 80, height: 80, borderRadius: 24, alignItems: "center", justifyContent: "center", marginBottom: 4 },
+  roleIconBg: {
+    width: 80,
+    height: 80,
+    borderRadius: 24,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 4,
+  },
   roleCardTitle: { fontSize: 20 },
   roleCardDesc: { fontSize: 14, textAlign: "center" },
-  checkBadge: { position: "absolute", top: 14, right: 14, width: 24, height: 24, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+  checkBadge: {
+    position: "absolute",
+    top: 14,
+    right: 14,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   fields: { gap: 16, marginTop: 8 },
   fieldGroup: { gap: 6 },
   fieldLabel: { fontSize: 12, textTransform: "uppercase", letterSpacing: 0.5 },
-  inputRow: { flexDirection: "row", alignItems: "center", borderWidth: 1.5, borderRadius: 14, paddingHorizontal: 14, height: 56 },
+  inputRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderWidth: 1.5,
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    height: 56,
+  },
   inputIcon: { marginRight: 10 },
   input: { flex: 1, fontSize: 16, height: "100%" },
-  optBadge: { alignSelf: "flex-start", paddingHorizontal: 12, paddingVertical: 4, borderRadius: 20 },
+  optBadge: {
+    alignSelf: "flex-start",
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 20,
+  },
   optText: { fontSize: 12 },
   planCard: { borderRadius: 20, padding: 20, gap: 12, marginTop: 8 },
   planCardRow: { flexDirection: "row", alignItems: "center", gap: 14 },
-  planIconBg: { width: 52, height: 52, borderRadius: 16, alignItems: "center", justifyContent: "center" },
+  planIconBg: {
+    width: 52,
+    height: 52,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   planName: { fontSize: 18 },
   planPrice: { fontSize: 14, marginTop: 2 },
   planDesc: { fontSize: 13, lineHeight: 19 },
-  planCheck: { width: 28, height: 28, borderRadius: 14, alignItems: "center", justifyContent: "center" },
+  planCheck: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   premiumFeatures: { gap: 6, marginTop: 4 },
   featureRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   featureText: { fontSize: 13 },
