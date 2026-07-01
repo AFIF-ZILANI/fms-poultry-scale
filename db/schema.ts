@@ -6,10 +6,14 @@ export const users = sqliteTable("users", {
   id: text("id").primaryKey(),
   name: text("name"),
   phone: text("phone"),
-  location: text("location").notNull(),
+  email: text("email"),
+  location: text("location"),
   farmName: text("farm_name"),
+  is_onboarded: integer("is_onboarded", { mode: "boolean" })
+    .notNull()
+    .default(false),
   businessName: text("business_name"),
-  role: text("role", { enum: ["farmer", "wholesaler"] }).notNull(),
+  role: text("role", { enum: ["farmer", "wholesaler"] }).notNull().default("farmer"),
   subscriptionPlan: text("subscription_plan", {
     enum: ["community", "premium"],
   })
@@ -17,8 +21,9 @@ export const users = sqliteTable("users", {
     .default("community"),
   farmCapacity: integer("farm_capacity"),
   buyingCapacity: integer("buying_capacity"),
+  breed: text("breed"),
   supplyRegions: text("supply_regions"),
-  createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
+  createdAt: integer("created_at", { mode: "timestamp" })
 });
 
 // ─── Sales ───
