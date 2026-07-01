@@ -8,8 +8,12 @@ import {
   rowEditHistory,
   userPrefs,
 } from "../db/schema";
-import { eq, and, ne, desc } from "drizzle-orm";
-import type { MeasurementRow, SaleRecord, SaleMetaData } from "./types";
+import { eq, and, desc } from "drizzle-orm";
+import type { MeasurementRow, SaleRecord } from "./types";
+
+import * as Crypto from "expo-crypto";
+
+const UUID = Crypto.randomUUID();
 
 // ─── Sales ────────────────────────────────────────────────────────────────────
 
@@ -116,10 +120,9 @@ export async function createSale(
   userId: string,
   isPcsTracked: boolean,
 ): Promise<string> {
-  const id = crypto.randomUUID();
   const now = new Date();
   await db.insert(sales).values({
-    id,
+    id: UUID,
     userId,
     phase: "main",
     isPcsTracked,
@@ -128,7 +131,7 @@ export async function createSale(
     createdAt: now,
     updatedAt: now,
   });
-  return id;
+  return UUID;
 }
 
 export async function saveSale(
@@ -181,7 +184,7 @@ export async function saveSale(
     if (sale.meta) {
       const m = sale.meta;
       await tx.insert(saleMetaData).values({
-        id: crypto.randomUUID(),
+        id: UUID,
         saleId: sale.id,
         mainWeightKg: m.mainWeightKg,
         mainPcs: m.mainPcs,
@@ -281,7 +284,7 @@ export async function updateSale(
         (prev.weight !== updated.weightKg || prev.pcs !== updated.pcs)
       ) {
         await tx.insert(rowEditHistory).values({
-          id: crypto.randomUUID(),
+          id: UUID,
           rowId: prev.id,
           previousWeight: prev.weight,
           previousPcs: prev.pcs,
