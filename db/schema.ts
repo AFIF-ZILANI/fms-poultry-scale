@@ -47,8 +47,8 @@ export const saleMetaData = sqliteTable("sale_meta_data", {
     .references(() => sales.id, { onDelete: "cascade" }),
 
   mainWeightKg: real("main_weight_kg").notNull(),
-  totalPcs: integer("total_pcs"),
-  
+  mainPcs: integer("main_pcs"),
+
   buyerName: text("buyer_name"),
 
   kgPerCrate: real("kg_per_crate").notNull(),
@@ -68,7 +68,12 @@ export const saleMetaData = sqliteTable("sale_meta_data", {
 
   finalAmount: real("final_amount").notNull(),
 
-  receivedAmount: real("received_amount"),
+  receivedAmount: real("received_amount").notNull(),
+  totalDeductionWtKg: real("total_deduction_wt_kg").notNull(),
+  avgWtGrams: real("avg_wt_grams"),
+  netWeightKg: real("net_weight_kg").notNull(),
+  totalCrates: real("total_crates").notNull(),
+  totalPcs: integer("total_pcs"),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
 });
 
