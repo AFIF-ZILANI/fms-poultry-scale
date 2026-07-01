@@ -60,7 +60,7 @@ async function hydrateSale(
     meta: metaRow
       ? {
           mainWeightKg: metaRow.mainWeightKg,
-          totalPcs: metaRow.totalPcs ?? undefined,
+          mainPcs: metaRow.mainPcs ?? undefined,
           buyerName: metaRow.buyerName ?? undefined,
           kgPerCrate: metaRow.kgPerCrate,
           deductionPerCrateG: metaRow.deductionPerCrateG,
@@ -74,7 +74,13 @@ async function hydrateSale(
           cullPcs: metaRow.cullPcs ?? undefined,
           cullAmount: metaRow.cullAmount ?? undefined,
           finalAmount: metaRow.finalAmount,
-          receivedAmount: metaRow.receivedAmount ?? undefined,
+          receivedAmount: metaRow.receivedAmount,
+          totalDeductionWtKg: metaRow.totalDeductionWtKg,
+          avgWtGrams: metaRow.avgWtGrams ?? undefined,
+          netWeightKg: metaRow.netWeightKg,
+          totalCrates: metaRow.totalCrates,
+          totalPcs: metaRow.totalPcs ?? undefined,
+          createdAt: metaRow.createdAt.getTime(),
         }
       : undefined,
   };
@@ -178,7 +184,7 @@ export async function saveSale(
         id: crypto.randomUUID(),
         saleId: sale.id,
         mainWeightKg: m.mainWeightKg,
-        totalPcs: m.totalPcs,
+        mainPcs: m.mainPcs,
         buyerName: m.buyerName,
         kgPerCrate: m.kgPerCrate,
         deductionPerCrateG: m.deductionPerCrateG,
@@ -193,6 +199,11 @@ export async function saveSale(
         cullAmount: m.cullAmount,
         finalAmount: m.finalAmount,
         receivedAmount: m.receivedAmount,
+        totalDeductionWtKg: m.totalDeductionWtKg,
+        avgWtGrams: m.avgWtGrams,
+        netWeightKg: m.netWeightKg,
+        totalCrates: m.totalCrates,
+        totalPcs: m.totalPcs,
         createdAt: new Date(sale.createdAt),
       });
     }
