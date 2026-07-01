@@ -29,26 +29,27 @@ import { useUser } from "@clerk/expo";
 import { useTheme } from "@/lib/useTheme";
 import { useSettings } from "@/lib/SettingsContext";
 import { formatWeight, formatPcs, sumPcs, getRelativeTime } from "@/lib/utils";
+// Replace the storage import line with:
 import {
   saveSale,
+  loadSale, // replaces loadDraft
+  deleteSale, // replaces deleteDraft
   loadLastPricePerKg,
   saveLastPricePerKg,
   loadLastKgPerCrate,
   saveLastKgPerCrate,
   loadLastDeductionG,
   saveLastDeductionG,
-  loadDraft,
-  saveDraft,
-  deleteDraft,
   getChunkSize,
-  DEFAULT_CHUNK_SIZE,
 } from "@/lib/storage";
+
+// Add after imports, before component definitions:
+const DEFAULT_CHUNK_SIZE = 10;
 import { EditRowModal } from "@/components/EditRowModal";
 import type {
   MeasurementRow,
   SaleRecord,
-  TradeDeduction,
-  DraftSession,
+  SaleMetaData,
   RowGroup,
 } from "@/lib/types";
 
@@ -482,7 +483,6 @@ function CullDialog({
     </Modal>
   );
 }
-
 function TradeDeductionModal({
   visible,
   totalWeight,
@@ -496,6 +496,8 @@ function TradeDeductionModal({
   onCancel,
   onSaved,
   userId,
+  saleId, // ADD
+  saleCreatedAt, // ADD
 }: {
   visible: boolean;
   totalWeight: number;
@@ -509,6 +511,8 @@ function TradeDeductionModal({
   onCancel: () => void;
   onSaved: () => void;
   userId: string;
+  saleId: string; // ADD
+  saleCreatedAt: number; // ADD
 }) {
   const { t } = useSettings();
   const [kgPerCrate, setKgPerCrate] = useState("");
@@ -540,9 +544,9 @@ function TradeDeductionModal({
         loadLastKgPerCrate(userId),
         loadLastDeductionG(userId),
       ]).then(([price, kpc, dg]) => {
-        if (price) setPricePerKg(price);
-        if (kpc) setKgPerCrate(kpc);
-        if (dg) setDeductionG(dg);
+        if (price) setPricePerKg(price.toString());
+        if (kpc) setKgPerCrate(kpc.toString());
+        if (dg) setDeductionG(dg.toString());
       });
     }
   }, [visible, userId]);
@@ -620,50 +624,58 @@ function TradeDeductionModal({
     setSaving(true);
 
     try {
-      const deduction: TradeDeduction = {
-        gross_weight: totalWeight,
-        kg_per_crate: kgPerCrateNum,
-        deduction_per_crate_g: deductionGNum,
-        full_crates_only: fullCratesOnly,
-        total_crates: calc.totalCrates,
-        total_deduction_kg: calc.totalDeductionKg,
-        cull_weight_kg: cullWeightKg,
-        net_weight: netMainWeight,
-        price_per_kg: pricePerKgNum,
-        main_amount: mainAmount,
-        cull_sold: hasCull ? cullSold : false,
-        cull_pricing_mode: hasCull && cullSold ? cullPricingMode : undefined,
-        cull_price: hasCull && cullSold ? cullPriceNum : undefined,
-        cull_pcs: hasCull ? cullPcs : undefined,
-        cull_amount: cullAmount,
-        final_amount: finalAmount,
+      const meta: SaleMetaData = {
+        mainWeightKg: subtotalGross,
+        mainPcs: pcsTracked ? totalPcs : undefined,
+        avgWtGrams:
+          pcsTracked && totalPcs > 0
+            ? Math.round((subtotalGross / totalPcs) * 1000)
+            : undefined,
+        buyerName: buyerName.trim() || undefined,
+        kgPerCrate: kgPerCrateNum,
+        deductionPerCrateG: deductionGNum,
+        isFullCratesOnly: fullCratesOnly,
+        mainPrice: pricePerKgNum,
+        mainAmount,
+        cullWeightKg,
+        isCullSold: hasCull ? cullSold : undefined,
+        cullSaleType:
+          hasCull && cullSold
+            ? cullPricingMode === "per_kg"
+              ? "weight"
+              : "pcs"
+            : undefined,
+        cullPrice: hasCull && cullSold ? cullPriceNum : undefined,
+        cullPcs: hasCull ? cullPcs : undefined,
+        cullAmount,
+        finalAmount,
+        receivedAmount: validReceivedAmount ? receivedAmountNum : 0,
+        totalDeductionWtKg: calc.totalDeductionKg,
+        netWeightKg: netMainWeight,
+        totalCrates: calc.totalCrates,
+        totalPcs: pcsTracked ? totalPcs : undefined,
+        createdAt: saleCreatedAt,
       };
 
-      const totalWeightGrams = Math.round(totalWeight * 1000);
-      const avgWeightKg = totalPcs > 0 ? totalWeight / totalPcs : 0;
-      const avgWeightGrams = Math.round(avgWeightKg * 1000);
-
       const sale: SaleRecord = {
-        id: Crypto.randomUUID(),
-        totalWeightKg: totalWeight,
-        totalWeightGrams,
-        totalPcs,
-        pcsTracked,
-        averageWeightKg: avgWeightKg,
-        averageWeightGrams: avgWeightGrams,
+        id: saleId,
+        userId,
+        phase: hasCull ? "cull" : "main",
+        isPcsTracked: pcsTracked,
+        hasCull,
+        isFinished: true,
         rows,
         cullRows: cullRows.length > 0 ? cullRows : undefined,
-        createdAt: Date.now(),
-        deduction,
-        receivedAmount: validReceivedAmount ? receivedAmountNum : undefined,
-        buyerName: buyerName.trim() || undefined,
+        createdAt: saleCreatedAt,
+        updatedAt: Date.now(),
+        meta,
       };
 
       await Promise.all([
         saveSale(userId, sale),
-        saveLastPricePerKg(userId, pricePerKg),
-        saveLastKgPerCrate(userId, kgPerCrate),
-        saveLastDeductionG(userId, deductionG),
+        saveLastPricePerKg(userId, pricePerKgNum), // number now, not string
+        saveLastKgPerCrate(userId, kgPerCrateNum),
+        saveLastDeductionG(userId, deductionGNum),
       ]);
 
       if (Platform.OS !== "web") {
@@ -1642,7 +1654,10 @@ export default function MeasurementScreen() {
     }, [userId]),
   );
 
-  const groupedRows = useMemo(() => groupRows(rows, chunkSize), [rows, chunkSize]);
+  const groupedRows = useMemo(
+    () => groupRows(rows, chunkSize),
+    [rows, chunkSize],
+  );
   // Cancel any pending auto-open timer on unmount
   useEffect(
     () => () => {
@@ -1656,20 +1671,21 @@ export default function MeasurementScreen() {
     const id = typeof draftIdParam === "string" ? draftIdParam : "";
     if (!id) return;
     draftLoaded.current = true;
-    loadDraft(id).then((draft) => {
-      if (!draft) return;
-      startTimeRef.current = draft.createdAt;
-      if (draft.pcsOptional) setPcsOptional(true);
-      if (
-        draft.phase === "cull" &&
-        draft.mainRows &&
-        draft.mainRows.length > 0
-      ) {
+
+    loadSale(id).then((sale) => {
+      // was: loadDraft(id)
+      if (!sale) return;
+      startTimeRef.current = sale.createdAt;
+      if (!sale.isPcsTracked) setPcsOptional(true); // isPcsTracked is the inverse of pcsOptional
+
+      if (sale.phase === "cull" && sale.rows.length > 0) {
         setPhase("cull");
-        setMainRows(draft.mainRows);
-        if (draft.rows.length > 0) setRows(draft.rows);
-      } else if (draft.rows.length > 0) {
-        setRows(draft.rows);
+        setMainRows(sale.rows); // main rows stored in .rows
+        if (sale.cullRows && sale.cullRows.length > 0) {
+          setRows(sale.cullRows); // cull rows stored in .cullRows
+        }
+      } else if (sale.rows.length > 0) {
+        setRows(sale.rows);
       }
     });
   }, [draftIdParam]);
@@ -1678,18 +1694,21 @@ export default function MeasurementScreen() {
     const hasData = rows.length > 0 || mainRows.length > 0;
     if (hasData) hasEverHadRows.current = true;
     if (!hasEverHadRows.current) return;
-    const draft: DraftSession = {
+
+    const draft: SaleRecord = {
       id: sessionDraftId.current,
-      rows,
-      mainRows: mainRows.length > 0 ? mainRows : undefined,
+      userId,
       phase,
-      pcsOptional: pcsOptional || undefined,
+      isPcsTracked: !pcsOptional,
+      hasCull: phase === "cull",
+      isFinished: false,
+      rows: phase === "cull" ? mainRows : rows, // main rows always go in .rows
+      cullRows: phase === "cull" ? rows : undefined, // cull rows go in .cullRows
       createdAt: startTimeRef.current,
       updatedAt: Date.now(),
-      totalWeightKg: rows.reduce((s, r) => s + r.weightKg, 0),
-      totalPcs: sumPcs(rows),
     };
-    if (userId) saveDraft(userId, draft);
+
+    if (userId) saveSale(userId, draft);
   }, [rows, mainRows, phase, pcsOptional, userId]);
 
   useEffect(() => {
@@ -1910,10 +1929,11 @@ export default function MeasurementScreen() {
         theme={theme}
         insets={insets}
         userId={userId}
+        saleId={sessionDraftId.current} // ADD
+        saleCreatedAt={startTimeRef.current} // ADD
         onCancel={() => setShowDeductionModal(false)}
-        onSaved={async () => {
+        onSaved={() => {
           setShowDeductionModal(false);
-          await deleteDraft(sessionDraftId.current);
           router.dismissAll();
         }}
       />
