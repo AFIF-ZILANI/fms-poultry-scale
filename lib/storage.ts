@@ -8,8 +8,8 @@ import {
   rowEditHistory,
   userPrefs,
 } from "../db/schema";
-import { eq, and, desc } from "drizzle-orm";
-import type { MeasurementRow, SaleRecord } from "./types";
+import { eq, and, desc, sql } from "drizzle-orm";
+import type { DraftSummary, MeasurementRow, SaleRecord } from "./types";
 
 import * as Crypto from "expo-crypto";
 
@@ -100,17 +100,40 @@ export async function loadSales(userId: string): Promise<SaleRecord[]> {
 }
 
 // "Drafts" = anything not yet finished
-export async function loadDrafts(userId: string): Promise<SaleRecord[]> {
-  const saleRows = await db
-    .select()
+export async function loadDrafts(userId: string): Promise<DraftSummary[]> {
+  const rows = await db
+    .select({
+      id: sales.id,
+      phase: sales.phase,
+      createdAt: sales.createdAt,
+      mainLog: sql<number>`coalesce(sum(case when ${measurementRows.type} = 'main' then 1 else 0 end), 0)`,
+      cullLog: sql<number>`coalesce(sum(case when ${measurementRows.type} = 'cull' then 1 else 0 end), 0)`,
+      mainBirdCount: sql<number>`coalesce(sum(case when ${measurementRows.type} = 'main' then ${measurementRows.pcs} else 0 end), 0)`,
+      cullBirdCount: sql<number>`coalesce(sum(case when ${measurementRows.type} = 'cull' then ${measurementRows.pcs} else 0 end), 0)`,
+      mainWeightKg: sql<number>`coalesce(sum(case when ${measurementRows.type} = 'main' then ${measurementRows.weight} else 0 end), 0)`,
+      cullWeightKg: sql<number>`coalesce(sum(case when ${measurementRows.type} = 'cull' then ${measurementRows.weight} else 0 end), 0)`,
+    })
     .from(sales)
+    .leftJoin(measurementRows, eq(measurementRows.saleId, sales.id))
     .where(and(eq(sales.userId, userId), eq(sales.isFinished, false)))
+    .groupBy(sales.id)
     .orderBy(desc(sales.updatedAt));
-  return Promise.all(saleRows.map(hydrateSale));
+
+  return rows.map((r) => ({
+    id: r.id,
+    phase: r.phase,
+    createdAt: r.createdAt.getTime(),
+    mainLog: Number(r.mainLog),
+    cullLog: Number(r.cullLog),
+    mainBirdCount: Number(r.mainBirdCount),
+    cullBirdCount: Number(r.cullBirdCount),
+    mainWeightKg: Number(r.mainWeightKg),
+    cullWeightKg: Number(r.cullWeightKg),
+  }));
 }
 
 export async function loadSale(id: string): Promise<SaleRecord | null> {
-  const saleRow = await db.select().from(sales).where(eq(sales.id, id)).get();
+  const saleRow = db.select().from(sales).where(eq(sales.id, id)).get();
   return saleRow ? hydrateSale(saleRow) : null;
 }
 
