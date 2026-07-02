@@ -54,8 +54,18 @@ export function getRelativeTime(timestamp: number, s?: RelTimeStrings): string {
 export function formatDateTime(timestamp: number): string {
   const date = new Date(timestamp);
   const months = [
-    "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+    "Jan",
+    "Feb",
+    "Mar",
+    "Apr",
+    "May",
+    "Jun",
+    "Jul",
+    "Aug",
+    "Sep",
+    "Oct",
+    "Nov",
+    "Dec",
   ];
   const month = months[date.getMonth()];
   const day = date.getDate();
@@ -65,4 +75,8 @@ export function formatDateTime(timestamp: number): string {
   const ampm = hours >= 12 ? "PM" : "AM";
   const h = hours % 12 || 12;
   return `${month} ${day}, ${year} at ${h}:${minutes} ${ampm}`;
+}
+
+export function FormatLog(label: string = "Format Log: ", log: any) {
+  console.log(label, JSON.stringify(log, null, 2));
 }
