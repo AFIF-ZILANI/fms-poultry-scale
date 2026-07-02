@@ -243,6 +243,10 @@ const en = {
   accountSection: "ACCOUNT",
   infoSection: "YOUR INFO",
   logGroupSize: "Log Group Size",
+  logs: "Logs",
+  showLess: "Show Less",
+  showMainPhase: "Show Main Phase",
+  session: "Session",
 };
 
 const bn: typeof en = {
@@ -485,6 +489,11 @@ const bn: typeof en = {
   accountSection: "অ্যাকাউন্ট",
   infoSection: "আপনার ইনফো",
   logGroupSize: "লগ গ্রুপ সাইজ",
+
+  logs: "লগস",
+  showLess: "কম দেখান",
+  showMainPhase: "মেইন ফেজ দেখান",
+  session: "সেশন",
 };
 
 export const translations = { en, bn };
