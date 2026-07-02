@@ -1,3 +1,5 @@
+type Phase = "main" | "cull";
+
 export interface RowEditEntry {
   id: string;
   timestamp: number;
@@ -63,3 +65,15 @@ export type RowGroup = {
   avgWeight: number;
   data: MeasurementRow[];
 };
+
+export interface DraftSummary {
+  id: string;
+  phase: Phase;
+  createdAt: number;
+  mainLog: number;
+  cullLog: number;
+  mainBirdCount: number;
+  cullBirdCount: number;
+  mainWeightKg: number;
+  cullWeightKg: number;
+}
