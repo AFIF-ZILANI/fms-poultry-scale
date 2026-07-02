@@ -17,8 +17,8 @@ import { useTheme } from "@/lib/useTheme";
 import { useSettings } from "@/lib/SettingsContext";
 import { useUser } from "@clerk/expo";
 import { loadDrafts, deleteSale } from "@/lib/storage";
-import { formatWeight, getRelativeTime } from "@/lib/utils";
-import { SaleRecord } from "@/lib/types";
+import { FormatLog, formatWeight, getRelativeTime } from "@/lib/utils";
+import { DraftSummary } from "@/lib/types";
 
 function DraftCard({
   draft,
@@ -28,13 +28,25 @@ function DraftCard({
   onDelete,
   onResume,
 }: {
-  draft: SaleRecord;
+  draft: DraftSummary;
   index: number;
   theme: ReturnType<typeof useTheme>;
   t: ReturnType<typeof useSettings>["t"];
   onDelete: (id: string) => void;
   onResume: (id: string) => void;
 }) {
+  const [expanded, setExpanded] = useState(false);
+
+  // main can never have prior cull data — cull only exists after main is finished.
+  // so expand is only meaningful when we're currently IN cull phase (main data exists behind it).
+  const canExpand = draft.phase === "cull";
+
+  const currentWeight =
+    draft.phase === "main" ? draft.mainWeightKg : draft.cullWeightKg;
+  const currentBirds =
+    draft.phase === "main" ? draft.mainBirdCount : draft.cullBirdCount;
+  const currentLogs = draft.phase === "main" ? draft.mainLog : draft.cullLog;
+
   const handleDelete = () => {
     if (Platform.OS === "web") {
       onDelete(draft.id);
@@ -50,10 +62,12 @@ function DraftCard({
     }
   };
 
-  const rowCountLabel =
-    draft.hasCull && draft.cullRows
-      ? `${draft.rows.length} main · ${draft.cullRows.length} cull`
-      : `${draft.rows.length} ${draft.rows.length === 1 ? "row" : "rows"}`;
+  const toggleExpand = () => {
+    if (Platform.OS !== "web") {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+    setExpanded((prev) => !prev);
+  };
 
   return (
     <Animated.View
@@ -84,88 +98,198 @@ function DraftCard({
           },
         ]}
       >
-        {/* status accent - gives phase state at a glance without reading text */}
         <View style={[styles.accentBar, { backgroundColor: theme.warm }]} />
 
         <View style={styles.cardBody}>
-          <View style={styles.cardLeft}>
-            <View
-              style={[styles.iconWrap, { backgroundColor: theme.warmLight }]}
-            >
-              <MaterialCommunityIcons
-                name="progress-clock"
-                size={20}
-                color={theme.warm}
-              />
-            </View>
-
-            <View style={styles.cardInfo}>
-              {/* primary value - largest, heaviest weight in the card */}
-              <Text
+          <View style={styles.cardMain}>
+            {/* status: phase badge + neutral draft timestamp */}
+            <View style={styles.statusRow}>
+              <View
                 style={[
-                  styles.cardTitle,
-                  { color: theme.text, fontFamily: "Outfit_700Bold" },
+                  styles.phaseBadge,
+                  { backgroundColor: theme.warmLight },
                 ]}
               >
-                {formatWeight(draft.meta?.mainWeightKg || 0)}{" "}
-                <Text style={[styles.cardUnit, { color: theme.textTertiary }]}>
-                  KG
-                </Text>
-              </Text>
-
-              {/* primary meta line - status badge + time, single row */}
-              <View style={styles.metaRowPrimary}>
-                <View
+                <Text
                   style={[
-                    styles.phaseBadge,
-                    { backgroundColor: theme.warmLight },
+                    styles.phaseBadgeText,
+                    { color: theme.warm, fontFamily: "Outfit_600SemiBold" },
                   ]}
                 >
+                  {draft.phase.toUpperCase()}
+                </Text>
+              </View>
+              <Text
+                style={[
+                  styles.sessionMeta,
+                  {
+                    color: theme.textTertiary,
+                    fontFamily: "Outfit_400Regular",
+                  },
+                ]}
+              >
+                {t.session ?? "Session"} {getRelativeTime(draft.createdAt, t)}
+              </Text>
+            </View>
+
+            {/* current phase weight - primary value */}
+            <Text
+              style={[
+                styles.cardTitle,
+                { color: theme.text, fontFamily: "Outfit_700Bold" },
+              ]}
+            >
+              {formatWeight(currentWeight)}{" "}
+              <Text style={[styles.cardUnit, { color: theme.textTertiary }]}>
+                KG
+              </Text>
+            </Text>
+
+            {/* current phase birds + logs */}
+            <View style={styles.statGroupRow}>
+              <MaterialCommunityIcons
+                name="bird"
+                size={12}
+                color={theme.textTertiary}
+              />
+              <Text
+                style={[
+                  styles.statValue,
+                  { color: theme.text, fontFamily: "Outfit_600SemiBold" },
+                ]}
+              >
+                {currentBirds}
+              </Text>
+              <Text
+                style={[
+                  styles.statLabel,
+                  {
+                    color: theme.textTertiary,
+                    fontFamily: "Outfit_400Regular",
+                  },
+                ]}
+              >
+                {t.birds ?? "birds"}
+              </Text>
+              <View style={[styles.dot, { backgroundColor: theme.border }]} />
+              <Feather name="layers" size={11} color={theme.textTertiary} />
+              <Text
+                style={[
+                  styles.statValue,
+                  { color: theme.text, fontFamily: "Outfit_600SemiBold" },
+                ]}
+              >
+                {currentLogs}
+              </Text>
+              <Text
+                style={[
+                  styles.statLabel,
+                  {
+                    color: theme.textTertiary,
+                    fontFamily: "Outfit_400Regular",
+                  },
+                ]}
+              >
+                {t.logs ?? "logs"}
+              </Text>
+            </View>
+
+            {/* expanded: main phase data, only reachable from cull phase */}
+            {canExpand && expanded && (
+              <Animated.View
+                entering={
+                  Platform.OS !== "web" ? FadeInDown.springify() : undefined
+                }
+                style={[styles.expandedBlock, { borderTopColor: theme.border }]}
+              >
+                <Text
+                  style={[
+                    styles.statGroupLabel,
+                    {
+                      color: theme.textTertiary,
+                      fontFamily: "Outfit_600SemiBold",
+                    },
+                  ]}
+                >
+                  MAIN PHASE
+                </Text>
+                <View style={styles.expandedRow}>
                   <Text
                     style={[
-                      styles.phaseBadgeText,
-                      { color: theme.warm, fontFamily: "Outfit_600SemiBold" },
+                      styles.expandedWeight,
+                      { color: theme.text, fontFamily: "Outfit_700Bold" },
                     ]}
                   >
-                    {draft.phase.toUpperCase()}
+                    {formatWeight(draft.mainWeightKg)}{" "}
+                    <Text style={{ fontSize: 12, color: theme.textTertiary }}>
+                      KG
+                    </Text>
                   </Text>
+                  <View style={styles.statGroupRow}>
+                    <MaterialCommunityIcons
+                      name="bird"
+                      size={12}
+                      color={theme.textTertiary}
+                    />
+                    <Text
+                      style={[
+                        styles.statValue,
+                        { color: theme.text, fontFamily: "Outfit_600SemiBold" },
+                      ]}
+                    >
+                      {draft.mainBirdCount}
+                    </Text>
+                    <View
+                      style={[styles.dot, { backgroundColor: theme.border }]}
+                    />
+                    <Feather
+                      name="layers"
+                      size={11}
+                      color={theme.textTertiary}
+                    />
+                    <Text
+                      style={[
+                        styles.statValue,
+                        { color: theme.text, fontFamily: "Outfit_600SemiBold" },
+                      ]}
+                    >
+                      {draft.mainLog}
+                    </Text>
+                  </View>
                 </View>
-                <View
-                  style={[styles.dot, { backgroundColor: theme.textTertiary }]}
-                />
-                <Text
-                  style={[
-                    styles.metaTextSecondary,
-                    {
-                      color: theme.textTertiary,
-                      fontFamily: "Outfit_400Regular",
-                    },
-                  ]}
-                >
-                  {getRelativeTime(draft.updatedAt, t)}
-                </Text>
-              </View>
+              </Animated.View>
+            )}
 
-              {/* secondary meta line - de-emphasized, smaller, muted */}
-              <View style={styles.metaRowSecondary}>
-                <Feather name="layers" size={11} color={theme.textTertiary} />
+            {/* expand trigger - only exists when there's actually something behind it */}
+            {canExpand && (
+              <Pressable
+                onPress={toggleExpand}
+                hitSlop={8}
+                style={({ pressed }) => [
+                  styles.expandTrigger,
+                  { opacity: pressed ? 0.6 : 1 },
+                ]}
+              >
                 <Text
                   style={[
-                    styles.metaTextTertiary,
-                    {
-                      color: theme.textTertiary,
-                      fontFamily: "Outfit_400Regular",
-                    },
+                    styles.expandTriggerText,
+                    { color: theme.accent, fontFamily: "Outfit_600SemiBold" },
                   ]}
                 >
-                  {rowCountLabel}
+                  {expanded
+                    ? (t.showLess ?? "Show less")
+                    : (t.showMainPhase ?? "Show main phase")}
                 </Text>
-              </View>
-            </View>
+                <Feather
+                  name={expanded ? "chevron-up" : "chevron-down"}
+                  size={14}
+                  color={theme.accent}
+                />
+              </Pressable>
+            )}
           </View>
 
           <View style={styles.cardRight}>
-            {/* ghost delete - present but visually recessive, not competing with resume affordance */}
             <Pressable
               onPress={handleDelete}
               hitSlop={12}
@@ -176,8 +300,6 @@ function DraftCard({
             >
               <Feather name="trash-2" size={16} color={theme.textTertiary} />
             </Pressable>
-
-            {/* chevron = the actual affordance for "this whole card is tappable to resume" */}
             <Feather
               name="chevron-right"
               size={18}
@@ -195,7 +317,7 @@ export default function DraftsScreen() {
   const insets = useSafeAreaInsets();
   const { t } = useSettings();
   const { user } = useUser();
-  const [drafts, setDrafts] = useState<SaleRecord[]>([]);
+  const [drafts, setDrafts] = useState<DraftSummary[]>([]);
   const [loading, setLoading] = useState(true);
 
   const webTopInset = Platform.OS === "web" ? 67 : 0;
@@ -207,6 +329,7 @@ export default function DraftsScreen() {
       setLoading(true);
       loadDrafts(user.id).then((data) => {
         setDrafts(data);
+        FormatLog("Loaded drafts:", data);
         setLoading(false);
       });
     }, [user?.id]),
@@ -386,25 +509,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-
-  card: {
-    flexDirection: "row",
-    borderRadius: 16,
-    marginBottom: 10,
-    borderWidth: 1,
-    overflow: "hidden",
-  },
-  accentBar: {
-    width: 3,
-  },
-  cardBody: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-  },
   cardLeft: { flexDirection: "row", alignItems: "center", flex: 1, gap: 12 },
   iconWrap: {
     width: 44,
@@ -414,8 +518,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   cardInfo: { flex: 1, gap: 5 },
-  cardTitle: { fontSize: 19, lineHeight: 23 },
-  cardUnit: { fontSize: 12 },
   metaRowPrimary: {
     flexDirection: "row",
     alignItems: "center",
@@ -426,25 +528,80 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 5,
   },
-  phaseBadge: {
-    paddingHorizontal: 7,
-    paddingVertical: 2,
-    borderRadius: 6,
-  },
-  phaseBadgeText: { fontSize: 10, letterSpacing: 0.3 },
   metaTextSecondary: { fontSize: 12 },
   metaTextTertiary: { fontSize: 11 },
+
+  card: {
+    flexDirection: "row",
+    borderRadius: 16,
+    marginBottom: 10,
+    borderWidth: 1,
+    overflow: "hidden",
+  },
+  accentBar: { width: 3 },
+  cardBody: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+  },
+  statsBlock: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 12,
+    marginTop: 2,
+  },
+  statGroup: { gap: 3 },
+  statSubvalue: { fontSize: 11, marginTop: 1 },
+  statDivider: { width: 1, alignSelf: "stretch", marginTop: 14 },
+  // ----
+
+  cardMain: { flex: 1, gap: 8 },
+  statusRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+  phaseBadge: { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6 },
+  phaseBadgeText: { fontSize: 10, letterSpacing: 0.3 },
+  statusTime: { fontSize: 12 },
+  cardTitle: { fontSize: 22, lineHeight: 26 },
+  cardUnit: { fontSize: 13 },
+  statGroupRow: { flexDirection: "row", alignItems: "center", gap: 4 },
+  statValue: { fontSize: 12 },
+  statLabel: { fontSize: 11 },
+  statGroupLabel: { fontSize: 9, letterSpacing: 0.5 },
   dot: { width: 2.5, height: 2.5, borderRadius: 1.25 },
+  expandedBlock: {
+    marginTop: 4,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    gap: 6,
+  },
+  expandedRow: { flexDirection: "row", alignItems: "center", gap: 14 },
+  expandedWeight: { fontSize: 16 },
+  expandTrigger: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    marginTop: 2,
+    alignSelf: "flex-start",
+  },
+  expandTriggerText: { fontSize: 12 },
   cardRight: {
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
     marginLeft: 8,
+    paddingTop: 2,
   },
   deleteBtn: {
     width: 28,
     height: 28,
     alignItems: "center",
     justifyContent: "center",
+  },
+  sessionMeta: {
+    fontSize: 11,
+    marginTop: 2,
+    marginBottom: 4,
   },
 });
