@@ -1830,6 +1830,17 @@ export default function MeasurementScreen() {
     setShowDeductionModal(true);
   };
 
+  // Reverses handleCullYes. Only offered while no cull rows have been
+  // recorded yet — once weighing starts, the cull phase is committed.
+  const handleBackToMain = () => {
+    setPhase("main");
+    setRows(mainRows);
+    setMainRows([]);
+    if (Platform.OS !== "web") {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+  };
+
   const handleBack = () => {
     router.back();
   };
@@ -2025,11 +2036,36 @@ export default function MeasurementScreen() {
           <Text
             style={[
               styles.mainSummaryText,
-              { color: theme.accent, fontFamily: "Outfit_600SemiBold" },
+              {
+                color: theme.accent,
+                fontFamily: "Outfit_600SemiBold",
+                flex: 1,
+              },
             ]}
           >
             {t.mainSummaryBanner(formatWeight(mainWeight), mainPcs)}
           </Text>
+          {rows.length === 0 && (
+            <Pressable
+              onPress={handleBackToMain}
+              hitSlop={8}
+              style={({ pressed }) => [
+                styles.backToMainBtn,
+                { opacity: pressed ? 0.6 : 1 },
+              ]}
+              testID="back-to-main-button"
+            >
+              <Feather name="corner-up-left" size={12} color={theme.accent} />
+              <Text
+                style={[
+                  styles.backToMainText,
+                  { color: theme.accent, fontFamily: "Outfit_600SemiBold" },
+                ]}
+              >
+                {t.backToMain}
+              </Text>
+            </Pressable>
+          )}
         </View>
       )}
 
@@ -2365,6 +2401,12 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
   },
   mainSummaryText: { fontSize: 13 },
+  backToMainBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  backToMainText: { fontSize: 12 },
   displayPanel: {
     alignItems: "center",
     paddingVertical: 18,
