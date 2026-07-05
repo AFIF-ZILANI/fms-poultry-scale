@@ -589,7 +589,7 @@ export default function SaleDetailScreen() {
               t={t}
               onPress={() => router.push(`/sale/${id}/logs/main`)}
             />
-            {meta?.isCullSold && (
+            {sale.hasCull && (
               <>
                 <View
                   style={[
