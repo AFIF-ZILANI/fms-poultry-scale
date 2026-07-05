@@ -40,3 +40,4 @@ yarn-error.*
 
 .env
 graphify-out/
+.superpowers/
