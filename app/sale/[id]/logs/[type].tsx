@@ -17,10 +17,12 @@ import { useSettings } from "@/lib/SettingsContext";
 import { formatWeight, formatPcs, sumPcs, formatDateTime } from "@/lib/utils";
 import { loadSales } from "@/lib/storage";
 import type { MeasurementRow, SaleRecord } from "@/lib/types";
+import { useUser } from "@clerk/expo";
 
 export default function SessionLogsScreen() {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
+  const { user } = useUser();
   const { t } = useSettings();
   const { id, type } = useLocalSearchParams<{ id: string; type: string }>();
 
@@ -29,12 +31,20 @@ export default function SessionLogsScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      loadSales().then((sales) => {
-        const found = sales.find((s) => s.id === id) ?? null;
-        setSale(found);
+      if (!id || !user?.id) {
+        setSale(null);
         setLoading(false);
-      });
-    }, [id])
+        return;
+      }
+
+      setLoading(true);
+      loadSales(user.id)
+        .then((sales) => {
+          const foundSale = sales.find((s) => s.id === id);
+          setSale(foundSale ?? null);
+        })
+        .finally(() => setLoading(false));
+    }, [id, user?.id]),
   );
 
   const webTopInset = Platform.OS === "web" ? 67 : 0;
@@ -78,9 +88,7 @@ export default function SessionLogsScreen() {
     );
   }
 
-  const rows: MeasurementRow[] = isCull
-    ? (sale.cullRows ?? [])
-    : sale.rows;
+  const rows: MeasurementRow[] = isCull ? (sale.cullRows ?? []) : sale.rows;
 
   const totalKg = rows.reduce((s, r) => s + r.weightKg, 0);
   const totalPcs = sumPcs(rows);
@@ -149,13 +157,14 @@ export default function SessionLogsScreen() {
         }}
         showsVerticalScrollIndicator={false}
       >
-        <View
-          style={[styles.summaryCard, { backgroundColor: theme.timerBg }]}
-        >
+        <View style={[styles.summaryCard, { backgroundColor: theme.timerBg }]}>
           <View style={styles.summaryStats}>
             <View style={styles.summaryStatItem}>
               <Text
-                style={[styles.summaryStatVal, { fontFamily: "Outfit_700Bold" }]}
+                style={[
+                  styles.summaryStatVal,
+                  { fontFamily: "Outfit_700Bold" },
+                ]}
               >
                 {formatWeight(totalKg)}
               </Text>
@@ -171,9 +180,12 @@ export default function SessionLogsScreen() {
             <View style={styles.summaryDot} />
             <View style={styles.summaryStatItem}>
               <Text
-                style={[styles.summaryStatVal, { fontFamily: "Outfit_700Bold" }]}
+                style={[
+                  styles.summaryStatVal,
+                  { fontFamily: "Outfit_700Bold" },
+                ]}
               >
-                {!isCull && sale.pcsTracked === false ? "—" : totalPcs}
+                {!isCull && sale.isPcsTracked === false ? "—" : totalPcs}
               </Text>
               <Text
                 style={[
@@ -187,7 +199,10 @@ export default function SessionLogsScreen() {
             <View style={styles.summaryDot} />
             <View style={styles.summaryStatItem}>
               <Text
-                style={[styles.summaryStatVal, { fontFamily: "Outfit_700Bold" }]}
+                style={[
+                  styles.summaryStatVal,
+                  { fontFamily: "Outfit_700Bold" },
+                ]}
               >
                 {rows.length}
               </Text>

@@ -113,29 +113,15 @@ export default function SaleDetailScreen() {
     );
   }
 
-  const { deduction } = sale;
-  const hasCull = (sale.cullRows?.length ?? 0) > 0;
-  const cullTotalKg = hasCull
-    ? (sale.cullRows ?? []).reduce((s, r) => s + r.weightKg, 0)
-    : 0;
-  const cullTotalPcs = hasCull
-    ? (sale.cullRows ?? []).reduce((s, r) => s + (r.pcs ?? 0), 0)
-    : 0;
+  const { meta } = sale;
+  const mainAmount = meta ? meta.finalAmount : 0;
+  const subtotalGross = meta ? meta.mainWeightKg - meta.cullWeightKg : 0;
+  const rawCrates = meta ? meta.totalCrates : 0;
 
-  const mainAmount =
-    deduction?.main_amount ??
-    (deduction ? deduction.net_weight * deduction.price_per_kg : 0);
-  const cullAmount = deduction?.cull_amount ?? 0;
-  const cullSold = deduction?.cull_sold ?? false;
   const balanceDue =
-    sale.receivedAmount != null && deduction
-      ? deduction.final_amount - sale.receivedAmount
+    meta?.receivedAmount != null && meta?.finalAmount != null
+      ? meta?.finalAmount - meta?.receivedAmount
       : null;
-
-  const subtotalGross = deduction
-    ? deduction.gross_weight - deduction.cull_weight_kg
-    : 0;
-  const rawCrates = deduction ? subtotalGross / deduction.kg_per_crate : 0;
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
@@ -281,11 +267,11 @@ export default function SaleDetailScreen() {
               >
                 {formatDateTime(sale.createdAt)}
               </Text>
-              {sale.buyerName ? (
+              {meta?.buyerName ? (
                 <Text
                   style={[styles.heroBuyer, { fontFamily: "Outfit_500Medium" }]}
                 >
-                  {sale.buyerName}
+                  {meta.buyerName}
                 </Text>
               ) : null}
             </View>
@@ -295,7 +281,7 @@ export default function SaleDetailScreen() {
               <Text
                 style={[styles.heroStatVal, { fontFamily: "Outfit_700Bold" }]}
               >
-                {formatWeight(sale.totalWeightKg)}
+                {formatWeight(meta?.mainWeightKg ?? 0)}
               </Text>
               <Text
                 style={[
@@ -311,7 +297,8 @@ export default function SaleDetailScreen() {
               <Text
                 style={[styles.heroStatVal, { fontFamily: "Outfit_700Bold" }]}
               >
-                {sale.pcsTracked === false ? "—" : sale.totalPcs}
+                {meta?.totalPcs ??
+                  (sale.isPcsTracked === false ? "—" : meta?.totalPcs)}
               </Text>
               <Text
                 style={[
@@ -327,7 +314,7 @@ export default function SaleDetailScreen() {
               <Text
                 style={[styles.heroStatVal, { fontFamily: "Outfit_700Bold" }]}
               >
-                {formatWeight(sale.averageWeightKg)}
+                {formatWeight(meta?.avgWtGrams ?? 0)}
               </Text>
               <Text
                 style={[
@@ -342,7 +329,7 @@ export default function SaleDetailScreen() {
         </Animated.View>
 
         {/* Deduction card */}
-        {deduction && (
+        {meta && (
           <Animated.View
             entering={
               Platform.OS !== "web"
@@ -370,16 +357,16 @@ export default function SaleDetailScreen() {
               {/* Gross */}
               <DeductionRow
                 label={t.grossWeight}
-                value={`${formatWeight(deduction.gross_weight)} KG`}
+                value={`${formatWeight(meta?.mainWeightKg ?? 0)} KG`}
                 theme={theme}
               />
 
               {/* Cull weight — always shown for transparency */}
-              {deduction.cull_weight_kg > 0 ? (
+              {meta?.cullWeightKg > 0 ? (
                 <>
                   <DeductionRow
                     label={t.cullWeight}
-                    value={`−${formatWeight(deduction.cull_weight_kg)} KG`}
+                    value={`−${formatWeight(meta.cullWeightKg)} KG`}
                     theme={theme}
                     isNegative
                   />
@@ -394,35 +381,33 @@ export default function SaleDetailScreen() {
               )}
 
               {/* Explicit crate floor calculation */}
-              {deduction.full_crates_only ? (
+              {meta.isFullCratesOnly ? (
                 <DeductionRow
-                  label={`${formatWeight(subtotalGross)} ÷ ${deduction.kg_per_crate} = ${rawCrates.toFixed(3)} → ${deduction.total_crates} crates`}
-                  value={`${deduction.total_crates}`}
+                  label={`${formatWeight(subtotalGross)} ÷ ${meta.kgPerCrate} = ${rawCrates.toFixed(3)} → ${meta.totalCrates} crates`}
+                  value={`${meta.totalCrates}`}
                   theme={theme}
                   isIndent
                 />
               ) : (
                 <DeductionRow
                   label={`${t.totalCrates}`}
-                  value={`${deduction.total_crates.toFixed(3)}`}
+                  value={`${meta.totalCrates.toFixed(3)}`}
                   theme={theme}
                 />
               )}
 
               {/* Crate deduction */}
               <DeductionRow
-                label={`${deduction.total_crates} × ${deduction.deduction_per_crate_g}g deduction`}
-                value={`−${formatWeight(deduction.total_deduction_kg)} KG`}
+                label={`${meta.totalCrates} × ${meta.deductionPerCrateG.toFixed(3)}g deduction`}
+                value={`−${formatWeight(meta.totalDeductionWtKg)} KG`}
                 theme={theme}
                 isNegative
               />
 
               {/* Net main weight */}
               <DeductionRow
-                label={
-                  deduction.cull_weight_kg > 0 ? t.payableWeight : t.netWeight
-                }
-                value={`${formatWeight(deduction.net_weight)} KG`}
+                label={meta?.cullWeightKg > 0 ? t.payableWeight : t.netWeight}
+                value={`${formatWeight(meta?.netWeightKg ?? 0)} KG`}
                 theme={theme}
                 isHighlight
               />
@@ -438,26 +423,26 @@ export default function SaleDetailScreen() {
                     },
                   ]}
                 >
-                  × Tk {deduction.price_per_kg.toFixed(2)} / kg
+                  × Tk {meta?.mainPrice?.toFixed(2)} / kg
                 </Text>
               </View>
 
               {/* Main amount */}
               <DeductionRow
                 label={t.mainAmount}
-                value={`Tk ${mainAmount.toLocaleString("en-PK", { maximumFractionDigits: 2 })}`}
+                value={`Tk ${meta?.mainAmount?.toLocaleString("en-PK", { maximumFractionDigits: 2 })}`}
                 theme={theme}
               />
 
               {/* Cull revenue */}
-              {cullSold && cullAmount > 0 && (
+              {meta?.isCullSold && (meta?.cullAmount ?? 0) > 0 && (
                 <DeductionRow
                   label={
-                    deduction.cull_pricing_mode === "per_kg"
-                      ? `${t.cullAmount} (${formatWeight(deduction.cull_weight_kg)} kg × Tk ${deduction.cull_price?.toFixed(2)})`
-                      : `${t.cullAmount} (${deduction.cull_pcs} birds × Tk ${deduction.cull_price?.toFixed(2)})`
+                    meta?.cullSaleType === "weight"
+                      ? `${t.cullAmount} (${formatWeight(meta?.cullWeightKg)} kg × Tk ${meta?.cullPrice?.toFixed(2)})`
+                      : `${t.cullAmount} (${meta?.cullPcs} birds × Tk ${meta?.cullPrice?.toFixed(2)})`
                   }
-                  value={`+ Tk ${cullAmount.toLocaleString("en-PK", { maximumFractionDigits: 2 })}`}
+                  value={`+ Tk ${meta?.cullAmount?.toLocaleString("en-PK", { maximumFractionDigits: 2 })}`}
                   theme={theme}
                   isHighlight
                 />
@@ -485,14 +470,14 @@ export default function SaleDetailScreen() {
                   ]}
                 >
                   Tk{" "}
-                  {deduction.final_amount.toLocaleString("en-PK", {
+                  {meta?.finalAmount?.toLocaleString("en-PK", {
                     maximumFractionDigits: 2,
                   })}
                 </Text>
               </View>
 
               {/* Received */}
-              {sale.receivedAmount != null && sale.receivedAmount > 0 && (
+              {meta?.receivedAmount != null && meta?.receivedAmount > 0 && (
                 <View
                   style={[
                     styles.receivedRow,
@@ -517,7 +502,7 @@ export default function SaleDetailScreen() {
                     ]}
                   >
                     Tk{" "}
-                    {sale.receivedAmount.toLocaleString("en-PK", {
+                    {meta?.receivedAmount?.toLocaleString("en-PK", {
                       maximumFractionDigits: 2,
                     })}
                   </Text>
@@ -571,7 +556,7 @@ export default function SaleDetailScreen() {
         <Animated.View
           entering={
             Platform.OS !== "web"
-              ? FadeInDown.delay(deduction ? 200 : 140).springify()
+              ? FadeInDown.delay(meta?.finalAmount ? 200 : 140).springify()
               : undefined
           }
         >
@@ -595,16 +580,16 @@ export default function SaleDetailScreen() {
           >
             <LogEntryRow
               label={t.mainSession}
-              totalKg={sale.totalWeightKg}
-              totalPcs={sale.totalPcs}
-              rowCount={sale.rows.length}
+              totalKg={meta?.mainWeightKg ?? 0}
+              totalPcs={meta?.totalPcs ?? 0}
+              rowCount={sale.rows.length ?? 0}
               isCull={false}
-              pcsTracked={sale.pcsTracked}
+              pcsTracked={sale.isPcsTracked}
               theme={theme}
               t={t}
               onPress={() => router.push(`/sale/${id}/logs/main`)}
             />
-            {hasCull && (
+            {meta?.isCullSold && (
               <>
                 <View
                   style={[
@@ -614,9 +599,9 @@ export default function SaleDetailScreen() {
                 />
                 <LogEntryRow
                   label={t.cullSession}
-                  totalKg={cullTotalKg}
-                  totalPcs={cullTotalPcs}
-                  rowCount={sale.cullRows!.length}
+                  totalKg={meta?.cullWeightKg}
+                  totalPcs={meta?.cullPcs ?? 0}
+                  rowCount={sale.cullRows?.length ?? 0}
                   isCull
                   theme={theme}
                   t={t}
