@@ -1,8 +1,9 @@
 import { ClerkProvider, ClerkLoaded, useAuth, useUser } from "@clerk/expo";
 import { Stack, useRouter } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
-import React, { useEffect, useRef, useState } from "react";
-import { Platform, View, Text } from "react-native";
+import React, { useEffect, useRef } from "react";
+import { Platform, View, Text, Image } from "react-native";
+import Animated, { FadeOut } from "react-native-reanimated";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
@@ -16,13 +17,16 @@ import {
   Outfit_700Bold,
 } from "@expo-google-fonts/outfit";
 import * as SecureStore from "expo-secure-store";
-import { Image } from "react-native";
 import SplashImage from "@/assets/images/splash-icon.png";
 import { useDbMigrations } from "@/db/client";
 import { DbErrorScreen } from "@/components/DBErrorScreen";
 
 if (Platform.OS !== "web") {
   SplashScreen.preventAutoHideAsync().catch(() => {});
+  // Native splash now cross-fades into whatever's underneath instead of
+  // cutting instantly — paired with matching imageWidth in app.json so the
+  // two layers are the same size and the fade is the only visible change.
+  SplashScreen.setOptions({ duration: 300, fade: true });
 }
 
 const tokenCache = {
@@ -68,7 +72,12 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
 
   if (!isLoaded) {
     // Keep splash visible until auth resolves
-    return <View style={{ flex: 1, backgroundColor: "#0C0C0F" }} />;
+    return (
+      <Animated.View
+        exiting={Platform.OS !== "web" ? FadeOut.duration(300) : undefined}
+        style={{ flex: 1, backgroundColor: "#000000" }}
+      />
+    );
   }
 
   return <>{children}</>;
@@ -94,7 +103,6 @@ function AppLayout() {
   );
 }
 export default function RootLayout() {
-  const [splashVisible, setSplashVisible] = useState(true);
   const { success: dbReady, error: dbError } = useDbMigrations();
   const [fontsLoaded, fontError] = useFonts({
     Outfit_400Regular,
@@ -102,6 +110,7 @@ export default function RootLayout() {
     Outfit_600SemiBold,
     Outfit_700Bold,
   });
+  const showSplash = Platform.OS !== "web" && !((fontsLoaded || fontError) && dbReady);
 
   useEffect(() => {
     if (Platform.OS === "web") {
@@ -110,8 +119,6 @@ export default function RootLayout() {
     }
     if (fontsLoaded || fontError) {
       SplashScreen.hideAsync().catch(() => {});
-      // small delay so transition feels intentional
-      setTimeout(() => setSplashVisible(false), 3000);
     }
   }, [fontsLoaded, fontError]);
 
@@ -132,9 +139,10 @@ export default function RootLayout() {
     return <DbErrorScreen error={dbError} />;
   }
 
-  if ((splashVisible || !dbReady) && Platform.OS !== "web") {
+  if (showSplash) {
     return (
-      <View
+      <Animated.View
+        exiting={FadeOut.duration(300)}
         style={{
           flex: 1,
           backgroundColor: "#000000",
@@ -142,7 +150,8 @@ export default function RootLayout() {
           alignItems: "center",
         }}
       >
-        {/* Your app icon */}
+        {/* Your app icon — same point-size as the native splash's imageWidth
+            in app.json, so this reveal is a no-op swap, not a resize. */}
         <Image
           source={SplashImage}
           style={{ width: 300, height: 300, borderRadius: 25 }}
@@ -169,7 +178,7 @@ export default function RootLayout() {
             Developed by ZeroD Software
           </Text>
         </View>
-      </View>
+      </Animated.View>
     );
   }
 
