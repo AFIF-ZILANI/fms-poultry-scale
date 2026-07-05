@@ -13,8 +13,6 @@ import type { DraftSummary, MeasurementRow, SaleRecord } from "./types";
 
 import * as Crypto from "expo-crypto";
 
-const UUID = Crypto.randomUUID();
-
 // ─── Sales ────────────────────────────────────────────────────────────────────
 
 async function hydrateSale(
@@ -143,9 +141,10 @@ export async function createSale(
   userId: string,
   isPcsTracked: boolean,
 ): Promise<string> {
+  const id = Crypto.randomUUID();
   const now = new Date();
   await db.insert(sales).values({
-    id: UUID,
+    id,
     userId,
     phase: "main",
     isPcsTracked,
@@ -154,7 +153,7 @@ export async function createSale(
     createdAt: now,
     updatedAt: now,
   });
-  return UUID;
+  return id;
 }
 
 export async function saveSale(
@@ -207,7 +206,7 @@ export async function saveSale(
     if (sale.meta) {
       const m = sale.meta;
       await tx.insert(saleMetaData).values({
-        id: UUID,
+        id: Crypto.randomUUID(),
         saleId: sale.id,
         mainWeightKg: m.mainWeightKg,
         mainPcs: m.mainPcs,
@@ -307,7 +306,7 @@ export async function updateSale(
         (prev.weight !== updated.weightKg || prev.pcs !== updated.pcs)
       ) {
         await tx.insert(rowEditHistory).values({
-          id: UUID,
+          id: Crypto.randomUUID(),
           rowId: prev.id,
           previousWeight: prev.weight,
           previousPcs: prev.pcs,

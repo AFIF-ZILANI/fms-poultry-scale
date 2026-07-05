@@ -1,4 +1,4 @@
-import { sqliteTable, text, real, integer } from "drizzle-orm/sqlite-core";
+import { sqliteTable, text, real, integer, index, uniqueIndex } from "drizzle-orm/sqlite-core";
 import { relations } from "drizzle-orm";
 
 // ─── Users ───
@@ -42,7 +42,9 @@ export const sales = sqliteTable("sales", {
   updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
   synced: integer("synced", { mode: "boolean" }).notNull().default(false),
   syncedAt: integer("synced_at", { mode: "timestamp" }),
-});
+}, (table) => ({
+  userIdIdx: index("sales_user_id_idx").on(table.userId, table.isFinished, table.updatedAt),
+}));
 
 // ─── Sale Meta Data ───
 export const saleMetaData = sqliteTable("sale_meta_data", {
@@ -80,7 +82,9 @@ export const saleMetaData = sqliteTable("sale_meta_data", {
   totalCrates: real("total_crates").notNull(),
   totalPcs: integer("total_pcs"),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
-});
+}, (table) => ({
+  saleIdIdx: uniqueIndex("sale_meta_data_sale_id_idx").on(table.saleId),
+}));
 
 // ─── Measurement Rows ───
 export const measurementRows = sqliteTable("measurement_rows", {
@@ -92,7 +96,9 @@ export const measurementRows = sqliteTable("measurement_rows", {
   weight: real("weight").notNull(),
   pcs: integer("pcs"), // null if not pcs-tracked
   createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
-});
+}, (table) => ({
+  saleIdTypeIdx: index("measurement_rows_sale_id_type_idx").on(table.saleId, table.type),
+}));
 
 // ─── Row Edit History ───
 export const rowEditHistory = sqliteTable("row_edit_history", {
@@ -106,7 +112,9 @@ export const rowEditHistory = sqliteTable("row_edit_history", {
   newPcs: integer("new_pcs"),
   reason: text("reason"),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
-});
+}, (table) => ({
+  rowIdIdx: index("row_edit_history_row_id_idx").on(table.rowId),
+}));
 
 // ─── User Prefs ───
 export const userPrefs = sqliteTable("user_prefs", {
