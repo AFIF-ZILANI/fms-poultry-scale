@@ -40,3 +40,5 @@ yarn-error.*
 
 .env
 graphify-out/
+
+kickbacks.vsix
