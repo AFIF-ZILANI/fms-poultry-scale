@@ -8,11 +8,6 @@
     "scheme": "poultryscale",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
-    "splash": {
-      "image": "./assets/images/splash-icon.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#000000"
-    },
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.poultryscale"
@@ -32,6 +27,15 @@
       "expo-font",
       "expo-web-browser",
       "expo-secure-store",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/images/splash-icon.png",
+          "imageWidth": 300,
+          "resizeMode": "contain",
+          "backgroundColor": "#000000"
+        }
+      ],
       [
         "expo-build-properties",
         {
