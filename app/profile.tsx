@@ -212,86 +212,86 @@ export default function ProfileScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: insets.bottom + 40 }}
       >
-        {/* ── Identity card ── */}
+        {/* ── Identity hero ── */}
         <Animated.View
-          style={[styles.identityCard, { backgroundColor: theme.surface, borderColor: theme.borderLight }]}
           entering={Platform.OS !== "web" ? FadeInDown.delay(30).springify() : undefined}
         >
-          {/* Avatar with ring */}
-          <View style={styles.avatarWrap}>
-            <View style={[styles.avatarRing, { borderColor: theme.accent + "40" }]}>
-              <LinearGradient colors={["#4080FF", "#2060D0"]} style={styles.avatarGrad}>
-                <Text style={[styles.avatarInitials, { fontFamily: "Outfit_700Bold" }]}>{initials}</Text>
-              </LinearGradient>
-            </View>
-            {isPremium && (
-              <View style={[styles.premiumBadgePin, { backgroundColor: "#FBBF24", borderColor: theme.surface }]}>
-                <MaterialCommunityIcons name="shield-check" size={11} color="#fff" />
+          <LinearGradient
+            colors={theme.isDark ? [theme.accent, theme.accentMuted] : [theme.accent, theme.accentDark]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.identityCard}
+          >
+            {/* Avatar with ring */}
+            <View style={styles.avatarWrap}>
+              <View style={styles.avatarRing}>
+                <View style={styles.avatarGrad}>
+                  <Text style={[styles.avatarInitials, { color: theme.accent, fontFamily: "Outfit_700Bold" }]}>
+                    {initials}
+                  </Text>
+                </View>
               </View>
-            )}
-          </View>
+              {isPremium && (
+                <View style={[styles.premiumBadgePin, { backgroundColor: "#FBBF24" }]}>
+                  <MaterialCommunityIcons name="shield-check" size={11} color="#fff" />
+                </View>
+              )}
+            </View>
 
-          <Text style={[styles.identityName, { color: theme.text, fontFamily: "Outfit_700Bold" }]}>
-            {displayName}
-          </Text>
-          {email ? (
-            <Text style={[styles.identityEmail, { color: theme.textTertiary, fontFamily: "Outfit_400Regular" }]}>
-              {email}
+            <Text style={[styles.identityName, { fontFamily: "Outfit_700Bold" }]}>
+              {displayName}
             </Text>
-          ) : null}
+            {email ? (
+              <Text style={[styles.identityEmail, { fontFamily: "Outfit_400Regular" }]}>
+                {email}
+              </Text>
+            ) : null}
 
-          {/* Role + Plan tags */}
-          <View style={styles.tagRow}>
-            <View style={[styles.tag, { backgroundColor: isFarmer ? theme.accentLight : theme.warmLight }]}>
-              <MaterialCommunityIcons
-                name={isFarmer ? "barn" : "store-outline"}
-                size={13}
-                color={isFarmer ? theme.accent : theme.warm}
-              />
-              <Text style={[styles.tagText, {
-                color: isFarmer ? theme.accent : theme.warm,
-                fontFamily: "Outfit_600SemiBold",
-              }]}>
-                {isFarmer ? t.farmerRole : t.wholesalerRole}
-              </Text>
+            {/* Role + Plan tags */}
+            <View style={styles.tagRow}>
+              <View style={styles.tag}>
+                <MaterialCommunityIcons
+                  name={isFarmer ? "barn" : "store-outline"}
+                  size={13}
+                  color="#FFFFFF"
+                />
+                <Text style={[styles.tagText, { fontFamily: "Outfit_600SemiBold" }]}>
+                  {isFarmer ? t.farmerRole : t.wholesalerRole}
+                </Text>
+              </View>
+              <View style={styles.tag}>
+                <MaterialCommunityIcons
+                  name={isPremium ? "shield-check" : "account-group-outline"}
+                  size={13}
+                  color="#FFFFFF"
+                />
+                <Text style={[styles.tagText, { fontFamily: "Outfit_600SemiBold" }]}>
+                  {isPremium ? t.premiumBadge : t.communityBadge}
+                </Text>
+              </View>
             </View>
-            <View style={[styles.tag, {
-              backgroundColor: isPremium ? theme.warmLight : theme.borderLight,
-            }]}>
-              <MaterialCommunityIcons
-                name={isPremium ? "shield-check" : "account-group-outline"}
-                size={13}
-                color={isPremium ? theme.warm : theme.textTertiary}
-              />
-              <Text style={[styles.tagText, {
-                color: isPremium ? theme.warm : theme.textTertiary,
-                fontFamily: "Outfit_600SemiBold",
-              }]}>
-                {isPremium ? t.premiumBadge : t.communityBadge}
-              </Text>
-            </View>
-          </View>
 
-          {/* Stats */}
-          <View style={[styles.statsRow, { borderTopColor: theme.borderLight }]}>
-            <View style={styles.statItem}>
-              <Text style={[styles.statVal, { color: theme.text, fontFamily: "Outfit_700Bold" }]}>
-                {totalSales}
-              </Text>
-              <Text style={[styles.statLabel, { color: theme.textTertiary, fontFamily: "Outfit_400Regular" }]}>
-                {t.dashTotalSales}
-              </Text>
+            {/* Stats */}
+            <View style={styles.statsRow}>
+              <View style={styles.statItem}>
+                <Text style={[styles.statVal, { fontFamily: "Outfit_700Bold" }]}>
+                  {totalSales}
+                </Text>
+                <Text style={[styles.statLabel, { fontFamily: "Outfit_400Regular" }]}>
+                  {t.dashTotalSales}
+                </Text>
+              </View>
+              <View style={styles.statDivider} />
+              <View style={styles.statItem}>
+                <Text style={[styles.statVal, { fontFamily: "Outfit_700Bold" }]}>
+                  {fmtRevenue}
+                </Text>
+                <Text style={[styles.statLabel, { fontFamily: "Outfit_400Regular" }]}>
+                  {t.dashRevenue}
+                </Text>
+              </View>
             </View>
-            <View style={[styles.statDivider, { backgroundColor: theme.borderLight }]} />
-            <View style={styles.statItem}>
-              <Text style={[styles.statVal, { color: theme.text, fontFamily: "Outfit_700Bold" }]}>
-                {fmtRevenue}
-              </Text>
-              <Text style={[styles.statLabel, { color: theme.textTertiary, fontFamily: "Outfit_400Regular" }]}>
-                {t.dashRevenue}
-              </Text>
-            </View>
-          </View>
+          </LinearGradient>
         </Animated.View>
 
         <View style={styles.body}>
@@ -513,54 +513,57 @@ const styles = StyleSheet.create({
 
   // Identity card
   identityCard: {
-    marginHorizontal: 16,
-    marginTop: 20,
-    borderRadius: 22,
-    borderWidth: 1,
     alignItems: "center",
-    paddingTop: 28,
+    paddingTop: 32,
     paddingBottom: 0,
+    borderBottomLeftRadius: 32,
+    borderBottomRightRadius: 32,
     overflow: "hidden",
     ...Platform.select({
-      ios: { shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.08, shadowRadius: 12 },
-      android: { elevation: 3 },
+      ios: { shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.12, shadowRadius: 14 },
+      android: { elevation: 4 },
     }),
   },
   avatarWrap: { position: "relative", marginBottom: 14 },
   avatarRing: {
     width: 90, height: 90, borderRadius: 30,
     borderWidth: 3,
+    borderColor: "rgba(255,255,255,0.5)",
     padding: 3,
   },
   avatarGrad: {
     flex: 1, borderRadius: 26,
+    backgroundColor: "#FFFFFF",
     alignItems: "center", justifyContent: "center",
   },
-  avatarInitials: { fontSize: 32, color: "#fff" },
+  avatarInitials: { fontSize: 32 },
   premiumBadgePin: {
     position: "absolute",
     bottom: -2, right: -2,
     width: 22, height: 22, borderRadius: 11,
     borderWidth: 2,
+    borderColor: "#FFFFFF",
     alignItems: "center", justifyContent: "center",
   },
-  identityName: { fontSize: 22, marginBottom: 4 },
-  identityEmail: { fontSize: 13, marginBottom: 14 },
+  identityName: { fontSize: 22, marginBottom: 4, color: "#FFFFFF" },
+  identityEmail: { fontSize: 13, marginBottom: 14, color: "rgba(255,255,255,0.75)" },
   tagRow: { flexDirection: "row", gap: 8, marginBottom: 20 },
   tag: {
     flexDirection: "row", alignItems: "center", gap: 5,
     paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20,
+    backgroundColor: "rgba(255,255,255,0.18)",
   },
-  tagText: { fontSize: 12 },
+  tagText: { fontSize: 12, color: "#FFFFFF" },
   statsRow: {
     flexDirection: "row",
     width: "100%",
     borderTopWidth: 1,
+    borderTopColor: "rgba(255,255,255,0.22)",
   },
   statItem: { flex: 1, alignItems: "center", paddingVertical: 16 },
-  statVal: { fontSize: 22, marginBottom: 3 },
-  statLabel: { fontSize: 11, textTransform: "uppercase", letterSpacing: 0.5 },
-  statDivider: { width: 1, marginVertical: 12 },
+  statVal: { fontSize: 22, marginBottom: 3, color: "#FFFFFF" },
+  statLabel: { fontSize: 11, textTransform: "uppercase", letterSpacing: 0.5, color: "rgba(255,255,255,0.7)" },
+  statDivider: { width: 1, marginVertical: 12, backgroundColor: "rgba(255,255,255,0.22)" },
 
   // Section
   body: { paddingHorizontal: 16, paddingTop: 8, gap: 0 },
