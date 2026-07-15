@@ -10,6 +10,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router } from "expo-router";
+import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons, Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useUser } from "@clerk/expo";
@@ -152,19 +153,13 @@ export default function SettingsScreen() {
         >
           {t.sectionLanguage}
         </Text>
-        <View
-          style={[
-            styles.card,
-            { backgroundColor: theme.surface, borderColor: theme.borderLight },
-          ]}
-        >
+        <View style={styles.chipGroup}>
           <OptionRow
             icon={<Feather name="globe" size={18} color={theme.accent} />}
             label={t.english}
             selected={language === "en"}
             onPress={() => handleLanguage("en")}
             theme={theme}
-            isLast={false}
           />
           <OptionRow
             icon={
@@ -178,7 +173,6 @@ export default function SettingsScreen() {
             selected={language === "bn"}
             onPress={() => handleLanguage("bn")}
             theme={theme}
-            isLast
           />
         </View>
 
@@ -194,13 +188,8 @@ export default function SettingsScreen() {
         >
           {t.sectionAppearance}
         </Text>
-        <View
-          style={[
-            styles.card,
-            { backgroundColor: theme.surface, borderColor: theme.borderLight },
-          ]}
-        >
-          {themeOptions.map((opt, idx) => (
+        <View style={styles.chipGroup}>
+          {themeOptions.map((opt) => (
             <OptionRow
               key={opt.key}
               icon={
@@ -220,7 +209,6 @@ export default function SettingsScreen() {
               selected={themePreference === opt.key}
               onPress={() => handleTheme(opt.key)}
               theme={theme}
-              isLast={idx === themeOptions.length - 1}
             />
           ))}
         </View>
@@ -237,12 +225,7 @@ export default function SettingsScreen() {
         >
           {t.sectionDefaults}
         </Text>
-        <View
-          style={[
-            styles.card,
-            { backgroundColor: theme.surface, borderColor: theme.borderLight },
-          ]}
-        >
+        <View style={styles.chipGroup}>
           <InputRow
             label={t.logGroupSize}
             value={chunkSize}
@@ -252,7 +235,6 @@ export default function SettingsScreen() {
             placeholder="e.g. 10"
             keyboardType="numeric"
             theme={theme}
-            isLast={false}
           />
           <InputRow
             label={t.defaultKgPerCrate}
@@ -260,7 +242,6 @@ export default function SettingsScreen() {
             onChange={setDefaultKgPerCrate}
             placeholder="e.g. 20"
             theme={theme}
-            isLast={false}
           />
           <InputRow
             label={t.defaultDeductionG}
@@ -268,7 +249,6 @@ export default function SettingsScreen() {
             onChange={setDefaultDeductionG}
             placeholder="e.g. 300"
             theme={theme}
-            isLast={false}
           />
           <InputRow
             label={t.defaultPricePerKg}
@@ -276,7 +256,6 @@ export default function SettingsScreen() {
             onChange={setDefaultPrice}
             placeholder="e.g. 250"
             theme={theme}
-            isLast
           />
         </View>
         <Text
@@ -291,13 +270,13 @@ export default function SettingsScreen() {
         >
           {t.sectionFarm}
         </Text>
-        <View
-          style={[
-            styles.card,
-            { backgroundColor: theme.surface, borderColor: theme.borderLight },
-          ]}
-        >
-          <View style={[styles.inputRow, { borderBottomWidth: 0 }]}>
+        <View style={styles.chipGroup}>
+          <View
+            style={[
+              styles.chipRow,
+              { backgroundColor: theme.surface, borderColor: theme.borderLight },
+            ]}
+          >
             <Text
               style={[
                 styles.inputLabel,
@@ -330,17 +309,21 @@ export default function SettingsScreen() {
         <Pressable
           onPress={handleSaveDefaults}
           style={({ pressed }) => [
-            styles.saveBtn,
-            {
-              backgroundColor: theme.accent,
-              transform: [{ scale: pressed ? 0.97 : 1 }],
-            },
+            styles.saveBtnWrap,
+            { transform: [{ scale: pressed ? 0.97 : 1 }] },
           ]}
         >
-          <Feather name="save" size={16} color="#FFF" />
-          <Text style={[styles.saveBtnText, { fontFamily: "Outfit_700Bold" }]}>
-            {t.save}
-          </Text>
+          <LinearGradient
+            colors={theme.isDark ? [theme.accent, theme.accentMuted] : [theme.accent, theme.accentDark]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.saveBtn}
+          >
+            <Feather name="save" size={16} color="#FFF" />
+            <Text style={[styles.saveBtnText, { fontFamily: "Outfit_700Bold" }]}>
+              {t.save}
+            </Text>
+          </LinearGradient>
         </Pressable>
       </ScrollView>
     </View>
@@ -353,25 +336,23 @@ function OptionRow({
   selected,
   onPress,
   theme,
-  isLast,
 }: {
   icon: React.ReactNode;
   label: string;
   selected: boolean;
   onPress: () => void;
   theme: ReturnType<typeof useTheme>;
-  isLast: boolean;
 }) {
   return (
     <Pressable
       onPress={onPress}
       style={({ pressed }) => [
-        styles.optionRow,
-        !isLast && {
-          borderBottomWidth: 1,
-          borderBottomColor: theme.borderLight,
+        styles.chipRow,
+        {
+          backgroundColor: selected ? theme.accentLight : theme.surface,
+          borderColor: selected ? theme.accent + "40" : theme.borderLight,
+          opacity: pressed ? 0.7 : 1,
         },
-        { opacity: pressed ? 0.7 : 1 },
       ]}
     >
       <View style={[styles.optionIcon, { backgroundColor: theme.accentLight }]}>
@@ -403,7 +384,6 @@ function InputRow({
   onChange,
   placeholder,
   theme,
-  isLast,
   keyboardType = "decimal-pad",
 }: {
   label: string;
@@ -411,17 +391,13 @@ function InputRow({
   onChange: (v: string) => void;
   placeholder: string;
   theme: ReturnType<typeof useTheme>;
-  isLast: boolean;
   keyboardType?: "decimal-pad" | "numeric";
 }) {
   return (
     <View
       style={[
-        styles.inputRow,
-        !isLast && {
-          borderBottomWidth: 1,
-          borderBottomColor: theme.borderLight,
-        },
+        styles.chipRow,
+        { backgroundColor: theme.surface, borderColor: theme.borderLight },
       ]}
     >
       <Text
@@ -477,17 +453,15 @@ const styles = StyleSheet.create({
     marginBottom: 6,
     textTransform: "uppercase",
   },
-  card: {
-    borderRadius: 18,
-    borderWidth: 1,
-    overflow: "hidden",
-  },
-  optionRow: {
+  chipGroup: { gap: 8 },
+  chipRow: {
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 16,
-    paddingVertical: 14,
+    paddingVertical: 13,
     gap: 12,
+    borderRadius: 16,
+    borderWidth: 1,
   },
   optionIcon: {
     width: 36,
@@ -504,13 +478,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  inputRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-  },
   inputLabel: { flex: 1, fontSize: 14 },
   textInput: {
     height: 40,
@@ -521,14 +488,17 @@ const styles = StyleSheet.create({
     fontSize: 16,
     textAlign: "right",
   },
+  saveBtnWrap: {
+    borderRadius: 16,
+    overflow: "hidden",
+    marginTop: 4,
+  },
   saveBtn: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
     height: 50,
-    borderRadius: 16,
-    marginTop: 4,
   },
   saveBtnText: { color: "#FFF", fontSize: 15 },
 });
