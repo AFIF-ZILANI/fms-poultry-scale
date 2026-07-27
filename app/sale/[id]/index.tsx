@@ -20,10 +20,16 @@ import { useUser } from "@clerk/expo";
 import { useTheme } from "@/lib/useTheme";
 import { useSettings } from "@/lib/SettingsContext";
 import { formatWeight, formatDateTime } from "@/lib/utils";
-import { loadSale, loadFarmName } from "@/lib/storage";
+import {
+  loadSale,
+  loadFarmName,
+  loadBatches,
+  assignSaleToBatch,
+} from "@/lib/storage";
 import { ReceiptView } from "@/components/ReceiptView";
 import { generateReceiptHtml } from "@/lib/receiptHtml";
-import type { SaleRecord } from "@/lib/types";
+import * as Haptics from "expo-haptics";
+import type { BatchSummary, SaleRecord } from "@/lib/types";
 
 export default function SaleDetailScreen() {
   const theme = useTheme();
@@ -37,17 +43,28 @@ export default function SaleDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [showReceipt, setShowReceipt] = useState(false);
   const [sharing, setSharing] = useState(false);
+  const [batches, setBatches] = useState<BatchSummary[]>([]);
+
+  const handleMoveToBatch = async (batchId?: string) => {
+    if (!sale) return;
+    await assignSaleToBatch(sale.id, batchId ?? null);
+    setSale({ ...sale, batchId });
+    if (Platform.OS !== "web") Haptics.selectionAsync();
+  };
 
   useFocusEffect(
     useCallback(() => {
       if (!user?.id) return;
-      Promise.all([loadSale(id), loadFarmName(user.id)]).then(
-        ([found, name]) => {
-          setSale(found);
-          setFarmName(name);
-          setLoading(false);
-        },
-      );
+      Promise.all([
+        loadSale(id),
+        loadFarmName(user.id),
+        loadBatches(user.id),
+      ]).then(([found, name, batchData]) => {
+        setSale(found);
+        setFarmName(name);
+        setBatches(batchData);
+        setLoading(false);
+      });
     }, [id, user?.id]),
   );
 
@@ -610,6 +627,62 @@ export default function SaleDetailScreen() {
             )}
           </View>
         </Animated.View>
+
+        {/* Move this session into (or out of) a batch. Only offered once the
+            farmer actually has batches. */}
+        {batches.length > 0 && (
+          <View style={{ marginTop: 12, gap: 7 }}>
+            <Text
+              style={[
+                styles.moveLabel,
+                { color: theme.textTertiary, fontFamily: "Outfit_600SemiBold" },
+              ]}
+            >
+              {t.moveToBatch}
+            </Text>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ gap: 7, paddingRight: 4 }}
+            >
+              {[undefined, ...batches.map((b) => b.id)].map((bid) => {
+                const selected = sale.batchId === bid;
+                const label =
+                  bid === undefined
+                    ? t.noBatch
+                    : (batches.find((b) => b.id === bid)?.name ?? "");
+                return (
+                  <Pressable
+                    key={bid ?? "none"}
+                    onPress={() => handleMoveToBatch(bid)}
+                    style={({ pressed }) => [
+                      styles.batchChip,
+                      {
+                        backgroundColor: selected
+                          ? theme.accent
+                          : theme.borderLight,
+                        opacity: pressed ? 0.7 : 1,
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.batchChipText,
+                        {
+                          color: selected ? "#fff" : theme.textSecondary,
+                          fontFamily: "Outfit_600SemiBold",
+                        },
+                      ]}
+                      numberOfLines={1}
+                    >
+                      {label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          </View>
+        )}
       </ScrollView>
     </View>
   );
@@ -796,6 +869,14 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   shareBtnText: { fontSize: 13, color: "#FFF" },
+  moveLabel: { fontSize: 10, letterSpacing: 0.8 },
+  batchChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+    maxWidth: 180,
+  },
+  batchChipText: { fontSize: 12 },
 
   // Hero
   heroCard: { borderRadius: 22, padding: 20, marginBottom: 20 },

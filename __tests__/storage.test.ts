@@ -5,6 +5,13 @@ import {
   saveSale,
   deleteSale,
   getSaleStats,
+  loadBatches,
+  loadBatch,
+  createBatch,
+  renameBatch,
+  setBatchClosed,
+  deleteBatch,
+  assignSaleToBatch,
   getUserPrefs,
   saveUserPrefs,
   loadLastPricePerKg,
@@ -428,6 +435,285 @@ describe("getSaleStats", () => {
     expect(await getSaleStats("user-1")).toEqual({
       totalSales: 1,
       totalRevenue: 0,
+    });
+  });
+});
+
+// ─── Batches ──────────────────────────────────────────────────────────────────
+
+describe("batches", () => {
+  // finalAmount 900, receivedAmount 400 → 500 still due
+  const partlyPaid = (id: string, batchId: string) =>
+    makeSale({
+      id,
+      batchId,
+      meta: makeMeta({
+        finalAmount: 900,
+        receivedAmount: 400,
+        totalPcs: 10,
+        netWeightKg: 9,
+      }),
+    });
+
+  it("starts empty and reports zeroes, not nulls", async () => {
+    const id = "b-id";
+    await createBatch("user-1", id, "Shed 1");
+    const [batch] = await loadBatches("user-1");
+
+    expect(batch).toMatchObject({
+      id,
+      name: "Shed 1",
+      sessionCount: 0,
+      draftCount: 0,
+      birds: 0,
+      weightKg: 0,
+      revenue: 0,
+      received: 0,
+      due: 0,
+    });
+    expect(batch.closedAt).toBeUndefined();
+  });
+
+  it("rolls up birds, weight, revenue and due across sessions", async () => {
+    const id = "b-id";
+    await createBatch("user-1", id, "Shed 1");
+    await saveSale("user-1", partlyPaid("s1", id));
+    await saveSale("user-1", partlyPaid("s2", id));
+
+    const [batch] = await loadBatches("user-1");
+    expect(batch).toMatchObject({
+      sessionCount: 2,
+      birds: 20,
+      weightKg: 18,
+      revenue: 1800,
+      received: 800,
+      due: 1000,
+    });
+  });
+
+  it("counts an unfinished session but takes no money from it", async () => {
+    const id = "b-id";
+    await createBatch("user-1", id, "Shed 1");
+    await saveSale("user-1", partlyPaid("done", id));
+    await saveSale(
+      "user-1",
+      makeSale({ id: "wip", batchId: id, isFinished: false, meta: undefined }),
+    );
+
+    const [batch] = await loadBatches("user-1");
+    expect(batch).toMatchObject({
+      sessionCount: 2,
+      draftCount: 1,
+      revenue: 900,
+      due: 500,
+    });
+  });
+
+  it("treats a fully paid session as owing nothing", async () => {
+    const id = "b-id";
+    await createBatch("user-1", id, "Shed 1");
+    await saveSale(
+      "user-1",
+      makeSale({
+        id: "paid",
+        batchId: id,
+        meta: makeMeta({ finalAmount: 900, receivedAmount: 900 }),
+      }),
+    );
+
+    expect((await loadBatches("user-1"))[0].due).toBe(0);
+  });
+
+  // An overpaid session must not quietly cancel out a real debt elsewhere.
+  it("does not let an overpaid session hide another session's due", async () => {
+    const id = "b-id";
+    await createBatch("user-1", id, "Shed 1");
+    await saveSale(
+      "user-1",
+      makeSale({
+        id: "over",
+        batchId: id,
+        meta: makeMeta({ finalAmount: 500, receivedAmount: 900 }),
+      }),
+    );
+    await saveSale(
+      "user-1",
+      makeSale({
+        id: "owing",
+        batchId: id,
+        meta: makeMeta({ finalAmount: 900, receivedAmount: 0 }),
+      }),
+    );
+
+    expect((await loadBatches("user-1"))[0].due).toBe(900);
+  });
+
+  it("ignores sessions that belong to no batch", async () => {
+    const id = "b-id";
+    await createBatch("user-1", id, "Shed 1");
+    await saveSale("user-1", partlyPaid("in", id));
+    await saveSale("user-1", makeSale({ id: "out" }));
+
+    expect((await loadBatches("user-1"))[0].sessionCount).toBe(1);
+  });
+
+  it("hides closed batches unless asked for, keeping their totals", async () => {
+    const id = "b-id";
+    await createBatch("user-1", id, "Shed 1");
+    await saveSale("user-1", partlyPaid("s1", id));
+    await setBatchClosed(id, true);
+
+    expect(await loadBatches("user-1")).toEqual([]);
+
+    const [closed] = await loadBatches("user-1", { includeClosed: true });
+    expect(closed.closedAt).toEqual(expect.any(Number));
+    expect(closed.revenue).toBe(900);
+  });
+
+  it("reopens a closed batch", async () => {
+    const id = "b-id";
+    await createBatch("user-1", id, "Shed 1");
+    await setBatchClosed(id, true);
+    await setBatchClosed(id, false);
+
+    const [batch] = await loadBatches("user-1");
+    expect(batch.closedAt).toBeUndefined();
+  });
+
+  it("lists active batches before closed ones", async () => {
+    const closed = "b-closed";
+    await createBatch("user-1", closed, "Old");
+    await setBatchClosed(closed, true);
+    const active = "b-active";
+    await createBatch("user-1", active, "New");
+
+    const all = await loadBatches("user-1", { includeClosed: true });
+    expect(all.map((b) => b.id)).toEqual([active, closed]);
+  });
+
+  it("isolates batches by user", async () => {
+    await createBatch("user-1", "b1", "Mine");
+    expect(await loadBatches("user-2")).toEqual([]);
+  });
+
+  it("renames a batch", async () => {
+    const id = "b-id";
+    await createBatch("user-1", id, "Typo");
+    await renameBatch(id, "  Shed 2  ");
+    expect((await loadBatches("user-1"))[0].name).toBe("Shed 2");
+  });
+
+  describe("loadBatch", () => {
+    it("returns the batch with its sessions, newest first", async () => {
+      const id = "b-id";
+    await createBatch("user-1", id, "Shed 1");
+      // Distinct row ids: measurement_rows.id is a global PK, and in the app
+      // every row id is a fresh UUID.
+      await saveSale(
+        "user-1",
+        makeSale({
+          id: "older",
+          batchId: id,
+          createdAt: 1_000,
+          rows: [makeRow({ id: "r-old" })],
+        }),
+      );
+      await saveSale(
+        "user-1",
+        makeSale({
+          id: "newer",
+          batchId: id,
+          createdAt: 2_000,
+          rows: [makeRow({ id: "r-new" })],
+        }),
+      );
+
+      const loaded = await loadBatch(id);
+      expect(loaded?.batch.name).toBe("Shed 1");
+      expect(loaded?.sales.map((s) => s.id)).toEqual(["newer", "older"]);
+      expect(loaded?.sales[0].rows).toHaveLength(1);
+    });
+
+    it("returns null for an unknown batch", async () => {
+      expect(await loadBatch("nope")).toBeNull();
+    });
+  });
+
+  describe("assignment", () => {
+    it("moves a standalone sale into a batch", async () => {
+      const id = "b-id";
+    await createBatch("user-1", id, "Shed 1");
+      await saveSale("user-1", makeSale({ id: "s1" }));
+      await assignSaleToBatch("s1", id);
+
+      expect((await loadSale("s1"))?.batchId).toBe(id);
+      expect((await loadBatches("user-1"))[0].sessionCount).toBe(1);
+    });
+
+    it("moves a sale between batches", async () => {
+      const a = "b-a";
+    await createBatch("user-1", a, "A");
+      const b = "b-b";
+    await createBatch("user-1", b, "B");
+      await saveSale("user-1", partlyPaid("s1", a));
+      await assignSaleToBatch("s1", b);
+
+      const all = await loadBatches("user-1");
+      expect(all.find((x) => x.id === a)?.sessionCount).toBe(0);
+      expect(all.find((x) => x.id === b)?.sessionCount).toBe(1);
+    });
+
+    it("removes a sale from its batch without deleting it", async () => {
+      const id = "b-id";
+    await createBatch("user-1", id, "Shed 1");
+      await saveSale("user-1", partlyPaid("s1", id));
+      await assignSaleToBatch("s1", null);
+
+      expect((await loadSale("s1"))?.batchId).toBeUndefined();
+      expect((await loadBatches("user-1"))[0].sessionCount).toBe(0);
+    });
+
+    it("keeps the batch across draft autosaves", async () => {
+      const id = "b-id";
+    await createBatch("user-1", id, "Shed 1");
+      const draft = makeSale({ id: "wip", batchId: id, isFinished: false, meta: undefined });
+      await saveSale("user-1", draft);
+      await saveSale("user-1", { ...draft, updatedAt: 2_000 });
+
+      expect((await loadSale("wip"))?.batchId).toBe(id);
+    });
+  });
+
+  // The whole point of ON DELETE SET NULL — a farmer's sales are never
+  // collateral damage from tidying up batches.
+  describe("deleteBatch", () => {
+    it("keeps the sessions and turns them back into standalone sales", async () => {
+      const id = "b-id";
+    await createBatch("user-1", id, "Shed 1");
+      await saveSale("user-1", partlyPaid("s1", id));
+      await saveSale("user-1", partlyPaid("s2", id));
+
+      await deleteBatch(id);
+
+      expect(await loadBatches("user-1", { includeClosed: true })).toEqual([]);
+      const remaining = await loadSales("user-1");
+      expect(remaining.map((s) => s.id).sort()).toEqual(["s1", "s2"]);
+      expect(remaining.every((s) => s.batchId === undefined)).toBe(true);
+    });
+
+    it("keeps the sessions' rows and money intact", async () => {
+      const id = "b-id";
+    await createBatch("user-1", id, "Shed 1");
+      await saveSale("user-1", partlyPaid("s1", id));
+      await deleteBatch(id);
+
+      const sale = await loadSale("s1");
+      expect(sale?.rows).toHaveLength(1);
+      expect(sale?.meta?.finalAmount).toBe(900);
+      expect(await getSaleStats("user-1")).toEqual({
+        totalSales: 1,
+        totalRevenue: 900,
+      });
     });
   });
 });

@@ -2,14 +2,16 @@
 import { db } from "../db/client";
 import {
   users,
+  batches,
   sales,
   saleMetaData,
   measurementRows,
   rowEditHistory,
   userPrefs,
 } from "../db/schema";
-import { eq, and, desc, notInArray, sql } from "drizzle-orm";
+import { eq, and, asc, desc, isNull, notInArray, sql } from "drizzle-orm";
 import type {
+  BatchSummary,
   DraftSummary,
   MeasurementRow,
   RowEditEntry,
@@ -82,6 +84,7 @@ function toSaleRecord(row: SaleWithRelations): SaleRecord {
   return {
     id: row.id,
     userId: row.userId,
+    batchId: row.batchId ?? undefined,
     phase: row.phase,
     isPcsTracked: row.isPcsTracked,
     hasCull: row.hasCull,
@@ -208,6 +211,7 @@ export async function saveSale(
       .values({
         id: sale.id,
         userId,
+        batchId: sale.batchId ?? null,
         phase: sale.phase,
         isPcsTracked: sale.isPcsTracked,
         hasCull: sale.hasCull,
@@ -218,6 +222,9 @@ export async function saveSale(
       .onConflictDoUpdate({
         target: sales.id,
         set: {
+          // The measurement screen owns the sale while it is open, so its
+          // batch choice wins over whatever was stored.
+          batchId: sale.batchId ?? null,
           phase: sale.phase,
           isPcsTracked: sale.isPcsTracked,
           hasCull: sale.hasCull,
@@ -325,6 +332,126 @@ export async function saveSale(
 
 export async function deleteSale(id: string): Promise<void> {
   await db.delete(sales).where(eq(sales.id, id));
+}
+
+// ─── Batches ──────────────────────────────────────────────────────────────────
+
+export type Batch = typeof batches.$inferSelect;
+
+// Rolled up in SQL, same shape as loadDrafts: one leftJoin + groupBy, never a
+// query per batch. `due` is clamped at 0 so an overpaid session cannot show as
+// negative money owed, and cannot mask a real debt on a sibling session.
+export async function loadBatches(
+  userId: string,
+  opts: { includeClosed?: boolean } = {},
+): Promise<BatchSummary[]> {
+  const rows = await db
+    .select({
+      id: batches.id,
+      name: batches.name,
+      closedAt: batches.closedAt,
+      createdAt: batches.createdAt,
+      sessionCount: sql<number>`count(${sales.id})`,
+      draftCount: sql<number>`coalesce(sum(case when ${sales.isFinished} = 0 then 1 else 0 end), 0)`,
+      birds: sql<number>`coalesce(sum(${saleMetaData.totalPcs}), 0)`,
+      weightKg: sql<number>`coalesce(sum(${saleMetaData.netWeightKg}), 0)`,
+      revenue: sql<number>`coalesce(sum(${saleMetaData.finalAmount}), 0)`,
+      received: sql<number>`coalesce(sum(${saleMetaData.receivedAmount}), 0)`,
+      due: sql<number>`coalesce(sum(max(${saleMetaData.finalAmount} - ${saleMetaData.receivedAmount}, 0)), 0)`,
+    })
+    .from(batches)
+    .leftJoin(sales, eq(sales.batchId, batches.id))
+    .leftJoin(saleMetaData, eq(saleMetaData.saleId, sales.id))
+    .where(
+      opts.includeClosed
+        ? eq(batches.userId, userId)
+        : and(eq(batches.userId, userId), isNull(batches.closedAt)),
+    )
+    .groupBy(batches.id)
+    .orderBy(asc(batches.closedAt), desc(batches.createdAt));
+
+  return rows.map((r) => ({
+    id: r.id,
+    name: r.name,
+    closedAt: r.closedAt?.getTime(),
+    createdAt: r.createdAt.getTime(),
+    sessionCount: Number(r.sessionCount),
+    draftCount: Number(r.draftCount),
+    birds: Number(r.birds),
+    weightKg: Number(r.weightKg),
+    revenue: Number(r.revenue),
+    received: Number(r.received),
+    due: Number(r.due),
+  }));
+}
+
+export async function loadBatch(
+  batchId: string,
+): Promise<{ batch: Batch; sales: SaleRecord[] } | null> {
+  const batch = await db
+    .select()
+    .from(batches)
+    .where(eq(batches.id, batchId))
+    .get();
+  if (!batch) return null;
+
+  // Same single-query shape as loadSales.
+  const rows = await db.query.sales.findMany({
+    where: eq(sales.batchId, batchId),
+    orderBy: desc(sales.createdAt),
+    with: saleWith,
+  });
+
+  return { batch, sales: (rows as SaleWithRelations[]).map(toSaleRecord) };
+}
+
+// The id comes from the caller, as it does for sales and rows — that keeps
+// expo-crypto (a native module) out of this file and out of its tests.
+export async function createBatch(
+  userId: string,
+  id: string,
+  name: string,
+): Promise<void> {
+  const now = new Date();
+  await db
+    .insert(batches)
+    .values({ id, userId, name: name.trim(), createdAt: now, updatedAt: now });
+}
+
+export async function renameBatch(
+  batchId: string,
+  name: string,
+): Promise<void> {
+  await db
+    .update(batches)
+    .set({ name: name.trim(), updatedAt: new Date() })
+    .where(eq(batches.id, batchId));
+}
+
+export async function setBatchClosed(
+  batchId: string,
+  closed: boolean,
+): Promise<void> {
+  await db
+    .update(batches)
+    .set({ closedAt: closed ? new Date() : null, updatedAt: new Date() })
+    .where(eq(batches.id, batchId));
+}
+
+// The sales survive — the FK is ON DELETE SET NULL, so they simply become
+// standalone sessions again.
+export async function deleteBatch(batchId: string): Promise<void> {
+  await db.delete(batches).where(eq(batches.id, batchId));
+}
+
+export async function assignSaleToBatch(
+  saleId: string,
+  batchId: string | null,
+): Promise<void> {
+  await db
+    .update(sales)
+    .set({ batchId, updatedAt: new Date() })
+    .where(eq(sales.id, saleId));
 }
 
 // ─── User Prefs ───────────────────────────────────────────────────────────────

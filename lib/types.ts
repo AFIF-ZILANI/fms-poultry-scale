@@ -46,6 +46,8 @@ export interface SaleMetaData {
 export interface SaleRecord {
   id: string;
   userId: string;
+  /** Batch this session belongs to, if any. Sessions are valid without one. */
+  batchId?: string;
   phase: "main" | "cull";
   isPcsTracked: boolean;
   hasCull: boolean;
@@ -64,6 +66,25 @@ export type RowGroup = {
   avgWeight: number;
   data: MeasurementRow[];
 };
+
+/**
+ * A batch with its sessions rolled up. Money comes from sale_meta_data, which
+ * only exists once a session is finished — so an unfinished session inside a
+ * batch adds to `draftCount` but contributes nothing to revenue or due.
+ */
+export interface BatchSummary {
+  id: string;
+  name: string;
+  closedAt?: number;
+  createdAt: number;
+  sessionCount: number;
+  draftCount: number;
+  birds: number;
+  weightKg: number;
+  revenue: number;
+  received: number;
+  due: number;
+}
 
 export interface DraftSummary {
   id: string;
