@@ -28,11 +28,21 @@ import * as Haptics from "expo-haptics";
 import { useUser } from "@clerk/expo";
 import { useTheme } from "@/lib/useTheme";
 import { useSettings } from "@/lib/SettingsContext";
-import { loadSales, deleteSale, loadDrafts } from "@/lib/storage";
-import { formatWeight, formatDateTime } from "@/lib/utils";
+import {
+  loadSales,
+  deleteSale,
+  loadDrafts,
+  loadBatches,
+} from "@/lib/storage";
+import {
+  formatWeight,
+  formatDateTime,
+  formatTk,
+  formatTkCompact,
+} from "@/lib/utils";
 import { getUserProfile, type OnboardingData } from "@/lib/onboarding";
 import { loadPlan, type Plan } from "@/lib/subscription";
-import type { DraftSummary, SaleRecord } from "@/lib/types";
+import type { BatchSummary, DraftSummary, SaleRecord } from "@/lib/types";
 
 const SCREEN_W = Dimensions.get("window").width;
 
@@ -109,12 +119,6 @@ function buildBars(sales: SaleRecord[], period: ChartPeriod): Bar[] {
   });
 }
 
-function fmtTk(n: number): string {
-  if (n >= 1_000_000) return `৳${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `৳${(n / 1_000).toFixed(0)}K`;
-  return n > 0 ? `৳${n.toFixed(0)}` : "৳0";
-}
-
 function getGreeting(t: any): string {
   const h = new Date().getHours();
   if (h < 12) return t.goodMorning;
@@ -177,7 +181,7 @@ function RevenueChart({ bars }: { bars: Bar[] }) {
                 fill="#6FA3FF"
                 fontFamily="Outfit_600SemiBold"
               >
-                {fmtTk(bar.revenue)}
+                {formatTkCompact(bar.revenue)}
               </SvgText>
             )}
             <SvgText
@@ -483,6 +487,7 @@ function DashboardHeader({
   profile,
   plan,
   drafts,
+  batches,
   theme,
   t,
   insets,
@@ -493,6 +498,7 @@ function DashboardHeader({
   profile: OnboardingData | null;
   plan: Plan;
   drafts: DraftSummary[];
+  batches: BatchSummary[];
   theme: ReturnType<typeof useTheme>;
   t: any;
   insets: ReturnType<typeof useSafeAreaInsets>;
@@ -511,6 +517,7 @@ function DashboardHeader({
     .toUpperCase();
 
   const totalSales = sales.length;
+  const batchesDue = batches.reduce((s, b) => s + b.due, 0);
 
   const totalRevenue = useMemo(
     () => sales.reduce((s, r) => s + (r.meta?.finalAmount ?? 0), 0),
@@ -757,6 +764,35 @@ function DashboardHeader({
         </Pressable>
       )}
 
+      {/* ── Batches ── leads with outstanding money, which is what makes a
+          farmer open the batch in the first place. */}
+      {batches.length > 0 && (
+        <Pressable
+          onPress={() => router.push("/batches")}
+          style={({ pressed }) => [
+            styles.draftBanner,
+            {
+              backgroundColor: theme.accentLight,
+              borderColor: theme.accent,
+              opacity: pressed ? 0.85 : 1,
+            },
+          ]}
+        >
+          <Feather name="layers" size={16} color={theme.accent} />
+          <Text
+            style={[
+              styles.draftText,
+              { color: theme.accent, fontFamily: "Outfit_600SemiBold", flex: 1 },
+            ]}
+            numberOfLines={1}
+          >
+            {t.batches} · {batches.length}
+            {batchesDue > 0 ? `  ·  ${formatTk(batchesDue)} ${t.stillDue}` : ""}
+          </Text>
+          <Feather name="chevron-right" size={15} color={theme.accent} />
+        </Pressable>
+      )}
+
       {/* ── Revenue hero card ── */}
       <View style={styles.heroCard}>
         <LinearGradient
@@ -781,7 +817,7 @@ function DashboardHeader({
                   { fontFamily: "Outfit_700Bold" },
                 ]}
               >
-                {fmtTk(totalRevenue)}
+                {formatTkCompact(totalRevenue)}
               </Text>
             </View>
             <View
@@ -991,10 +1027,12 @@ export default function HomeScreen() {
 
   const [sales, setSales] = useState<SaleRecord[]>([]);
   const [drafts, setDrafts] = useState<DraftSummary[]>([]);
+  const [batches, setBatches] = useState<BatchSummary[]>([]);
   const [profile, setProfile] = useState<OnboardingData | null>(null);
   const [plan, setPlan] = useState<Plan>("community");
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState<ChartPeriod>("6m");
+  const [menuOpen, setMenuOpen] = useState(false);
 
   const webBottomInset = Platform.OS === "web" ? 34 : 0;
 
@@ -1007,10 +1045,12 @@ export default function HomeScreen() {
         loadDrafts(uid),
         getUserProfile(uid),
         loadPlan(uid),
+        loadBatches(uid),
       ])
-        .then(([salesData, draftsData, profileData, planData]) => {
+        .then(([salesData, draftsData, profileData, planData, batchData]) => {
           setSales(salesData);
           setDrafts(draftsData);
+          setBatches(batchData);
           setProfile(profileData);
           setPlan(planData);
           const isFarmer = profileData?.role === "farmer";
@@ -1033,7 +1073,13 @@ export default function HomeScreen() {
   const handleNew = () => {
     if (Platform.OS !== "web")
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    router.push("/measurement");
+    setMenuOpen((open) => !open);
+  };
+
+  const pickNew = (to: "/measurement" | "/batches") => {
+    setMenuOpen(false);
+    if (Platform.OS !== "web") Haptics.selectionAsync();
+    router.push(to);
   };
 
   if (loading)
@@ -1063,6 +1109,7 @@ export default function HomeScreen() {
             profile={profile}
             plan={plan}
             drafts={drafts}
+            batches={batches}
             theme={theme}
             t={t}
             insets={insets}
@@ -1151,6 +1198,15 @@ export default function HomeScreen() {
         showsVerticalScrollIndicator={false}
       />
 
+      {/* Backdrop: any tap outside closes the menu. Rendered only while open
+          so it never swallows taps on the list. */}
+      {menuOpen && (
+        <Pressable
+          style={StyleSheet.absoluteFill}
+          onPress={() => setMenuOpen(false)}
+        />
+      )}
+
       {/* FAB */}
       <View
         style={[
@@ -1158,6 +1214,100 @@ export default function HomeScreen() {
           { bottom: insets.bottom + webBottomInset + 20 },
         ]}
       >
+        {menuOpen && (
+          <Animated.View
+            entering={Platform.OS !== "web" ? FadeInDown.springify() : undefined}
+            style={[
+              styles.fabMenu,
+              { backgroundColor: theme.surface, borderColor: theme.borderLight },
+            ]}
+          >
+            <Pressable
+              onPress={() => pickNew("/measurement")}
+              style={({ pressed }) => [
+                styles.fabMenuItem,
+                { opacity: pressed ? 0.6 : 1 },
+              ]}
+            >
+              <View
+                style={[
+                  styles.fabMenuIcon,
+                  { backgroundColor: theme.accentLight },
+                ]}
+              >
+                <MaterialCommunityIcons
+                  name="scale-balance"
+                  size={18}
+                  color={theme.accent}
+                />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text
+                  style={[
+                    styles.fabMenuTitle,
+                    { color: theme.text, fontFamily: "Outfit_600SemiBold" },
+                  ]}
+                >
+                  {t.newSession}
+                </Text>
+                <Text
+                  style={[
+                    styles.fabMenuHint,
+                    {
+                      color: theme.textTertiary,
+                      fontFamily: "Outfit_400Regular",
+                    },
+                  ]}
+                >
+                  {t.newSessionHint}
+                </Text>
+              </View>
+            </Pressable>
+
+            <View
+              style={[styles.fabMenuSep, { backgroundColor: theme.borderLight }]}
+            />
+
+            <Pressable
+              onPress={() => pickNew("/batches")}
+              style={({ pressed }) => [
+                styles.fabMenuItem,
+                { opacity: pressed ? 0.6 : 1 },
+              ]}
+            >
+              <View
+                style={[
+                  styles.fabMenuIcon,
+                  { backgroundColor: theme.warmLight },
+                ]}
+              >
+                <Feather name="layers" size={17} color={theme.warm} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text
+                  style={[
+                    styles.fabMenuTitle,
+                    { color: theme.text, fontFamily: "Outfit_600SemiBold" },
+                  ]}
+                >
+                  {t.newBatch}
+                </Text>
+                <Text
+                  style={[
+                    styles.fabMenuHint,
+                    {
+                      color: theme.textTertiary,
+                      fontFamily: "Outfit_400Regular",
+                    },
+                  ]}
+                >
+                  {t.newBatchHint}
+                </Text>
+              </View>
+            </Pressable>
+          </Animated.View>
+        )}
+
         <Pressable
           onPress={handleNew}
           style={({ pressed }) => [
@@ -1168,9 +1318,13 @@ export default function HomeScreen() {
             },
           ]}
         >
-          <Feather name="plus" size={26} color="#fff" />
+          <Feather
+            name={menuOpen ? "x" : "plus"}
+            size={26}
+            color="#fff"
+          />
           <Text style={[styles.fabLabel, { fontFamily: "Outfit_600SemiBold" }]}>
-            {t.newWeighing}
+            {t.newLabel}
           </Text>
         </Pressable>
       </View>
@@ -1462,6 +1616,30 @@ const styles = StyleSheet.create({
     right: 0,
     alignItems: "center",
   },
+  fabMenu: {
+    width: 268,
+    borderRadius: 18,
+    borderWidth: 1,
+    marginBottom: 12,
+    overflow: "hidden",
+  },
+  fabMenuItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 13,
+  },
+  fabMenuIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  fabMenuTitle: { fontSize: 14 },
+  fabMenuHint: { fontSize: 11, marginTop: 1 },
+  fabMenuSep: { height: 1, marginHorizontal: 14 },
   fab: {
     flexDirection: "row",
     alignItems: "center",

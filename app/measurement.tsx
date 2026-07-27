@@ -38,6 +38,7 @@ import {
 import {
   saveSale,
   loadSale,
+  loadBatches,
   loadLastPricePerKg,
   saveLastPricePerKg,
   loadLastKgPerCrate,
@@ -49,6 +50,7 @@ import {
 
 import { EditRowModal } from "@/components/EditRowModal";
 import type {
+  BatchSummary,
   MeasurementRow,
   SaleRecord,
   SaleMetaData,
@@ -278,11 +280,17 @@ function SummaryRow({
 function PcsOptionalDialog({
   visible,
   theme,
+  batches,
+  selectedBatchId,
+  onSelectBatch,
   onTrack,
   onSkip,
 }: {
   visible: boolean;
   theme: ReturnType<typeof useTheme>;
+  batches: BatchSummary[];
+  selectedBatchId?: string;
+  onSelectBatch: (id?: string) => void;
   onTrack: () => void;
   onSkip: () => void;
 }) {
@@ -325,6 +333,66 @@ function PcsOptionalDialog({
           >
             {t.pcsOptionalDesc}
           </Text>
+
+          {/* Only shown once the farmer actually has batches, so anyone who
+              never uses them sees no extra step. */}
+          {batches.length > 0 && (
+            <View style={styles.batchPick}>
+              <Text
+                style={[
+                  styles.batchPickLabel,
+                  {
+                    color: theme.textTertiary,
+                    fontFamily: "Outfit_600SemiBold",
+                  },
+                ]}
+              >
+                {t.addToBatch}
+              </Text>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.batchPickRow}
+              >
+                {[undefined, ...batches.map((b) => b.id)].map((id) => {
+                  const selected = selectedBatchId === id;
+                  const label =
+                    id === undefined
+                      ? t.noBatch
+                      : (batches.find((b) => b.id === id)?.name ?? "");
+                  return (
+                    <Pressable
+                      key={id ?? "none"}
+                      onPress={() => onSelectBatch(id)}
+                      style={({ pressed }) => [
+                        styles.batchChip,
+                        {
+                          backgroundColor: selected
+                            ? theme.accent
+                            : theme.borderLight,
+                          opacity: pressed ? 0.7 : 1,
+                        },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.batchChipText,
+                          {
+                            color: selected ? "#fff" : theme.textSecondary,
+                            fontFamily: "Outfit_600SemiBold",
+                          },
+                        ]}
+                        numberOfLines={1}
+                      >
+                        {label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
+            </View>
+          )}
+
           <View style={styles.cullBtns}>
             <Pressable
               onPress={onSkip}
@@ -487,8 +555,9 @@ function TradeDeductionModal({
   onCancel,
   onSaved,
   userId,
-  saleId, // ADD
-  saleCreatedAt, // ADD
+  saleId,
+  saleCreatedAt,
+  batchId,
 }: {
   visible: boolean;
   totalWeight: number;
@@ -502,7 +571,8 @@ function TradeDeductionModal({
   onCancel: () => void;
   onSaved: () => void;
   userId: string;
-  saleId: string; // ADD
+  saleId: string;
+  batchId?: string;
   saleCreatedAt: number; // ADD
 }) {
   const { t } = useSettings();
@@ -651,6 +721,9 @@ function TradeDeductionModal({
       const sale: SaleRecord = {
         id: saleId,
         userId,
+        // Carried through so finishing a session does not drop it out of
+        // the batch it was started in.
+        batchId,
         phase: hasCull ? "cull" : "main",
         isPcsTracked: pcsTracked,
         hasCull,
@@ -1606,9 +1679,11 @@ export default function MeasurementScreen() {
   const { t } = useSettings();
   const { user } = useUser();
   const userId = user?.id ?? "";
-  const { draftId: draftIdParam } = useLocalSearchParams<{
-    draftId?: string;
-  }>();
+  const { draftId: draftIdParam, batchId: batchIdParam } =
+    useLocalSearchParams<{
+      draftId?: string;
+      batchId?: string;
+    }>();
 
   const [rows, setRows] = useState<MeasurementRow[]>([]);
   const [mainRows, setMainRows] = useState<MeasurementRow[]>([]);
@@ -1625,6 +1700,7 @@ export default function MeasurementScreen() {
   const [editingRow, setEditingRow] = useState<MeasurementRow | null>(null);
   const [isEnterPcsMode, setIsEnterPcsMode] = useState(false);
   const [chunkSize, setChunkSizeState] = useState(DEFAULT_CHUNK_SIZE);
+  const [activeBatches, setActiveBatches] = useState<BatchSummary[]>([]);
 
   const weightRef = useRef<TextInput>(null);
   const enterPcsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -1638,10 +1714,18 @@ export default function MeasurementScreen() {
     typeof draftIdParam === "string" && draftIdParam.length > 0,
   );
   const draftLoaded = useRef(false);
+  // Set from the route when a session is started inside a batch, or from the
+  // draft when one is resumed. Undefined means a standalone session.
+  const [batchId, setBatchId] = useState<string | undefined>(
+    typeof batchIdParam === "string" && batchIdParam.length > 0
+      ? batchIdParam
+      : undefined,
+  );
 
   useFocusEffect(
     useCallback(() => {
       getChunkSize(userId).then(setChunkSizeState);
+      if (userId) loadBatches(userId).then(setActiveBatches);
     }, [userId]),
   );
 
@@ -1667,6 +1751,7 @@ export default function MeasurementScreen() {
       // was: loadDraft(id)
       if (!sale) return;
       startTimeRef.current = sale.createdAt;
+      if (sale.batchId) setBatchId(sale.batchId);
       if (!sale.isPcsTracked) setPcsOptional(true); // isPcsTracked is the inverse of pcsOptional
 
       // Resume in the phase that was saved, never a derived one — an empty
@@ -1689,6 +1774,7 @@ export default function MeasurementScreen() {
     const draft: SaleRecord = {
       id: sessionDraftId.current,
       userId,
+      batchId,
       phase,
       isPcsTracked: !pcsOptional,
       hasCull: phase === "cull",
@@ -1700,7 +1786,7 @@ export default function MeasurementScreen() {
     };
 
     if (userId) saveSale(userId, draft);
-  }, [rows, mainRows, phase, pcsOptional, userId]);
+  }, [rows, mainRows, phase, pcsOptional, userId, batchId]);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -1896,6 +1982,9 @@ export default function MeasurementScreen() {
       <PcsOptionalDialog
         visible={showPcsDialog}
         theme={theme}
+        batches={activeBatches}
+        selectedBatchId={batchId}
+        onSelectBatch={setBatchId}
         onTrack={() => {
           setPcsOptional(false);
           setShowPcsDialog(false);
@@ -1935,7 +2024,8 @@ export default function MeasurementScreen() {
         theme={theme}
         insets={insets}
         userId={userId}
-        saleId={sessionDraftId.current} // ADD
+        saleId={sessionDraftId.current}
+        batchId={batchId}
         saleCreatedAt={startTimeRef.current} // ADD
         onCancel={() => setShowDeductionModal(false)}
         onSaved={() => {
@@ -2396,6 +2486,16 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
   },
   mainSummaryText: { fontSize: 13, flexShrink: 1 },
+  batchPick: { alignSelf: "stretch", gap: 7, marginTop: 4 },
+  batchPickLabel: { fontSize: 10, letterSpacing: 0.8 },
+  batchPickRow: { gap: 7, paddingRight: 4 },
+  batchChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 10,
+    maxWidth: 160,
+  },
+  batchChipText: { fontSize: 12 },
   backToMainBtn: {
     marginLeft: "auto",
     flexDirection: "row",

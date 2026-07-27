@@ -28,12 +28,33 @@ export const users = sqliteTable("users", {
   ),
 });
 
+// ─── Batches ───
+// A flock raised together and sold off across several sessions. Purely a
+// container — every figure it shows is rolled up from the sales inside it.
+export const batches = sqliteTable("batches", {
+  id: text("id").primaryKey(),
+  userId: text("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  // null = still active. One column instead of a status enum to keep in sync.
+  closedAt: integer("closed_at", { mode: "timestamp" }),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
+  updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
+}, (table) => ({
+  userIdx: index("batches_user_id_idx").on(table.userId, table.closedAt),
+}));
+
 // ─── Sales ───
 export const sales = sqliteTable("sales", {
   id: text("id").primaryKey(),
   userId: text("user_id")
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),
+  // set null, never cascade: deleting a batch must not delete the sales.
+  batchId: text("batch_id").references(() => batches.id, {
+    onDelete: "set null",
+  }),
   phase: text("phase", { enum: ["main", "cull"] }).notNull(),
   isPcsTracked: integer("is_pcs_tracked", { mode: "boolean" }).notNull(),
   hasCull: integer("has_cull", { mode: "boolean" }).notNull().default(false),
@@ -47,6 +68,8 @@ export const sales = sqliteTable("sales", {
   draftsIdx: index("sales_user_id_idx").on(table.userId, table.isFinished, table.updatedAt),
   // History: filter by user, sort by createdAt.
   historyIdx: index("sales_user_created_idx").on(table.userId, table.createdAt),
+  // Batch rollups and the batch detail screen.
+  batchIdx: index("sales_batch_id_idx").on(table.batchId),
 }));
 
 // ─── Sale Meta Data ───
@@ -137,14 +160,21 @@ export const userPrefs = sqliteTable("user_prefs", {
 // ─── Relations ───
 export const usersRelations = relations(users, ({ many, one }) => ({
   sales: many(sales),
+  batches: many(batches),
   prefs: one(userPrefs, {
     fields: [users.id],
     references: [userPrefs.userId],
   }),
 }));
 
+export const batchesRelations = relations(batches, ({ one, many }) => ({
+  user: one(users, { fields: [batches.userId], references: [users.id] }),
+  sales: many(sales),
+}));
+
 export const salesRelations = relations(sales, ({ one, many }) => ({
   user: one(users, { fields: [sales.userId], references: [users.id] }),
+  batch: one(batches, { fields: [sales.batchId], references: [batches.id] }),
   metaData: one(saleMetaData, {
     fields: [sales.id],
     references: [saleMetaData.saleId],
