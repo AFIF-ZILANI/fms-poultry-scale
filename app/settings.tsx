@@ -56,9 +56,10 @@ export default function SettingsScreen() {
       loadFarmName(userId),
       getChunkSize(userId),
     ]).then(([price, kpc, dg, farm, chunk]) => {
-      if (price) setDefaultPrice(price);
-      if (kpc) setDefaultKgPerCrate(kpc);
-      if (dg) setDefaultDeductionG(dg);
+      // Prefs are stored as numbers; these inputs are text. 0 means "unset".
+      if (price) setDefaultPrice(String(price));
+      if (kpc) setDefaultKgPerCrate(String(kpc));
+      if (dg) setDefaultDeductionG(String(dg));
       if (farm) setFarmNameValue(farm);
       setChunkSizeLocal(chunk.toString());
     });
@@ -76,16 +77,22 @@ export default function SettingsScreen() {
 
   const handleSaveDefaults = async () => {
     const parsedChunk = parseInt(chunkSize, 10);
+    // Never let a half-typed field reach the DB as NaN.
+    const num = (s: string) => {
+      const n = parseFloat(s);
+      return isNaN(n) ? null : n;
+    };
+    const price = num(defaultPrice);
+    const kgPerCrate = num(defaultKgPerCrate);
+    const deductionG = num(defaultDeductionG);
 
     await Promise.all([
-      defaultPrice
-        ? saveLastPricePerKg(userId, defaultPrice)
+      price !== null ? saveLastPricePerKg(userId, price) : Promise.resolve(),
+      kgPerCrate !== null
+        ? saveLastKgPerCrate(userId, kgPerCrate)
         : Promise.resolve(),
-      defaultKgPerCrate
-        ? saveLastKgPerCrate(userId, defaultKgPerCrate)
-        : Promise.resolve(),
-      defaultDeductionG
-        ? saveLastDeductionG(userId, defaultDeductionG)
+      deductionG !== null
+        ? saveLastDeductionG(userId, deductionG)
         : Promise.resolve(),
       saveFarmName(userId, farmNameValue.trim()),
       !isNaN(parsedChunk) && parsedChunk > 0

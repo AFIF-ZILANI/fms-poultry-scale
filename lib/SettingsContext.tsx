@@ -9,7 +9,7 @@ import React, {
 import { useColorScheme } from "react-native";
 import { useUser } from "@clerk/expo";
 import { translations, type Language, type Translations } from "./i18n";
-import { loadLanguagePref, loadThemePref, saveLanguagePref, saveThemePref } from "./storage";
+import { getUserPrefs, saveLanguagePref, saveThemePref } from "./storage";
 
 export type ThemePreference = "system" | "dark" | "light";
 
@@ -44,13 +44,11 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   // Reload settings whenever the signed-in user changes
   useEffect(() => {
     if (!userId) return;
-    Promise.all([loadLanguagePref(userId), loadThemePref(userId)]).then(
-      ([lang, theme]) => {
-        if (lang === "en" || lang === "bn") setLangState(lang as Language);
-        if (theme === "system" || theme === "dark" || theme === "light")
-          setThemePrefState(theme as ThemePreference);
-      }
-    );
+    // One row, one read — language and theme live in the same prefs record.
+    getUserPrefs(userId).then(({ language, theme }) => {
+      setLangState(language);
+      setThemePrefState(theme);
+    });
   }, [userId]);
 
   const isDark =

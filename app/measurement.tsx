@@ -28,12 +28,16 @@ import Animated, { FadeInDown, FadeIn } from "react-native-reanimated";
 import { useUser } from "@clerk/expo";
 import { useTheme } from "@/lib/useTheme";
 import { useSettings } from "@/lib/SettingsContext";
-import { formatWeight, formatPcs, sumPcs, getRelativeTime } from "@/lib/utils";
-// Replace the storage import line with:
+import {
+  formatWeight,
+  formatPcs,
+  sumPcs,
+  getRelativeTime,
+  calcDeduction,
+} from "@/lib/utils";
 import {
   saveSale,
-  loadSale, // replaces loadDraft
-  deleteSale, // replaces deleteDraft
+  loadSale,
   loadLastPricePerKg,
   saveLastPricePerKg,
   loadLastKgPerCrate,
@@ -43,8 +47,6 @@ import {
   getChunkSize,
 } from "@/lib/storage";
 
-// Add after imports, before component definitions:
-const DEFAULT_CHUNK_SIZE = 10;
 import { EditRowModal } from "@/components/EditRowModal";
 import type {
   MeasurementRow,
@@ -53,6 +55,8 @@ import type {
   RowGroup,
 } from "@/lib/types";
 
+const DEFAULT_CHUNK_SIZE = 10;
+
 function formatTimer(seconds: number): string {
   const h = Math.floor(seconds / 3600);
   const m = Math.floor((seconds % 3600) / 60);
@@ -60,19 +64,6 @@ function formatTimer(seconds: number): string {
   const pad = (n: number) => n.toString().padStart(2, "0");
   if (h > 0) return `${pad(h)}:${pad(m)}:${pad(s)}`;
   return `${pad(m)}:${pad(s)}`;
-}
-
-function calcDeduction(
-  totalWeight: number,
-  kgPerCrate: number,
-  deductionPerCrateG: number,
-  fullCratesOnly: boolean,
-): { totalCrates: number; totalDeductionKg: number; netWeight: number } {
-  const rawCrates = totalWeight / kgPerCrate;
-  const totalCrates = fullCratesOnly ? Math.floor(rawCrates) : rawCrates;
-  const totalDeductionKg = (totalCrates * deductionPerCrateG) / 1000;
-  const netWeight = totalWeight - totalDeductionKg;
-  return { totalCrates, totalDeductionKg, netWeight };
 }
 
 function groupRows(rows: MeasurementRow[], chunkSize: number): RowGroup[] {

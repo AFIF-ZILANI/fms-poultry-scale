@@ -15,7 +15,7 @@ import Animated, { FadeInDown } from "react-native-reanimated";
 import { useTheme } from "@/lib/useTheme";
 import { useSettings } from "@/lib/SettingsContext";
 import { formatWeight, formatPcs, sumPcs, formatDateTime } from "@/lib/utils";
-import { loadSales } from "@/lib/storage";
+import { loadSale } from "@/lib/storage";
 import type { MeasurementRow, SaleRecord } from "@/lib/types";
 import { useUser } from "@clerk/expo";
 
@@ -38,11 +38,8 @@ export default function SessionLogsScreen() {
       }
 
       setLoading(true);
-      loadSales(user.id)
-        .then((sales) => {
-          const foundSale = sales.find((s) => s.id === id);
-          setSale(foundSale ?? null);
-        })
+      loadSale(id)
+        .then(setSale)
         .finally(() => setLoading(false));
     }, [id, user?.id]),
   );

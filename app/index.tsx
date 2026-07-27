@@ -32,7 +32,7 @@ import { loadSales, deleteSale, loadDrafts } from "@/lib/storage";
 import { formatWeight, formatDateTime } from "@/lib/utils";
 import { getUserProfile, type OnboardingData } from "@/lib/onboarding";
 import { loadPlan, type Plan } from "@/lib/subscription";
-import type { SaleRecord } from "@/lib/types";
+import type { DraftSummary, SaleRecord } from "@/lib/types";
 
 const SCREEN_W = Dimensions.get("window").width;
 
@@ -492,7 +492,7 @@ function DashboardHeader({
   sales: SaleRecord[];
   profile: OnboardingData | null;
   plan: Plan;
-  drafts: SaleRecord[]; // was DraftSession[] — DraftSession is deleted
+  drafts: DraftSummary[];
   theme: ReturnType<typeof useTheme>;
   t: any;
   insets: ReturnType<typeof useSafeAreaInsets>;
@@ -990,7 +990,7 @@ export default function HomeScreen() {
   const { user } = useUser();
 
   const [sales, setSales] = useState<SaleRecord[]>([]);
-  const [drafts, setDrafts] = useState<SaleRecord[]>([]);
+  const [drafts, setDrafts] = useState<DraftSummary[]>([]);
   const [profile, setProfile] = useState<OnboardingData | null>(null);
   const [plan, setPlan] = useState<Plan>("community");
   const [loading, setLoading] = useState(true);
@@ -1010,11 +1010,6 @@ export default function HomeScreen() {
       ])
         .then(([salesData, draftsData, profileData, planData]) => {
           setSales(salesData);
-          console.log("SALES DATA", JSON.stringify(salesData));
-          console.log("DRAFT DATA", JSON.stringify(draftsData));
-          console.log("PROFILE DATA", JSON.stringify(profileData));
-          console.log("Plan DATA", JSON.stringify(planData));
-
           setDrafts(draftsData);
           setProfile(profileData);
           setPlan(planData);

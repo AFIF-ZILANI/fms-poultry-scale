@@ -57,6 +57,13 @@
       "when": 1783260560040,
       "tag": "0007_chunky_lake",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1785178392071,
+      "tag": "0008_lowly_proudstar",
+      "breakpoints": true
     }
   ]
 }

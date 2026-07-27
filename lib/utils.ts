@@ -20,6 +20,25 @@ export function kgToGrams(kg: number): number {
   return Math.round(kg * 1000);
 }
 
+// Crate deduction: the trade convention is a fixed weight knocked off per
+// crate. `fullCratesOnly` means a part-filled crate earns no deduction.
+// Lives here rather than in the measurement screen so it can be tested.
+export function calcDeduction(
+  grossWeightKg: number,
+  kgPerCrate: number,
+  deductionPerCrateG: number,
+  fullCratesOnly: boolean,
+): { totalCrates: number; totalDeductionKg: number; netWeight: number } {
+  const rawCrates = grossWeightKg / kgPerCrate;
+  const totalCrates = fullCratesOnly ? Math.floor(rawCrates) : rawCrates;
+  const totalDeductionKg = (totalCrates * deductionPerCrateG) / 1000;
+  return {
+    totalCrates,
+    totalDeductionKg,
+    netWeight: grossWeightKg - totalDeductionKg,
+  };
+}
+
 export function formatGrams(grams: number): string {
   return grams.toLocaleString();
 }

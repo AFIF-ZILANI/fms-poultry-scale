@@ -8,93 +8,152 @@ import {
   rowEditHistory,
   userPrefs,
 } from "../db/schema";
-import { eq, and, desc, sql } from "drizzle-orm";
-import type { DraftSummary, MeasurementRow, SaleRecord } from "./types";
-
-import * as Crypto from "expo-crypto";
+import { eq, and, desc, notInArray, sql } from "drizzle-orm";
+import type {
+  DraftSummary,
+  MeasurementRow,
+  RowEditEntry,
+  SaleRecord,
+} from "./types";
 
 // ─── Sales ────────────────────────────────────────────────────────────────────
 
-async function hydrateSale(
-  saleRow: typeof sales.$inferSelect,
-): Promise<SaleRecord> {
-  const allRows = await db
-    .select()
-    .from(measurementRows)
-    .where(eq(measurementRows.saleId, saleRow.id));
+// One query per screen, not one per sale. `with` walks the relations declared
+// in db/schema.ts, so rows + meta + edit history come back in a single trip.
+const saleWith = {
+  metaData: true,
+  rows: {
+    with: { editHistory: true },
+  },
+} satisfies NonNullable<
+  Parameters<typeof db.query.sales.findMany>[0]
+>["with"];
 
-  const rows: MeasurementRow[] = allRows
+type SaleWithRelations = typeof sales.$inferSelect & {
+  metaData: typeof saleMetaData.$inferSelect | null;
+  rows: (typeof measurementRows.$inferSelect & {
+    editHistory: (typeof rowEditHistory.$inferSelect)[];
+  })[];
+};
+
+function toEditEntry(h: typeof rowEditHistory.$inferSelect): RowEditEntry {
+  return {
+    id: h.id,
+    timestamp: h.createdAt.getTime(),
+    previousWeightKg: h.previousWeight,
+    previousPcs: h.previousPcs,
+    newWeightKg: h.newWeight,
+    newPcs: h.newPcs,
+    reason: h.reason ?? undefined,
+  };
+}
+
+function toMeasurementRow(
+  r: SaleWithRelations["rows"][number],
+): MeasurementRow {
+  return {
+    id: r.id,
+    weightKg: r.weight,
+    pcs: r.pcs,
+    timestamp: r.createdAt.getTime(),
+    editHistory: r.editHistory.length
+      ? r.editHistory.map(toEditEntry).sort((a, b) => b.timestamp - a.timestamp)
+      : undefined,
+  };
+}
+
+// The only place DB shape (Date, null) is translated to UI shape (epoch ms,
+// undefined). Everything else works in one or the other, never both.
+function toSaleRecord(row: SaleWithRelations): SaleRecord {
+  const m = row.metaData;
+  // Newest-first: the measurement screen numbers logs off rows[0] being the
+  // most recent entry. Previously this held only by SQLite rowid accident.
+  const byNewest = (a: MeasurementRow, b: MeasurementRow) =>
+    b.timestamp - a.timestamp;
+  const rows = row.rows
     .filter((r) => r.type === "main")
-    .map((r) => ({
-      id: r.id,
-      weightKg: r.weight,
-      pcs: r.pcs,
-      timestamp: r.createdAt.getTime(),
-    }));
-
-  const cullRows: MeasurementRow[] = allRows
+    .map(toMeasurementRow)
+    .sort(byNewest);
+  const cullRows = row.rows
     .filter((r) => r.type === "cull")
-    .map((r) => ({
-      id: r.id,
-      weightKg: r.weight,
-      pcs: r.pcs,
-      timestamp: r.createdAt.getTime(),
-    }));
-
-  const metaRow = db
-    .select()
-    .from(saleMetaData)
-    .where(eq(saleMetaData.saleId, saleRow.id))
-    .get();
+    .map(toMeasurementRow)
+    .sort(byNewest);
 
   return {
-    id: saleRow.id,
-    userId: saleRow.userId,
-    phase: saleRow.phase,
-    isPcsTracked: saleRow.isPcsTracked,
-    hasCull: saleRow.hasCull,
-    createdAt: saleRow.createdAt.getTime(),
-    updatedAt: saleRow.updatedAt.getTime(),
-    syncedAt: saleRow.syncedAt?.getTime() ?? undefined,
+    id: row.id,
+    userId: row.userId,
+    phase: row.phase,
+    isPcsTracked: row.isPcsTracked,
+    hasCull: row.hasCull,
+    isFinished: row.isFinished,
+    createdAt: row.createdAt.getTime(),
+    updatedAt: row.updatedAt.getTime(),
     rows,
-    isFinished: saleRow.isFinished,
     cullRows: cullRows.length ? cullRows : undefined,
-    meta: metaRow
+    meta: m
       ? {
-          mainWeightKg: metaRow.mainWeightKg,
-          mainPcs: metaRow.mainPcs ?? undefined,
-          buyerName: metaRow.buyerName ?? undefined,
-          kgPerCrate: metaRow.kgPerCrate,
-          deductionPerCrateG: metaRow.deductionPerCrateG,
-          isFullCratesOnly: metaRow.isFullCratesOnly,
-          mainPrice: metaRow.mainPrice,
-          mainAmount: metaRow.mainAmount,
-          cullWeightKg: metaRow.cullWeightKg,
-          isCullSold: metaRow.isCullSold ?? undefined,
-          cullSaleType: metaRow.cullSaleType ?? undefined,
-          cullPrice: metaRow.cullPrice ?? undefined,
-          cullPcs: metaRow.cullPcs ?? undefined,
-          cullAmount: metaRow.cullAmount ?? undefined,
-          finalAmount: metaRow.finalAmount,
-          receivedAmount: metaRow.receivedAmount,
-          totalDeductionWtKg: metaRow.totalDeductionWtKg,
-          avgWtGrams: metaRow.avgWtGrams ?? undefined,
-          netWeightKg: metaRow.netWeightKg,
-          totalCrates: metaRow.totalCrates,
-          totalPcs: metaRow.totalPcs ?? undefined,
-          createdAt: metaRow.createdAt.getTime(),
+          mainWeightKg: m.mainWeightKg,
+          mainPcs: m.mainPcs ?? undefined,
+          buyerName: m.buyerName ?? undefined,
+          kgPerCrate: m.kgPerCrate,
+          deductionPerCrateG: m.deductionPerCrateG,
+          isFullCratesOnly: m.isFullCratesOnly,
+          mainPrice: m.mainPrice,
+          mainAmount: m.mainAmount,
+          cullWeightKg: m.cullWeightKg,
+          isCullSold: m.isCullSold ?? undefined,
+          cullSaleType: m.cullSaleType ?? undefined,
+          cullPrice: m.cullPrice ?? undefined,
+          cullPcs: m.cullPcs ?? undefined,
+          cullAmount: m.cullAmount ?? undefined,
+          finalAmount: m.finalAmount,
+          receivedAmount: m.receivedAmount,
+          totalDeductionWtKg: m.totalDeductionWtKg,
+          avgWtGrams: m.avgWtGrams ?? undefined,
+          netWeightKg: m.netWeightKg,
+          totalCrates: m.totalCrates,
+          totalPcs: m.totalPcs ?? undefined,
+          createdAt: m.createdAt.getTime(),
         }
       : undefined,
   };
 }
 
 export async function loadSales(userId: string): Promise<SaleRecord[]> {
-  const saleRows = await db
-    .select()
+  const rows = await db.query.sales.findMany({
+    where: eq(sales.userId, userId),
+    orderBy: desc(sales.createdAt),
+    with: saleWith,
+  });
+  return (rows as SaleWithRelations[]).map(toSaleRecord);
+}
+
+export async function loadSale(id: string): Promise<SaleRecord | null> {
+  const row = await db.query.sales.findFirst({
+    where: eq(sales.id, id),
+    with: saleWith,
+  });
+  return row ? toSaleRecord(row as SaleWithRelations) : null;
+}
+
+// Totals for the profile screen — aggregated in SQL, no hydration.
+export async function getSaleStats(
+  userId: string,
+): Promise<{ totalSales: number; totalRevenue: number }> {
+  const row = await db
+    .select({
+      totalSales: sql<number>`count(*)`,
+      totalRevenue: sql<number>`coalesce(sum(${saleMetaData.finalAmount}), 0)`,
+    })
     .from(sales)
+    .leftJoin(saleMetaData, eq(saleMetaData.saleId, sales.id))
     .where(eq(sales.userId, userId))
-    .orderBy(desc(sales.createdAt));
-  return Promise.all(saleRows.map(hydrateSale));
+    .get();
+
+  return {
+    totalSales: Number(row?.totalSales ?? 0),
+    totalRevenue: Number(row?.totalRevenue ?? 0),
+  };
 }
 
 // "Drafts" = anything not yet finished
@@ -130,38 +189,21 @@ export async function loadDrafts(userId: string): Promise<DraftSummary[]> {
   }));
 }
 
-export async function loadSale(id: string): Promise<SaleRecord | null> {
-  const saleRow = db.select().from(sales).where(eq(sales.id, id)).get();
-  return saleRow ? hydrateSale(saleRow) : null;
-}
-
-// Starts a brand new sale, always in "main" phase. No way to start
-// directly in "cull" — matches your stated flow.
-export async function createSale(
-  userId: string,
-  isPcsTracked: boolean,
-): Promise<string> {
-  const id = Crypto.randomUUID();
-  const now = new Date();
-  await db.insert(sales).values({
-    id,
-    userId,
-    phase: "main",
-    isPcsTracked,
-    hasCull: false,
-    isFinished: false,
-    createdAt: now,
-    updatedAt: now,
-  });
-  return id;
-}
-
 export async function saveSale(
   userId: string,
   sale: SaleRecord,
 ): Promise<void> {
-  await db.transaction(async (tx) => {
-    await tx
+  const incoming = [
+    ...sale.rows.map((r) => ({ ...r, type: "main" as const })),
+    ...(sale.cullRows ?? []).map((r) => ({ ...r, type: "cull" as const })),
+  ];
+
+  // The expo-sqlite driver is synchronous: drizzle calls this callback and
+  // commits as soon as it returns. An async callback would return a pending
+  // promise, so COMMIT would fire before any write ran — nothing would
+  // actually be inside the transaction. Every statement here uses .run().
+  db.transaction((tx) => {
+    tx
       .insert(sales)
       .values({
         id: sale.id,
@@ -169,9 +211,9 @@ export async function saveSale(
         phase: sale.phase,
         isPcsTracked: sale.isPcsTracked,
         hasCull: sale.hasCull,
+        isFinished: sale.isFinished,
         createdAt: new Date(sale.createdAt),
         updatedAt: new Date(sale.updatedAt),
-        syncedAt: sale.syncedAt ? new Date(sale.syncedAt) : null,
       })
       .onConflictDoUpdate({
         target: sales.id,
@@ -179,34 +221,72 @@ export async function saveSale(
           phase: sale.phase,
           isPcsTracked: sale.isPcsTracked,
           hasCull: sale.hasCull,
+          isFinished: sale.isFinished,
           updatedAt: new Date(sale.updatedAt),
-          syncedAt: sale.syncedAt ? new Date(sale.syncedAt) : null,
         },
-      });
+      })
+      .run();
 
-    await tx.delete(measurementRows).where(eq(measurementRows.saleId, sale.id));
-    const rowsToInsert = [
-      ...sale.rows.map((r) => ({ ...r, type: "main" as const })),
-      ...(sale.cullRows ?? []).map((r) => ({ ...r, type: "cull" as const })),
-    ];
-    if (rowsToInsert.length) {
-      await tx.insert(measurementRows).values(
-        rowsToInsert.map((r) => ({
-          id: r.id,
-          saleId: sale.id,
-          type: r.type,
-          weight: r.weightKg,
-          pcs: r.pcs,
-          createdAt: new Date(r.timestamp),
+    // Rows are upserted, not wiped and re-inserted: deleting a row cascades
+    // into row_edit_history, which would erase the audit trail on every save.
+    const keepIds = incoming.map((r) => r.id);
+    tx
+      .delete(measurementRows)
+      .where(
+        keepIds.length
+          ? and(
+              eq(measurementRows.saleId, sale.id),
+              notInArray(measurementRows.id, keepIds),
+            )
+          : eq(measurementRows.saleId, sale.id),
+      )
+      .run();
+
+    if (incoming.length) {
+      tx
+        .insert(measurementRows)
+        .values(
+          incoming.map((r) => ({
+            id: r.id,
+            saleId: sale.id,
+            type: r.type,
+            weight: r.weightKg,
+            pcs: r.pcs,
+            createdAt: new Date(r.timestamp),
+          })),
+        )
+        .onConflictDoUpdate({
+          target: measurementRows.id,
+          set: {
+            type: sql`excluded.type`,
+            weight: sql`excluded.weight`,
+            pcs: sql`excluded.pcs`,
+          },
+        })
+        .run();
+
+      // Edit history is append-only; entries carry stable ids from the UI, so
+      // re-saving an already-persisted edit is a no-op.
+      const history = incoming.flatMap((r) =>
+        (r.editHistory ?? []).map((h) => ({
+          id: h.id,
+          rowId: r.id,
+          previousWeight: h.previousWeightKg,
+          previousPcs: h.previousPcs,
+          newWeight: h.newWeightKg,
+          newPcs: h.newPcs,
+          reason: h.reason ?? null,
+          createdAt: new Date(h.timestamp),
         })),
       );
+      if (history.length) {
+        tx.insert(rowEditHistory).values(history).onConflictDoNothing().run();
+      }
     }
 
-    await tx.delete(saleMetaData).where(eq(saleMetaData.saleId, sale.id));
     if (sale.meta) {
       const m = sale.meta;
-      await tx.insert(saleMetaData).values({
-        id: Crypto.randomUUID(),
+      const values = {
         saleId: sale.id,
         mainWeightKg: m.mainWeightKg,
         mainPcs: m.mainPcs,
@@ -229,8 +309,16 @@ export async function saveSale(
         netWeightKg: m.netWeightKg,
         totalCrates: m.totalCrates,
         totalPcs: m.totalPcs,
-        createdAt: new Date(sale.createdAt),
-      });
+        createdAt: new Date(m.createdAt),
+      };
+      const { saleId: _pk, ...updatable } = values;
+      tx
+        .insert(saleMetaData)
+        .values(values)
+        .onConflictDoUpdate({ target: saleMetaData.saleId, set: updatable })
+        .run();
+    } else {
+      tx.delete(saleMetaData).where(eq(saleMetaData.saleId, sale.id)).run();
     }
   });
 }
@@ -239,202 +327,71 @@ export async function deleteSale(id: string): Promise<void> {
   await db.delete(sales).where(eq(sales.id, id));
 }
 
-// User tapped "Finish" on the main session, then said YES to the
-// cull dialog. Locks nothing — main rows stay editable in theory,
-// but UI should treat them as committed at this point.
-export async function startCullPhase(saleId: string): Promise<void> {
-  await db
-    .update(sales)
-    .set({ phase: "cull", hasCull: true, updatedAt: new Date() })
-    .where(and(eq(sales.id, saleId), eq(sales.phase, "main")));
-  // Guard: only transitions out of "main". Calling this on a sale
-  // already in "cull" or "finished" is a no-op, not an error —
-  // decide if you'd rather it throw. Right now it silently does nothing,
-  // which can hide a bug in your UI flow if you call this twice.
-}
-
-// User tapped "Finish" and said NO to the cull dialog (locks immediately),
-// OR user finished an active cull session.
-export async function finishSale(saleId: string): Promise<void> {
-  await db
-    .update(sales)
-    .set({ isFinished: true, updatedAt: new Date() })
-    .where(eq(sales.id, saleId));
-}
-
-export async function updateSale(
-  saleId: string,
-  updatedRows: MeasurementRow[],
-  reason?: string,
-): Promise<void> {
-  await db.transaction(async (tx) => {
-    const saleRow = await tx
-      .select()
-      .from(sales)
-      .where(eq(sales.id, saleId))
-      .get();
-    if (!saleRow) return;
-
-    if (saleRow.isFinished) {
-      // Hard stop — editing a finished sale silently was exactly the
-      // bug risk I flagged last time. Throwing here, not swallowing it.
-      throw new Error(`Cannot edit rows on finished sale ${saleId}`);
-    }
-
-    const metaRow = await tx
-      .select()
-      .from(saleMetaData)
-      .where(eq(saleMetaData.saleId, saleId))
-      .get();
-
-    const editableType = saleRow.phase; // "main" or "cull"
-    const existingRows = await tx
-      .select()
-      .from(measurementRows)
-      .where(
-        and(
-          eq(measurementRows.saleId, saleId),
-          eq(measurementRows.type, editableType),
-        ),
-      );
-
-    const existingById = new Map(existingRows.map((r) => [r.id, r]));
-    for (const updated of updatedRows) {
-      const prev = existingById.get(updated.id);
-      if (
-        prev &&
-        (prev.weight !== updated.weightKg || prev.pcs !== updated.pcs)
-      ) {
-        await tx.insert(rowEditHistory).values({
-          id: Crypto.randomUUID(),
-          rowId: prev.id,
-          previousWeight: prev.weight,
-          previousPcs: prev.pcs,
-          newWeight: updated.weightKg,
-          newPcs: updated.pcs,
-          reason: reason ?? null,
-          createdAt: new Date(),
-        });
-      }
-    }
-
-    const totalWeightKg = updatedRows.reduce((s, r) => s + r.weightKg, 0);
-    const totalPcs = updatedRows.reduce((s, r) => s + (r.pcs ?? 0), 0);
-    const avgWeightKg = totalPcs > 0 ? totalWeightKg / totalPcs : 0;
-
-    await tx
-      .update(sales)
-      .set({ updatedAt: new Date() })
-      .where(eq(sales.id, saleId));
-
-    await tx
-      .delete(measurementRows)
-      .where(
-        and(
-          eq(measurementRows.saleId, saleId),
-          eq(measurementRows.type, editableType),
-        ),
-      );
-    await tx.insert(measurementRows).values(
-      updatedRows.map((r) => ({
-        id: r.id,
-        saleId,
-        type: editableType,
-        weight: r.weightKg,
-        pcs: r.pcs,
-        createdAt: new Date(r.timestamp),
-      })),
-    );
-
-    // Only recompute main-side financials when editing main rows.
-    // Editing cull rows during cull phase should recompute cull amounts —
-    // not implemented here since you haven't given me the cull pricing
-    // formula explicitly (per-kg vs per-piece math). Flagging, not guessing.
-    if (metaRow && editableType === "main") {
-      const rawCrates = totalWeightKg / metaRow.kgPerCrate;
-      const totalCrates = metaRow.isFullCratesOnly
-        ? Math.floor(rawCrates)
-        : rawCrates;
-      const totalDeductionKg =
-        (totalCrates * metaRow.deductionPerCrateG) / 1000;
-      const netWeight = Math.max(
-        0,
-        totalWeightKg - totalDeductionKg - metaRow.cullWeightKg,
-      );
-      const mainAmount = netWeight * metaRow.mainPrice;
-      const finalAmount = mainAmount + (metaRow.cullAmount ?? 0);
-
-      await tx
-        .update(saleMetaData)
-        .set({
-          mainWeightKg: totalWeightKg,
-          totalPcs,
-          mainAmount,
-          finalAmount,
-        })
-        .where(eq(saleMetaData.saleId, saleId));
-    }
-  });
-}
-
 // ─── User Prefs ───────────────────────────────────────────────────────────────
 
-export async function getUserPrefs(userId: string) {
-  return db.select().from(userPrefs).where(eq(userPrefs.userId, userId)).get();
+export const PREF_DEFAULTS = {
+  language: "en",
+  theme: "system",
+  logGroupSize: 10,
+  kgPerCrate: 0,
+  deductionWtG: 0,
+  priceKg: 0,
+} as const;
+
+export type UserPrefs = typeof userPrefs.$inferSelect;
+
+// Always returns a usable object, so callers never repeat the defaults.
+export async function getUserPrefs(userId: string): Promise<UserPrefs> {
+  const row = await db
+    .select()
+    .from(userPrefs)
+    .where(eq(userPrefs.userId, userId))
+    .get();
+  return row ?? { userId, ...PREF_DEFAULTS };
 }
 
 export async function saveUserPrefs(
   userId: string,
-  prefs: {
-    language?: "en" | "bn";
-    theme?: "light" | "dark" | "system";
-    logGroupSize?: number;
-    kgPerCrate?: number;
-    deductionWtG?: number;
-    priceKg?: number;
-  },
+  prefs: Partial<Omit<UserPrefs, "userId">>,
 ): Promise<void> {
   await db
     .insert(userPrefs)
-    .values({
-      userId,
-      language: prefs.language ?? "en",
-      theme: prefs.theme ?? "system",
-      logGroupSize: prefs.logGroupSize ?? 10,
-      kgPerCrate: prefs.kgPerCrate ?? 0,
-      deductionWtG: prefs.deductionWtG ?? 0,
-      priceKg: prefs.priceKg ?? 0,
-    })
-    .onConflictDoUpdate({ target: userPrefs.userId, set: prefs });
+    .values({ userId, ...PREF_DEFAULTS, ...prefs })
+    .onConflictDoUpdate({
+      target: userPrefs.userId,
+      // `SET` with no assignments is a SQLite syntax error — an empty patch
+      // becomes a self-assignment no-op.
+      set: Object.keys(prefs).length ? prefs : { userId },
+    });
 }
 
 export const getChunkSize = async (userId: string) =>
-  (await getUserPrefs(userId))?.logGroupSize ?? 10;
+  (await getUserPrefs(userId)).logGroupSize;
 export const setChunkSize = (userId: string, size: number) =>
   saveUserPrefs(userId, { logGroupSize: size });
 
 export const loadLastPricePerKg = async (userId: string) =>
-  (await getUserPrefs(userId))?.priceKg ?? 0;
+  (await getUserPrefs(userId)).priceKg;
 export const saveLastPricePerKg = (userId: string, v: number) =>
   saveUserPrefs(userId, { priceKg: v });
 
 export const loadLastKgPerCrate = async (userId: string) =>
-  (await getUserPrefs(userId))?.kgPerCrate ?? 0;
+  (await getUserPrefs(userId)).kgPerCrate;
 export const saveLastKgPerCrate = (userId: string, v: number) =>
   saveUserPrefs(userId, { kgPerCrate: v });
 
 export const loadLastDeductionG = async (userId: string) =>
-  (await getUserPrefs(userId))?.deductionWtG ?? 0;
+  (await getUserPrefs(userId)).deductionWtG;
 export const saveLastDeductionG = (userId: string, v: number) =>
   saveUserPrefs(userId, { deductionWtG: v });
 
 export const loadLanguagePref = async (userId: string) =>
-  (await getUserPrefs(userId))?.language ?? "en";
+  (await getUserPrefs(userId)).language;
 export const saveLanguagePref = (userId: string, v: "en" | "bn") =>
   saveUserPrefs(userId, { language: v });
 
 export const loadThemePref = async (userId: string) =>
-  (await getUserPrefs(userId))?.theme ?? "system";
+  (await getUserPrefs(userId)).theme;
 export const saveThemePref = (userId: string, v: "light" | "dark" | "system") =>
   saveUserPrefs(userId, { theme: v });
 

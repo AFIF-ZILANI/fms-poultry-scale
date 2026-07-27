@@ -54,7 +54,6 @@ export interface SaleRecord {
   cullRows?: MeasurementRow[];
   createdAt: number;
   updatedAt: number;
-  syncedAt?: number;
   meta?: SaleMetaData;
 }
 

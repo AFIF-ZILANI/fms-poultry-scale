@@ -19,7 +19,7 @@ import { useTheme } from "@/lib/useTheme";
 import { useSettings } from "@/lib/SettingsContext";
 import { getUserProfile, type OnboardingData } from "@/lib/onboarding";
 import { loadPlan, savePlan, type Plan } from "@/lib/subscription";
-import { loadSales } from "@/lib/storage";
+import { getSaleStats } from "@/lib/storage";
 
 // ─── Upgrade Modal ────────────────────────────────────────────────────────────
 
@@ -117,14 +117,16 @@ export default function ProfileScreen() {
   useFocusEffect(
     useCallback(() => {
       if (!user?.id) return;
-      Promise.all([getUserProfile(user.id), loadPlan(user.id), loadSales(user.id)]).then(
-        ([p, pl, sales]) => {
-          setProfile(p);
-          setPlanState(pl);
-          setTotalSales(sales.length);
-          setTotalRevenue(sales.reduce((s, r) => s + (r.meta?.finalAmount ?? 0), 0));
-        }
-      );
+      Promise.all([
+        getUserProfile(user.id),
+        loadPlan(user.id),
+        getSaleStats(user.id),
+      ]).then(([p, pl, stats]) => {
+        setProfile(p);
+        setPlanState(pl);
+        setTotalSales(stats.totalSales);
+        setTotalRevenue(stats.totalRevenue);
+      });
     }, [user?.id])
   );
 

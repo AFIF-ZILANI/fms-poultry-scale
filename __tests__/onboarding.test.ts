@@ -3,146 +3,119 @@ import {
   markOnboardingComplete,
   saveOnboardingDraft,
   loadOnboardingDraft,
-  clearOnboardingDraft,
   getUserProfile,
   saveUserProfile,
   type OnboardingData,
 } from "../lib/onboarding";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { applyMigrations, resetDb } from "./helpers/db";
 
-// The __mocks__/@react-native-async-storage/async-storage mock is picked up
-// automatically by Jest for node_modules manual mocks.
+beforeAll(() => applyMigrations());
+beforeEach(() => resetDb());
 
-const mockStorage = AsyncStorage as jest.Mocked<typeof AsyncStorage> & {
-  __resetStore: () => void;
-};
-
-beforeEach(() => {
-  mockStorage.__resetStore();
-  jest.clearAllMocks();
-});
-
-// ─── isOnboardingComplete / markOnboardingComplete ───────────────────────────
+function makeProfile(o: Partial<OnboardingData> = {}): OnboardingData {
+  return {
+    role: "farmer",
+    name: "Afif",
+    phone: "01700000000",
+    email: "afif@example.com",
+    location: "Dhaka",
+    farmName: "Green Farm",
+    subscriptionPlan: "community",
+    ...o,
+  };
+}
 
 describe("isOnboardingComplete", () => {
-  it("returns false for a user who has not completed onboarding", async () => {
+  it("is false for a user with no row", async () => {
+    expect(await isOnboardingComplete("nobody")).toBe(false);
+  });
+
+  it("is false while only a draft has been saved", async () => {
+    await saveOnboardingDraft("user-1", { name: "Afif" });
     expect(await isOnboardingComplete("user-1")).toBe(false);
   });
 
-  it("returns true after markOnboardingComplete is called", async () => {
+  it("is true after the profile is saved", async () => {
+    await saveUserProfile("user-1", makeProfile());
+    expect(await isOnboardingComplete("user-1")).toBe(true);
+  });
+
+  it("is true after markOnboardingComplete", async () => {
+    await saveOnboardingDraft("user-1", { name: "Afif" });
     await markOnboardingComplete("user-1");
     expect(await isOnboardingComplete("user-1")).toBe(true);
   });
 
-  it("isolates onboarding state by userId", async () => {
-    await markOnboardingComplete("user-1");
+  it("isolates state by user", async () => {
+    await saveUserProfile("user-1", makeProfile());
     expect(await isOnboardingComplete("user-2")).toBe(false);
   });
-
-  it("returns false when AsyncStorage.getItem returns null", async () => {
-    mockStorage.getItem.mockResolvedValueOnce(null);
-    expect(await isOnboardingComplete("user-1")).toBe(false);
-  });
-
-  it("returns false (not throws) when AsyncStorage.getItem rejects", async () => {
-    mockStorage.getItem.mockRejectedValueOnce(new Error("storage failure"));
-    expect(await isOnboardingComplete("user-1")).toBe(false);
-  });
 });
 
-// ─── saveOnboardingDraft / loadOnboardingDraft / clearOnboardingDraft ────────
-
-describe("Onboarding draft lifecycle", () => {
-  it("returns null when no draft has been saved", async () => {
-    expect(await loadOnboardingDraft("user-1")).toBeNull();
+describe("profile round-trip", () => {
+  it("returns null for an unknown user", async () => {
+    expect(await getUserProfile("nobody")).toBeNull();
   });
 
-  it("saves and retrieves a partial onboarding draft", async () => {
-    await saveOnboardingDraft("user-1", { role: "farmer", name: "Karim" });
-    const draft = await loadOnboardingDraft("user-1");
-    expect(draft).toMatchObject({ role: "farmer", name: "Karim" });
-  });
-
-  it("isolates drafts by userId", async () => {
-    await saveOnboardingDraft("user-1", { name: "Karim" });
-    expect(await loadOnboardingDraft("user-2")).toBeNull();
-  });
-
-  it("overwrites the draft on repeated saves", async () => {
-    await saveOnboardingDraft("user-1", { name: "Old" });
-    await saveOnboardingDraft("user-1", { name: "New", role: "wholesaler" });
-    const draft = await loadOnboardingDraft("user-1");
-    expect(draft?.name).toBe("New");
-    expect(draft?.role).toBe("wholesaler");
-  });
-
-  it("clearOnboardingDraft removes the draft", async () => {
-    await saveOnboardingDraft("user-1", { name: "Karim" });
-    await clearOnboardingDraft("user-1");
-    expect(await loadOnboardingDraft("user-1")).toBeNull();
-  });
-
-  it("clearOnboardingDraft is a no-op when no draft exists", async () => {
-    await expect(clearOnboardingDraft("user-1")).resolves.not.toThrow();
-  });
-
-  it("returns null (not throws) when loadOnboardingDraft encounters an error", async () => {
-    mockStorage.getItem.mockRejectedValueOnce(new Error("quota exceeded"));
-    expect(await loadOnboardingDraft("user-1")).toBeNull();
-  });
-});
-
-// ─── getUserProfile / saveUserProfile ────────────────────────────────────────
-
-describe("User profile", () => {
-  const profile: OnboardingData = {
-    role: "farmer",
-    name: "Ahmed",
-    phone: "+8801711000000",
-    farmName: "Green Farm",
-  };
-
-  it("returns null when no profile has been saved", async () => {
-    expect(await getUserProfile("user-1")).toBeNull();
-  });
-
-  it("saves and retrieves a full user profile", async () => {
-    await saveUserProfile("user-1", profile);
-    const loaded = await getUserProfile("user-1");
-    expect(loaded).toEqual(profile);
-  });
-
-  it("isolates profiles by userId", async () => {
-    await saveUserProfile("user-1", profile);
-    expect(await getUserProfile("user-2")).toBeNull();
-  });
-
-  it("overwrites the profile on second save", async () => {
-    await saveUserProfile("user-1", profile);
-    const updated = { ...profile, name: "Karim", farmName: "Blue Farm" };
-    await saveUserProfile("user-1", updated);
-    const loaded = await getUserProfile("user-1");
-    expect(loaded?.name).toBe("Karim");
-    expect(loaded?.farmName).toBe("Blue Farm");
-  });
-
-  it("returns null (not throws) when getUserProfile encounters a parse error", async () => {
-    mockStorage.getItem.mockResolvedValueOnce("{invalid json");
-    expect(await getUserProfile("user-1")).toBeNull();
-  });
-
-  it("round-trips all optional profile fields correctly", async () => {
-    const full: OnboardingData = {
+  it("saves and reads back every field", async () => {
+    const profile = makeProfile({
       role: "wholesaler",
-      name: "Rahim",
-      phone: "+8801800000000",
-      location: "Dhaka",
-      businessName: "Rahim Traders",
-      buyingCapacity: "1000",
-      supplyRegions: "Dhaka, Chittagong",
-    };
-    await saveUserProfile("user-1", full);
-    const loaded = await getUserProfile("user-1");
-    expect(loaded).toEqual(full);
+      businessName: "Zerod Traders",
+      buyingCapacity: 5000,
+      supplyRegions: "Dhaka, Chattogram",
+      subscriptionPlan: "premium",
+    });
+    await saveUserProfile("user-1", profile);
+
+    expect(await getUserProfile("user-1")).toMatchObject(profile);
+  });
+
+  it("overwrites an existing profile instead of erroring", async () => {
+    await saveUserProfile("user-1", makeProfile({ name: "First" }));
+    await saveUserProfile("user-1", makeProfile({ name: "Second" }));
+
+    expect((await getUserProfile("user-1"))?.name).toBe("Second");
+  });
+
+  it("upgrades a draft in place, keeping the same row", async () => {
+    await saveOnboardingDraft("user-1", { name: "Afif", location: "Dhaka" });
+    await saveUserProfile("user-1", makeProfile({ name: "Afif Zilani" }));
+
+    const profile = await getUserProfile("user-1");
+    expect(profile?.name).toBe("Afif Zilani");
+    expect(await isOnboardingComplete("user-1")).toBe(true);
+  });
+});
+
+describe("onboarding draft", () => {
+  it("returns null before anything is saved", async () => {
+    expect(await loadOnboardingDraft("user-1")).toBeNull();
+  });
+
+  it("saves and reloads a partial draft", async () => {
+    await saveOnboardingDraft("user-1", {
+      role: "farmer",
+      name: "Afif",
+      farmCapacity: 1200,
+    });
+
+    expect(await loadOnboardingDraft("user-1")).toMatchObject({
+      role: "farmer",
+      name: "Afif",
+      farmCapacity: 1200,
+    });
+  });
+
+  it("overwrites the previous draft on the next step", async () => {
+    await saveOnboardingDraft("user-1", { name: "Afif" });
+    await saveOnboardingDraft("user-1", { name: "Afif", breed: "Broiler" });
+
+    const draft = await loadOnboardingDraft("user-1");
+    expect(draft).toMatchObject({ name: "Afif", breed: "Broiler" });
+  });
+
+  it("defaults role to farmer when the draft has not chosen one", async () => {
+    await saveOnboardingDraft("user-1", { name: "Afif" });
+    expect((await loadOnboardingDraft("user-1"))?.role).toBe("farmer");
   });
 });
