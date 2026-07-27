@@ -8,7 +8,9 @@
     "start:tunnel": "npx expo start --tunnel",
     "lint": "npx expo lint",
     "lint:fix": "npx expo lint --fix",
-    "test": "jest"
+    "test": "jest",
+    "android": "expo run:android",
+    "ios": "expo run:ios"
   },
   "dependencies": {
     "@clerk/expo": "^3.4.1",

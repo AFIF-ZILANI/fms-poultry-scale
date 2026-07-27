@@ -61,7 +61,12 @@ CREATE TABLE `__new_user_prefs` (
 	FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE cascade
 );
 --> statement-breakpoint
-INSERT INTO `__new_user_prefs`("user_id", "language", "theme", "log_group_size", "kg_per_crate", "deduction_wt_g", "price_kg") SELECT "user_id", "language", "theme", "log_group_size", "kg_per_crate", "deduction_wt_g", "price_kg" FROM `user_prefs`;--> statement-breakpoint
+-- NOTE: the generated INSERT..SELECT here copied theme/log_group_size/
+-- kg_per_crate/deduction_wt_g/price_kg out of `user_prefs`, which at this
+-- point is the renamed key/value `prefs` table and has none of those columns.
+-- It only survived on-device because SQLite's legacy double-quote fallback
+-- turned "theme" into the string 'theme', writing junk into every row. The
+-- old key/value rows have no meaning in the new shape, so they are dropped.
 DROP TABLE `user_prefs`;--> statement-breakpoint
 ALTER TABLE `__new_user_prefs` RENAME TO `user_prefs`;--> statement-breakpoint
 PRAGMA foreign_keys=ON;--> statement-breakpoint
@@ -75,7 +80,12 @@ CREATE TABLE `__new_measurement_rows` (
 	FOREIGN KEY (`sale_id`) REFERENCES `sales`(`id`) ON UPDATE no action ON DELETE cascade
 );
 --> statement-breakpoint
-INSERT INTO `__new_measurement_rows`("id", "sale_id", "type", "weight", "pcs", "created_at") SELECT "id", "sale_id", "type", "weight", "pcs", "created_at" FROM `measurement_rows`;--> statement-breakpoint
+-- Columns were renamed in this migration (kind→type, weight_kg→weight,
+-- timestamp→created_at); the generated SELECT used the *new* names, which
+-- the old table does not have. Mapped to the real source columns here.
+-- Draft-owned rows (null sale_id) cannot satisfy the new NOT NULL and their
+-- parent `drafts` table is dropped by this same migration, so they are left.
+INSERT INTO `__new_measurement_rows`("id", "sale_id", "type", "weight", "pcs", "created_at") SELECT "id", "sale_id", "kind", "weight_kg", "pcs", "timestamp" FROM `measurement_rows` WHERE "sale_id" IS NOT NULL;--> statement-breakpoint
 DROP TABLE `measurement_rows`;--> statement-breakpoint
 ALTER TABLE `__new_measurement_rows` RENAME TO `measurement_rows`;--> statement-breakpoint
 ALTER TABLE `row_edit_history` ADD `reason` text;--> statement-breakpoint
@@ -93,6 +103,12 @@ CREATE TABLE `__new_sales` (
 	FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE cascade
 );
 --> statement-breakpoint
-INSERT INTO `__new_sales`("id", "user_id", "phase", "is_pcs_tracked", "has_cull", "is_finished", "created_at", "updated_at", "synced", "synced_at") SELECT "id", "user_id", "phase", "is_pcs_tracked", "has_cull", "is_finished", "created_at", "updated_at", "synced", "synced_at" FROM `sales`;--> statement-breakpoint
+-- Same problem as the tables above: the generated SELECT named columns that
+-- only exist in the new shape. Pre-existing sales were all completed
+-- single-phase weigh-ins, so they map to phase 'main' / is_finished 1, and
+-- updated_at seeds from created_at. Their per-sale money figures lived in the
+-- `trade_deductions` table this migration drops and cannot be reconstructed,
+-- so they arrive with no sale_meta_data row.
+INSERT INTO `__new_sales`("id", "user_id", "phase", "is_pcs_tracked", "has_cull", "is_finished", "created_at", "updated_at", "synced", "synced_at") SELECT "id", "user_id", 'main', coalesce("pcs_tracked", 0), 0, 1, "created_at", "created_at", "synced", "synced_at" FROM `sales`;--> statement-breakpoint
 DROP TABLE `sales`;--> statement-breakpoint
 ALTER TABLE `__new_sales` RENAME TO `sales`;

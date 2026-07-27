@@ -66,21 +66,26 @@ export function generateReceiptHtml(
   sale: SaleRecord,
   farmName: string
 ): string {
-  const { deduction } = sale;
+  const m = sale.meta;
   const shortId = sale.id.replace(/-/g, "").slice(0, 8).toUpperCase();
   const hasCull = (sale.cullRows?.length ?? 0) > 0;
   const cullRows = sale.cullRows ?? [];
   const cullTotalKg = cullRows.reduce((s, r) => s + r.weightKg, 0);
   const cullTotalPcs = cullRows.reduce((s, r) => s + (r.pcs ?? 0), 0);
 
-  const mainAmount =
-    deduction?.main_amount ?? (deduction ? deduction.net_weight * deduction.price_per_kg : 0);
-  const cullAmount = deduction?.cull_amount ?? 0;
-  const cullSold = deduction?.cull_sold ?? false;
-  const balanceDue =
-    sale.receivedAmount != null && deduction
-      ? deduction.final_amount - sale.receivedAmount
-      : null;
+  // Culled birds are a subset of the main weigh-in, so the stored
+  // mainWeightKg is already net of cull — gross is the two added back.
+  const grossKg = m
+    ? m.mainWeightKg + m.cullWeightKg
+    : sale.rows.reduce((s, r) => s + r.weightKg, 0);
+  const totalBirds =
+    m?.totalPcs ?? sale.rows.reduce((s, r) => s + (r.pcs ?? 0), 0);
+
+  const mainAmount = m?.mainAmount ?? 0;
+  const cullAmount = m?.cullAmount ?? 0;
+  const cullSold = m?.isCullSold ?? false;
+  const receivedAmount = m?.receivedAmount ?? 0;
+  const balanceDue = m && receivedAmount > 0 ? m.finalAmount - receivedAmount : null;
 
   const displayName = farmName.trim() || "Poultry Farm";
 
@@ -92,59 +97,60 @@ export function generateReceiptHtml(
     </div>`;
 
   // ── Page 1 ───────────────────────────────────────────────────────────
-  const statsGrid = deduction
+  const birdsCell = !sale.isPcsTracked ? "—" : totalBirds;
+  const statsGrid = m
     ? `<div class="stats-grid">
-        <div class="stat-cell"><div class="stat-val">${fmt(sale.totalWeightKg)} KG</div><div class="stat-key">Gross Weight</div></div>
-        <div class="stat-cell stat-divider"><div class="stat-val">${sale.pcsTracked === false ? "—" : sale.totalPcs}</div><div class="stat-key">Total Birds</div></div>
-        <div class="stat-cell stat-top"><div class="stat-val">${fmt(deduction.net_weight)} KG</div><div class="stat-key">Net Weight</div></div>
-        <div class="stat-cell stat-top stat-divider"><div class="stat-val">Tk ${deduction.price_per_kg.toFixed(2)}</div><div class="stat-key">Price / KG</div></div>
+        <div class="stat-cell"><div class="stat-val">${fmt(grossKg)} KG</div><div class="stat-key">Gross Weight</div></div>
+        <div class="stat-cell stat-divider"><div class="stat-val">${birdsCell}</div><div class="stat-key">Total Birds</div></div>
+        <div class="stat-cell stat-top"><div class="stat-val">${fmt(m.netWeightKg)} KG</div><div class="stat-key">Net Weight</div></div>
+        <div class="stat-cell stat-top stat-divider"><div class="stat-val">Tk ${m.mainPrice.toFixed(2)}</div><div class="stat-key">Price / KG</div></div>
       </div>`
     : `<div class="stats-grid stats-grid-2">
-        <div class="stat-cell"><div class="stat-val">${fmt(sale.totalWeightKg)} KG</div><div class="stat-key">Gross Weight</div></div>
-        <div class="stat-cell stat-divider"><div class="stat-val">${sale.pcsTracked === false ? "—" : sale.totalPcs}</div><div class="stat-key">Total Birds</div></div>
+        <div class="stat-cell"><div class="stat-val">${fmt(grossKg)} KG</div><div class="stat-key">Gross Weight</div></div>
+        <div class="stat-cell stat-divider"><div class="stat-val">${birdsCell}</div><div class="stat-key">Total Birds</div></div>
       </div>`;
 
   let calcHtml = "";
-  if (deduction) {
-    const base = deduction.gross_weight - deduction.cull_weight_kg;
-    const rawCrates = base / deduction.kg_per_crate;
-    const crateNote = deduction.full_crates_only
-      ? `${fmt(base)} ÷ ${deduction.kg_per_crate} = ${rawCrates.toFixed(3)} → ${deduction.total_crates} crates`
-      : `${fmt(base)} ÷ ${deduction.kg_per_crate} = ${deduction.total_crates.toFixed(3)} crates`;
+  if (m) {
+    const base = m.mainWeightKg;
+    const rawCrates = base / m.kgPerCrate;
+    const crateNote = m.isFullCratesOnly
+      ? `${fmt(base)} ÷ ${m.kgPerCrate} = ${rawCrates.toFixed(3)} → ${m.totalCrates} crates`
+      : `${fmt(base)} ÷ ${m.kgPerCrate} = ${m.totalCrates.toFixed(3)} crates`;
 
     calcHtml = `
       <div class="section-label">Calculation Detail</div>
       <table class="calc-table">
-        <tr><td>Gross weight</td><td class="cv">${fmt(deduction.gross_weight)} KG</td></tr>
-        ${deduction.cull_weight_kg > 0 ? `
-          <tr><td>Cull weight</td><td class="cv neg">−${fmt(deduction.cull_weight_kg)} KG</td></tr>
+        <tr><td>Gross weight</td><td class="cv">${fmt(grossKg)} KG</td></tr>
+        ${m.cullWeightKg > 0 ? `
+          <tr><td>Cull weight</td><td class="cv neg">−${fmt(m.cullWeightKg)} KG</td></tr>
           <tr><td>Subtotal gross</td><td class="cv">${fmt(base)} KG</td></tr>
         ` : `<tr><td>Cull weight</td><td class="cv">0 KG</td></tr>`}
         <tr class="indent"><td>${crateNote}</td><td></td></tr>
         <tr>
-          <td>${deduction.total_crates} crates × ${deduction.deduction_per_crate_g}g deduction</td>
-          <td class="cv neg">−${fmt(deduction.total_deduction_kg)} KG</td>
+          <td>${m.totalCrates} crates × ${m.deductionPerCrateG}g deduction</td>
+          <td class="cv neg">−${fmt(m.totalDeductionWtKg)} KG</td>
         </tr>
-        <tr class="net-row"><td>Net payable weight</td><td class="cv">${fmt(deduction.net_weight)} KG</td></tr>
-        <tr class="indent"><td>× Tk ${deduction.price_per_kg.toFixed(2)} / kg</td><td></td></tr>
+        <tr class="net-row"><td>Net payable weight</td><td class="cv">${fmt(m.netWeightKg)} KG</td></tr>
+        <tr class="indent"><td>× Tk ${m.mainPrice.toFixed(2)} / kg</td><td></td></tr>
         <tr><td>Main amount</td><td class="cv">${tk(mainAmount)}</td></tr>
         ${cullSold && cullAmount > 0 ? `
           <tr>
-            <td>${deduction.cull_pricing_mode === "per_kg"
-              ? `Cull: ${fmt(deduction.cull_weight_kg)} kg × Tk ${deduction.cull_price?.toFixed(2)}`
-              : `Cull: ${deduction.cull_pcs} birds × Tk ${deduction.cull_price?.toFixed(2)}`}</td>
+            <td>${m.cullSaleType === "weight"
+              ? `Cull: ${fmt(m.cullWeightKg)} kg × Tk ${m.cullPrice?.toFixed(2)}`
+              : `Cull: ${m.cullPcs} birds × Tk ${m.cullPrice?.toFixed(2)}`}</td>
             <td class="cv pos">+ ${tk(cullAmount)}</td>
           </tr>` : ""}
       </table>
       <div class="total-wrap">
         <div class="total-bar">
           <span class="total-lbl">TOTAL</span>
-          <span class="total-amt">${tk(deduction.final_amount)}</span>
+          <span class="total-amt">${tk(m.finalAmount)}</span>
         </div>
-        ${sale.receivedAmount != null && sale.receivedAmount > 0 ? `
+        ${receivedAmount > 0 ? `
           <div class="payment-row">
             <span>Amount received</span>
-            <span class="pos">− ${tk(sale.receivedAmount)}</span>
+            <span class="pos">− ${tk(receivedAmount)}</span>
           </div>` : ""}
         ${balanceDue !== null ? `
           <div class="balance-bar ${balanceDue > 0 ? "balance-due" : "balance-paid"}">
@@ -293,7 +299,7 @@ export function generateReceiptHtml(
           <span>${fmtDate(sale.createdAt)}</span>
           <span>Receipt #${shortId}</span>
         </div>
-        ${sale.buyerName ? `<div class="header-buyer">Buyer: ${sale.buyerName}</div>` : ""}
+        ${m?.buyerName ? `<div class="header-buyer">Buyer: ${m.buyerName}</div>` : ""}
       </div>
       ${statsGrid}
       ${calcHtml}
@@ -309,7 +315,7 @@ export function generateReceiptHtml(
       ${miniHeader}
       <div class="session-title">
         MAIN SESSION
-        <span class="session-sub">${fmt(sale.totalWeightKg)} KG · ${sale.pcsTracked === false ? "—" : sale.totalPcs} Birds</span>
+        <span class="session-sub">${fmt(grossKg)} KG · ${birdsCell} Birds</span>
       </div>
       ${logTable(sale.rows)}
       <div class="page-footer">

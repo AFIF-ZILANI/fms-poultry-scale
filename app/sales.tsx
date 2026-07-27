@@ -129,7 +129,14 @@ function SaleCard({ sale, index, theme, t, onDelete }: {
   t: ReturnType<typeof useSettings>["t"];
   onDelete: (id: string) => void;
 }) {
-  const { deduction } = sale;
+  const m = sale.meta;
+  // Culled birds are a subset of the main weigh-in, so gross adds cull back.
+  const grossKg = m
+    ? m.mainWeightKg + m.cullWeightKg
+    : sale.rows.reduce((sum, r) => sum + r.weightKg, 0);
+  const totalBirds =
+    m?.totalPcs ?? sale.rows.reduce((sum, r) => sum + (r.pcs ?? 0), 0);
+  const avgKg = totalBirds > 0 ? grossKg / totalBirds : 0;
 
   return (
     <Animated.View entering={Platform.OS !== "web" ? FadeInDown.delay(index * 35).springify() : undefined}>
@@ -160,33 +167,33 @@ function SaleCard({ sale, index, theme, t, onDelete }: {
         </View>
 
         <View style={styles.cardStats}>
-          <StatCell value={`${formatWeight(sale.totalWeightKg)} KG`} label={t.grossKg} color={theme.accent} theme={theme} />
+          <StatCell value={`${formatWeight(grossKg)} KG`} label={t.grossKg} color={theme.accent} theme={theme} />
           <View style={[styles.divider, { backgroundColor: theme.borderLight }]} />
           <StatCell
-            value={sale.pcsTracked === false ? "—" : String(sale.totalPcs)}
+            value={!sale.isPcsTracked ? "—" : String(totalBirds)}
             label={t.birds}
             color={theme.warm}
             theme={theme}
           />
           <View style={[styles.divider, { backgroundColor: theme.borderLight }]} />
           <StatCell
-            value={deduction ? `${formatWeight(deduction.net_weight)} KG` : `${formatWeight(sale.averageWeightKg)} KG`}
-            label={deduction ? t.netKg : t.avgKg}
+            value={m ? `${formatWeight(m.netWeightKg)} KG` : `${formatWeight(avgKg)} KG`}
+            label={m ? t.netKg : t.avgKg}
             color={theme.text}
             theme={theme}
           />
         </View>
 
-        {deduction ? (
+        {m ? (
           <View style={[styles.cardFooter, { backgroundColor: theme.accentLight, borderTopColor: theme.borderLight }]}>
             <Text style={[styles.footerMeta, { color: theme.textSecondary, fontFamily: "Outfit_400Regular" }]}>
               <Text style={{ color: theme.danger, fontFamily: "Outfit_600SemiBold" }}>
-                −{formatWeight(deduction.total_deduction_kg)} KG
+                −{formatWeight(m.totalDeductionWtKg)} KG
               </Text>
               {"  deduction"}
             </Text>
             <Text style={[styles.footerAmount, { color: theme.accent, fontFamily: "Outfit_700Bold" }]}>
-              Tk {deduction.final_amount.toLocaleString("en-PK", { maximumFractionDigits: 0 })}
+              Tk {m.finalAmount.toLocaleString("en-PK", { maximumFractionDigits: 0 })}
             </Text>
           </View>
         ) : (

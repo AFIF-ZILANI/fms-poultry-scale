@@ -20,7 +20,7 @@ import { useUser } from "@clerk/expo";
 import { useTheme } from "@/lib/useTheme";
 import { useSettings } from "@/lib/SettingsContext";
 import { formatWeight, formatDateTime } from "@/lib/utils";
-import { loadSales, loadFarmName } from "@/lib/storage";
+import { loadSale, loadFarmName } from "@/lib/storage";
 import { ReceiptView } from "@/components/ReceiptView";
 import { generateReceiptHtml } from "@/lib/receiptHtml";
 import type { SaleRecord } from "@/lib/types";
@@ -41,9 +41,8 @@ export default function SaleDetailScreen() {
   useFocusEffect(
     useCallback(() => {
       if (!user?.id) return;
-      Promise.all([loadSales(user.id), loadFarmName(user.id)]).then(
-        ([sales, name]) => {
-          const found = sales.find((s) => s.id === id) ?? null;
+      Promise.all([loadSale(id), loadFarmName(user.id)]).then(
+        ([found, name]) => {
           setSale(found);
           setFarmName(name);
           setLoading(false);

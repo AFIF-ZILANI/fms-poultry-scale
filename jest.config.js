@@ -12,5 +12,9 @@ module.exports = {
   transformIgnorePatterns: [
     "node_modules/(?!(expo-sqlite|@react-native-async-storage)/)",
   ],
-  testPathIgnorePatterns: ["/node_modules/", "/claude-context-optimizer/"],
+  testPathIgnorePatterns: [
+    "/node_modules/",
+    "/claude-context-optimizer/",
+    "/__tests__/helpers/", // shared setup, not a suite
+  ],
 };

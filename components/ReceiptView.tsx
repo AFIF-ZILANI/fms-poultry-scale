@@ -190,20 +190,25 @@ function LogTable({
 }
 
 export function ReceiptView({ sale, farmName }: Props) {
-  const { deduction } = sale;
+  const m = sale.meta;
   const hasCull = (sale.cullRows?.length ?? 0) > 0;
   const cullRows = sale.cullRows ?? [];
   const cullTotalKg = cullRows.reduce((s, r) => s + r.weightKg, 0);
   const cullTotalPcs = cullRows.reduce((s, r) => s + (r.pcs ?? 0), 0);
 
-  const mainAmount =
-    deduction?.main_amount ?? (deduction ? deduction.net_weight * deduction.price_per_kg : 0);
-  const cullAmount = deduction?.cull_amount ?? 0;
-  const cullSold = deduction?.cull_sold ?? false;
-  const balanceDue =
-    sale.receivedAmount != null && deduction
-      ? deduction.final_amount - sale.receivedAmount
-      : null;
+  // Culled birds are a subset of the main weigh-in, so the stored
+  // mainWeightKg is already net of cull — gross is the two added back.
+  const grossKg = m
+    ? m.mainWeightKg + m.cullWeightKg
+    : sale.rows.reduce((s, r) => s + r.weightKg, 0);
+  const totalBirds =
+    m?.totalPcs ?? sale.rows.reduce((s, r) => s + (r.pcs ?? 0), 0);
+
+  const mainAmount = m?.mainAmount ?? 0;
+  const cullAmount = m?.cullAmount ?? 0;
+  const cullSold = m?.isCullSold ?? false;
+  const receivedAmount = m?.receivedAmount ?? 0;
+  const balanceDue = m && receivedAmount > 0 ? m.finalAmount - receivedAmount : null;
 
   const shortId = sale.id.replace(/-/g, "").slice(0, 8).toUpperCase();
 
@@ -223,9 +228,9 @@ export function ReceiptView({ sale, farmName }: Props) {
         <Text style={{ fontSize: 12, fontFamily: "Outfit_400Regular", color: C.muted, marginTop: 2 }}>
           {formatDateTime(sale.createdAt)} · #{shortId}
         </Text>
-        {!!sale.buyerName && (
+        {!!m?.buyerName && (
           <Text style={{ fontSize: 15, fontFamily: "Outfit_600SemiBold", color: C.text, marginTop: 2 }}>
-            Buyer: {sale.buyerName}
+            Buyer: {m?.buyerName}
           </Text>
         )}
       </View>
@@ -243,7 +248,7 @@ export function ReceiptView({ sale, farmName }: Props) {
         <View style={{ flexDirection: "row" }}>
           <View style={{ flex: 1, padding: 12 }}>
             <Text style={{ fontSize: 17, fontFamily: "Outfit_700Bold", color: C.text }}>
-              {formatWeight(sale.totalWeightKg)} KG
+              {formatWeight(grossKg)} KG
             </Text>
             <Text style={{ fontSize: 9, fontFamily: "Outfit_500Medium", color: C.muted, marginTop: 2, letterSpacing: 0.4 }}>
               GROSS WEIGHT
@@ -252,20 +257,20 @@ export function ReceiptView({ sale, farmName }: Props) {
           <View style={{ width: 1, backgroundColor: C.border }} />
           <View style={{ flex: 1, padding: 12 }}>
             <Text style={{ fontSize: 17, fontFamily: "Outfit_700Bold", color: C.text }}>
-              {sale.pcsTracked === false ? "—" : sale.totalPcs}
+              {!sale.isPcsTracked ? "—" : totalBirds}
             </Text>
             <Text style={{ fontSize: 9, fontFamily: "Outfit_500Medium", color: C.muted, marginTop: 2, letterSpacing: 0.4 }}>
               TOTAL BIRDS
             </Text>
           </View>
         </View>
-        {deduction && (
+        {m && (
           <>
             <View style={{ height: 1, backgroundColor: C.border }} />
             <View style={{ flexDirection: "row" }}>
               <View style={{ flex: 1, padding: 12 }}>
                 <Text style={{ fontSize: 17, fontFamily: "Outfit_700Bold", color: C.text }}>
-                  {formatWeight(deduction.net_weight)} KG
+                  {formatWeight(m.netWeightKg)} KG
                 </Text>
                 <Text style={{ fontSize: 9, fontFamily: "Outfit_500Medium", color: C.muted, marginTop: 2, letterSpacing: 0.4 }}>
                   NET WEIGHT
@@ -274,7 +279,7 @@ export function ReceiptView({ sale, farmName }: Props) {
               <View style={{ width: 1, backgroundColor: C.border }} />
               <View style={{ flex: 1, padding: 12 }}>
                 <Text style={{ fontSize: 17, fontFamily: "Outfit_700Bold", color: C.text }}>
-                  Tk {deduction.price_per_kg.toFixed(2)}
+                  Tk {m.mainPrice.toFixed(2)}
                 </Text>
                 <Text style={{ fontSize: 9, fontFamily: "Outfit_500Medium", color: C.muted, marginTop: 2, letterSpacing: 0.4 }}>
                   PRICE / KG
@@ -286,24 +291,24 @@ export function ReceiptView({ sale, farmName }: Props) {
       </View>
 
       {/* ── Calculation ─────────────────────────────────────────── */}
-      {deduction && (() => {
-        const base = deduction.gross_weight - deduction.cull_weight_kg;
-        const rawCrates = base / deduction.kg_per_crate;
-        const crateNote = deduction.full_crates_only
-          ? `${formatWeight(base)} ÷ ${deduction.kg_per_crate} = ${rawCrates.toFixed(3)} → ${deduction.total_crates} crates`
-          : `${formatWeight(base)} ÷ ${deduction.kg_per_crate} = ${deduction.total_crates.toFixed(3)} crates`;
+      {m && (() => {
+        const base = m.mainWeightKg;
+        const rawCrates = base / m.kgPerCrate;
+        const crateNote = m.isFullCratesOnly
+          ? `${formatWeight(base)} ÷ ${m.kgPerCrate} = ${rawCrates.toFixed(3)} → ${m.totalCrates} crates`
+          : `${formatWeight(base)} ÷ ${m.kgPerCrate} = ${m.totalCrates.toFixed(3)} crates`;
 
         return (
           <>
             <SectionLabel label="Calculation Detail" />
 
-            <CalcRow label="Gross weight" value={`${formatWeight(deduction.gross_weight)} KG`} />
+            <CalcRow label="Gross weight" value={`${formatWeight(grossKg)} KG`} />
 
-            {deduction.cull_weight_kg > 0 ? (
+            {m.cullWeightKg > 0 ? (
               <>
                 <CalcRow
                   label="Cull weight"
-                  value={`−${formatWeight(deduction.cull_weight_kg)} KG`}
+                  value={`−${formatWeight(m.cullWeightKg)} KG`}
                   valColor={C.red}
                 />
                 <CalcRow
@@ -318,8 +323,8 @@ export function ReceiptView({ sale, farmName }: Props) {
             <CalcRow label={crateNote} indent />
 
             <CalcRow
-              label={`${deduction.total_crates} crates × ${deduction.deduction_per_crate_g}g deduction`}
-              value={`−${formatWeight(deduction.total_deduction_kg)} KG`}
+              label={`${m.totalCrates} crates × ${m.deductionPerCrateG}g deduction`}
+              value={`−${formatWeight(m.totalDeductionWtKg)} KG`}
               valColor={C.red}
             />
 
@@ -340,19 +345,19 @@ export function ReceiptView({ sale, farmName }: Props) {
                 Net payable weight
               </Text>
               <Text style={{ fontSize: 16, fontFamily: "Outfit_700Bold", color: C.text }}>
-                {formatWeight(deduction.net_weight)} KG
+                {formatWeight(m.netWeightKg)} KG
               </Text>
             </View>
 
-            <CalcRow label={`× Tk ${deduction.price_per_kg.toFixed(2)} / kg`} indent />
+            <CalcRow label={`× Tk ${m.mainPrice.toFixed(2)} / kg`} indent />
             <CalcRow label="Main amount" value={tk(mainAmount)} />
 
             {cullSold && cullAmount > 0 && (
               <CalcRow
                 label={
-                  deduction.cull_pricing_mode === "per_kg"
-                    ? `Cull: ${formatWeight(deduction.cull_weight_kg)} kg × Tk ${deduction.cull_price?.toFixed(2)}`
-                    : `Cull: ${deduction.cull_pcs} birds × Tk ${deduction.cull_price?.toFixed(2)}`
+                  m.cullSaleType === "weight"
+                    ? `Cull: ${formatWeight(m.cullWeightKg)} kg × Tk ${m.cullPrice?.toFixed(2)}`
+                    : `Cull: ${m.cullPcs} birds × Tk ${m.cullPrice?.toFixed(2)}`
                 }
                 value={`+ ${tk(cullAmount)}`}
                 valColor={C.green}
@@ -373,12 +378,12 @@ export function ReceiptView({ sale, farmName }: Props) {
                 TOTAL
               </Text>
               <Text style={{ fontSize: 22, fontFamily: "Outfit_700Bold", color: C.text }}>
-                {tk(deduction.final_amount)}
+                {tk(m.finalAmount)}
               </Text>
             </View>
             <View style={{ height: 2, backgroundColor: C.text, marginBottom: 8 }} />
 
-            {sale.receivedAmount != null && sale.receivedAmount > 0 && (
+            {receivedAmount != null && receivedAmount > 0 && (
               <View
                 style={{
                   flexDirection: "row",
@@ -390,7 +395,7 @@ export function ReceiptView({ sale, farmName }: Props) {
                   Amount received
                 </Text>
                 <Text style={{ fontSize: 14, fontFamily: "Outfit_600SemiBold", color: C.green }}>
-                  − {tk(sale.receivedAmount)}
+                  − {tk(receivedAmount)}
                 </Text>
               </View>
             )}
@@ -439,8 +444,8 @@ export function ReceiptView({ sale, farmName }: Props) {
       <LogTable
         rows={sale.rows}
         title="MAIN SESSION"
-        totalKg={sale.totalWeightKg}
-        totalPcs={sale.totalPcs}
+        totalKg={grossKg}
+        totalPcs={totalBirds}
       />
 
       {/* ── Cull session log ────────────────────────────────────── */}

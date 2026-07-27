@@ -104,7 +104,6 @@ export async function saveUserProfile(
       buyingCapacity: data.buyingCapacity,
       supplyRegions: data.supplyRegions,
       is_onboarded: true,
-      createdAt: new Date(),
     })
     .onConflictDoUpdate({
       target: users.id,
@@ -133,7 +132,6 @@ export async function saveOnboardingDraft(
     .values({
       id: userId,
       is_onboarded: false,
-      createdAt: new Date(),
       role: data.role ?? "farmer",
       location: data.location ?? "",
       email: data.email ?? "",

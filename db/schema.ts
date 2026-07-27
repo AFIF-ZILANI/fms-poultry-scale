@@ -1,4 +1,4 @@
-import { sqliteTable, text, real, integer, index, uniqueIndex } from "drizzle-orm/sqlite-core";
+import { sqliteTable, text, real, integer, index } from "drizzle-orm/sqlite-core";
 import { relations } from "drizzle-orm";
 
 // ─── Users ───
@@ -23,7 +23,9 @@ export const users = sqliteTable("users", {
   buyingCapacity: integer("buying_capacity"),
   breed: text("breed"),
   supplyRegions: text("supply_regions"),
-  createdAt: integer("created_at", { mode: "timestamp" })
+  createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(
+    () => new Date(),
+  ),
 });
 
 // ─── Sales ───
@@ -40,17 +42,18 @@ export const sales = sqliteTable("sales", {
     .default(false),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
   updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
-  synced: integer("synced", { mode: "boolean" }).notNull().default(false),
-  syncedAt: integer("synced_at", { mode: "timestamp" }),
 }, (table) => ({
-  userIdIdx: index("sales_user_id_idx").on(table.userId, table.isFinished, table.updatedAt),
+  // Drafts: filter by user + isFinished, sort by updatedAt.
+  draftsIdx: index("sales_user_id_idx").on(table.userId, table.isFinished, table.updatedAt),
+  // History: filter by user, sort by createdAt.
+  historyIdx: index("sales_user_created_idx").on(table.userId, table.createdAt),
 }));
 
 // ─── Sale Meta Data ───
 export const saleMetaData = sqliteTable("sale_meta_data", {
-  id: text("id").primaryKey(),
+  // 1:1 with sales — the sale id *is* the key, no surrogate needed.
   saleId: text("sale_id")
-    .notNull()
+    .primaryKey()
     .references(() => sales.id, { onDelete: "cascade" }),
 
   mainWeightKg: real("main_weight_kg").notNull(),
@@ -82,9 +85,7 @@ export const saleMetaData = sqliteTable("sale_meta_data", {
   totalCrates: real("total_crates").notNull(),
   totalPcs: integer("total_pcs"),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
-}, (table) => ({
-  saleIdIdx: uniqueIndex("sale_meta_data_sale_id_idx").on(table.saleId),
-}));
+});
 
 // ─── Measurement Rows ───
 export const measurementRows = sqliteTable("measurement_rows", {
@@ -108,7 +109,7 @@ export const rowEditHistory = sqliteTable("row_edit_history", {
     .references(() => measurementRows.id, { onDelete: "cascade" }),
   previousWeight: real("previous_weight").notNull(),
   previousPcs: integer("previous_pcs"),
-  newWeight: real("new_weight").notNull(), // ADDED — was missing in your spec, see note above
+  newWeight: real("new_weight").notNull(),
   newPcs: integer("new_pcs"),
   reason: text("reason"),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
@@ -128,9 +129,9 @@ export const userPrefs = sqliteTable("user_prefs", {
     .notNull()
     .default("system"),
   logGroupSize: integer("log_group_size").notNull().default(10),
-  kgPerCrate: real("kg_per_crate").notNull(),
-  deductionWtG: real("deduction_wt_g").notNull(),
-  priceKg: real("price_kg").notNull(),
+  kgPerCrate: real("kg_per_crate").notNull().default(0),
+  deductionWtG: real("deduction_wt_g").notNull().default(0),
+  priceKg: real("price_kg").notNull().default(0),
 });
 
 // ─── Relations ───

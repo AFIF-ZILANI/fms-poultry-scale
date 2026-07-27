@@ -1,4 +1,5 @@
 import {
+  calcDeduction,
   formatWeight,
   formatPcs,
   sumPcs,
@@ -221,5 +222,44 @@ describe("formatDateTime", () => {
       const d = new Date(2024, i, 1, 10, 0);
       expect(formatDateTime(d.getTime())).toContain(month);
     });
+  });
+});
+
+// ─── calcDeduction ────────────────────────────────────────────────────────────
+
+describe("calcDeduction", () => {
+  it("charges a deduction per crate and nets it off the gross", () => {
+    // 6 kg ÷ 2 kg/crate = 3 crates × 200 g = 0.6 kg
+    const r = calcDeduction(6, 2, 200, false);
+    expect(r.totalCrates).toBeCloseTo(3, 5);
+    expect(r.totalDeductionKg).toBeCloseTo(0.6, 5);
+    expect(r.netWeight).toBeCloseTo(5.4, 5);
+  });
+
+  it("keeps fractional crates when part crates count", () => {
+    // 5 kg ÷ 2 = 2.5 crates, no rounding
+    const r = calcDeduction(5, 2, 200, false);
+    expect(r.totalCrates).toBeCloseTo(2.5, 5);
+    expect(r.netWeight).toBeCloseTo(4.5, 5);
+  });
+
+  it("floors to whole crates when part crates are not charged", () => {
+    // 5 kg ÷ 2 = 2.5 → 2 crates × 200 g = 0.4 kg
+    const r = calcDeduction(5, 2, 200, true);
+    expect(r.totalCrates).toBe(2);
+    expect(r.totalDeductionKg).toBeCloseTo(0.4, 5);
+    expect(r.netWeight).toBeCloseTo(4.6, 5);
+  });
+
+  it("deducts nothing below one full crate when part crates are not charged", () => {
+    const r = calcDeduction(1.5, 2, 200, true);
+    expect(r.totalCrates).toBe(0);
+    expect(r.netWeight).toBeCloseTo(1.5, 5);
+  });
+
+  it("deducts nothing when the per-crate deduction is zero", () => {
+    const r = calcDeduction(10, 2, 0, false);
+    expect(r.totalDeductionKg).toBe(0);
+    expect(r.netWeight).toBe(10);
   });
 });
