@@ -1669,13 +1669,13 @@ export default function MeasurementScreen() {
       startTimeRef.current = sale.createdAt;
       if (!sale.isPcsTracked) setPcsOptional(true); // isPcsTracked is the inverse of pcsOptional
 
-      if (sale.phase === "cull" && sale.rows.length > 0) {
+      // Resume in the phase that was saved, never a derived one — an empty
+      // cull phase still opens in cull, where "back to main" is available.
+      if (sale.phase === "cull") {
         setPhase("cull");
         setMainRows(sale.rows); // main rows stored in .rows
-        if (sale.cullRows && sale.cullRows.length > 0) {
-          setRows(sale.cullRows); // cull rows stored in .cullRows
-        }
-      } else if (sale.rows.length > 0) {
+        setRows(sale.cullRows ?? []); // cull rows stored in .cullRows
+      } else {
         setRows(sale.rows);
       }
     });
@@ -1819,6 +1819,21 @@ export default function MeasurementScreen() {
   const handleCullNo = () => {
     setShowCullDialog(false);
     setShowDeductionModal(true);
+  };
+
+  // Entering cull is easy to do by mistake before main is really finished.
+  // Stepping back is only safe while the cull phase is still empty — once a
+  // cull row exists there is data that a merge back into main would corrupt.
+  const canReturnToMain = phase === "cull" && rows.length === 0;
+
+  const handleReturnToMain = () => {
+    if (!canReturnToMain) return;
+    setRows(mainRows);
+    setMainRows([]);
+    setPhase("main");
+    if (Platform.OS !== "web") {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    }
   };
 
   const handleBack = () => {
@@ -2018,9 +2033,34 @@ export default function MeasurementScreen() {
               styles.mainSummaryText,
               { color: theme.accent, fontFamily: "Outfit_600SemiBold" },
             ]}
+            numberOfLines={1}
           >
             {t.mainSummaryBanner(formatWeight(mainWeight), mainPcs)}
           </Text>
+
+          {canReturnToMain && (
+            <Pressable
+              onPress={handleReturnToMain}
+              hitSlop={10}
+              style={({ pressed }) => [
+                styles.backToMainBtn,
+                {
+                  borderColor: theme.accent,
+                  opacity: pressed ? 0.6 : 1,
+                },
+              ]}
+            >
+              <Feather name="corner-up-left" size={12} color={theme.accent} />
+              <Text
+                style={[
+                  styles.backToMainText,
+                  { color: theme.accent, fontFamily: "Outfit_600SemiBold" },
+                ]}
+              >
+                {t.backToMain}
+              </Text>
+            </Pressable>
+          )}
         </View>
       )}
 
@@ -2355,7 +2395,18 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderBottomWidth: 1,
   },
-  mainSummaryText: { fontSize: 13 },
+  mainSummaryText: { fontSize: 13, flexShrink: 1 },
+  backToMainBtn: {
+    marginLeft: "auto",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    borderWidth: 1,
+  },
+  backToMainText: { fontSize: 11 },
   displayPanel: {
     alignItems: "center",
     paddingVertical: 18,
