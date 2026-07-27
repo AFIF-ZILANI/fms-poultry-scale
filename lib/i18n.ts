@@ -34,6 +34,7 @@ const en = {
   cullSession: "Cull Session",
   mainSummaryBanner: (kg: string, pcs: number) =>
     `Main: ${kg} KG · ${pcs} birds`,
+  backToMain: "Back to main",
   hasCullBirds: "Do you have cull birds?",
   hasCullBirdsHint: "Add a separate weighing for culled birds",
   weightKg: "Weight (KG)",
@@ -282,6 +283,7 @@ const bn: typeof en = {
   cullSession: "কাল সেশন",
   mainSummaryBanner: (kg: string, pcs: number) =>
     `মেইন: ${kg} কেজি · ${pcs}টা মুরগি`,
+  backToMain: "মেইনে ফিরুন",
   hasCullBirds: "কাল মুরগি আছে?",
   hasCullBirdsHint: "কাল মুরগির জন্য আলাদা মাপ দিন",
   weightKg: "ওজন (কেজি)",

@@ -258,6 +258,104 @@ describe("row edit history", () => {
   });
 });
 
+// ─── Phase round-trip ─────────────────────────────────────────────────────────
+
+// Entering cull by mistake must be reversible while cull is still empty, and
+// resuming must reopen the phase that was saved rather than deriving one.
+describe("main/cull phase round-trip", () => {
+  const cullDraftWithNoCullRows = makeSale({
+    isFinished: false,
+    phase: "cull",
+    hasCull: true,
+    rows: [makeRow({ id: "m1", weightKg: 5 })],
+    cullRows: [],
+    meta: undefined,
+  });
+
+  it("reopens an empty cull phase as cull, not main", async () => {
+    await saveSale("user-1", cullDraftWithNoCullRows);
+
+    const loaded = await loadSale("sale-1");
+    expect(loaded?.phase).toBe("cull");
+    expect(loaded?.cullRows).toBeUndefined();
+    expect(loaded?.rows.map((r) => r.id)).toEqual(["m1"]);
+  });
+
+  it("reopens a cull phase that has rows as cull", async () => {
+    await saveSale(
+      "user-1",
+      makeSale({
+        isFinished: false,
+        phase: "cull",
+        hasCull: true,
+        rows: [makeRow({ id: "m1" })],
+        cullRows: [makeRow({ id: "c1" })],
+        meta: undefined,
+      }),
+    );
+
+    const loaded = await loadSale("sale-1");
+    expect(loaded?.phase).toBe("cull");
+    expect(loaded?.cullRows?.map((r) => r.id)).toEqual(["c1"]);
+  });
+
+  it("stepping back to main restores the main rows and clears hasCull", async () => {
+    await saveSale("user-1", cullDraftWithNoCullRows);
+    await saveSale(
+      "user-1",
+      makeSale({
+        isFinished: false,
+        phase: "main",
+        hasCull: false,
+        rows: [makeRow({ id: "m1", weightKg: 5 })],
+        meta: undefined,
+      }),
+    );
+
+    const loaded = await loadSale("sale-1");
+    expect(loaded?.phase).toBe("main");
+    expect(loaded?.hasCull).toBe(false);
+    expect(loaded?.rows.map((r) => r.id)).toEqual(["m1"]);
+    expect(loaded?.cullRows).toBeUndefined();
+  });
+
+  it("leaves no orphaned cull rows behind after stepping back to main", async () => {
+    await saveSale(
+      "user-1",
+      makeSale({
+        isFinished: false,
+        phase: "cull",
+        hasCull: true,
+        rows: [makeRow({ id: "m1" })],
+        cullRows: [makeRow({ id: "c1" })],
+        meta: undefined,
+      }),
+    );
+    await saveSale(
+      "user-1",
+      makeSale({
+        isFinished: false,
+        phase: "main",
+        hasCull: false,
+        rows: [makeRow({ id: "m1" })],
+        meta: undefined,
+      }),
+    );
+
+    const rows = await db.query.measurementRows.findMany();
+    expect(rows.map((r) => r.id)).toEqual(["m1"]);
+  });
+
+  it("still reports the draft under its saved phase", async () => {
+    await saveSale("user-1", cullDraftWithNoCullRows);
+
+    const [draft] = await loadDrafts("user-1");
+    expect(draft.phase).toBe("cull");
+    expect(draft.cullLog).toBe(0);
+    expect(draft.mainLog).toBe(1);
+  });
+});
+
 // ─── Drafts + stats ───────────────────────────────────────────────────────────
 
 describe("loadDrafts", () => {
