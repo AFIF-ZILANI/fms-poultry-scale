@@ -179,6 +179,33 @@ Register the new file in `db/migrations/migrations.js` **and** `db/migrations/me
 
 Tests apply the real migration files in journal order (`__tests__/helpers/db.ts`), so a broken migration fails the suite rather than surfacing on a user's phone.
 
+### The lockfile is npm-version sensitive — regenerate with npm 10
+
+EAS Build runs `npm ci`, which fails hard if the lockfile does not match what
+its npm would resolve.
+
+`@clerk/shared` declares an optional peer on `react-dom` that the Expo-pinned
+`react-dom@19.1.0` does not satisfy. **npm 10 records a nested copy** of
+`react`/`react-dom`/`scheduler` under `@clerk/clerk-js`; **npm 11 silently omits
+them.** A lockfile written by npm 11 therefore builds fine locally and fails on
+EAS with:
+
+```
+npm error `npm ci` can only install packages when your package.json and
+npm error package-lock.json are in sync.
+npm error Missing: react@19.2.8 from lock file
+```
+
+So regenerate the lockfile with npm 10, whichever npm you use day to day:
+
+```bash
+npx npm@10 install --package-lock-only
+npx npm@10 ci --include=dev --dry-run   # this is what EAS runs — must pass
+```
+
+Running a bare `npm install` on npm 11 will quietly drop those three entries
+again. If a build dies in *Install dependencies*, check this first.
+
 ### Adding text
 
 Add the key to **both** `en` and `bn` in `lib/i18n.ts`. `bn` is typed as `typeof en`, so a missing translation is a compile error rather than an English string leaking into a Bangla screen. Check whether a suitable key already exists before adding one.
