@@ -861,7 +861,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingBottom: 12,
   },
-  headerSide: { width: 44, alignItems: "flex-start" },
+  headerSide: { width: 44, alignItems: "flex-start", marginHorizontal: 24 },
   dotsRow: {
     flex: 1,
     flexDirection: "row",
