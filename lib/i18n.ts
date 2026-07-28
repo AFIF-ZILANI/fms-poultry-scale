@@ -199,6 +199,27 @@ const en = {
   startPremium: "Start Premium (৳299/mo)",
   recommended: "RECOMMENDED",
 
+  // Onboarding — plain, active, from the user's side of the screen
+  obRoleTitle: "Do you sell birds, or buy them?",
+  obRoleSub: "This changes what the app shows you. You can switch later.",
+  obSellEyebrow: "I sell",
+  obBuyEyebrow: "I buy",
+  obFarmerBenefit:
+    "Weigh your flock, take off crate weight, and hand the buyer a receipt.",
+  obWholesalerBenefit:
+    "Weigh what you buy, keep every seller separate, and track what you still owe.",
+  obBasicTitle: "Your details",
+  obBasicSub: "These go on the receipts you hand out.",
+  obFullName: "Full name",
+  obFullNamePlaceholder: "Your full name",
+  obFarmTitle: "About your farm",
+  obBusinessTitle: "About your business",
+  obDetailsSub: "Add this now, or later from your profile.",
+  obFarmNamePlaceholder: "e.g. Green Valley Farm",
+  obContinue: "Continue",
+  obSkip: "Skip for now",
+  obChooseLanguage: "Language",
+
   goodMorning: "Good morning",
   goodAfternoon: "Good afternoon",
   goodEvening: "Good evening",
@@ -493,6 +514,27 @@ const bn: typeof en = {
   startFree: "ফ্রিতে শুরু করুন",
   startPremium: "প্রিমিয়াম শুরু করুন (৳২৯৯/মাস)",
   recommended: "রেকমেন্ডেড",
+
+  // অনবোর্ডিং
+  obRoleTitle: "আপনি মুরগি বিক্রি করেন, না কিনেন?",
+  obRoleSub: "এই অনুযায়ী অ্যাপ সাজানো হবে। পরে বদলাতে পারবেন।",
+  obSellEyebrow: "আমি বিক্রি করি",
+  obBuyEyebrow: "আমি কিনি",
+  obFarmerBenefit:
+    "মুরগি মেপে নিন, খাঁচার ঢলতা বাদ দিন, আর ক্রেতাকে রসিদ দিন।",
+  obWholesalerBenefit:
+    "যা কিনছেন মেপে নিন, প্রতি বিক্রেতার হিসাব আলাদা রাখুন, আর বাকি কত মনে রাখুন।",
+  obBasicTitle: "আপনার তথ্য",
+  obBasicSub: "আপনার দেওয়া রসিদে এগুলো থাকবে।",
+  obFullName: "পুরো নাম",
+  obFullNamePlaceholder: "আপনার পুরো নাম",
+  obFarmTitle: "আপনার খামারের কথা",
+  obBusinessTitle: "আপনার ব্যবসার কথা",
+  obDetailsSub: "এখন দিন, বা পরে প্রোফাইল থেকে দিন।",
+  obFarmNamePlaceholder: "যেমন: সবুজ খামার",
+  obContinue: "পরবর্তী",
+  obSkip: "এখন থাক",
+  obChooseLanguage: "ভাষা",
 
   goodMorning: "শুভ সকাল",
   goodAfternoon: "শুভ দুপুর",
