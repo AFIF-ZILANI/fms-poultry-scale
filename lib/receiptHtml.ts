@@ -85,7 +85,9 @@ export function generateReceiptHtml(
   const cullAmount = m?.cullAmount ?? 0;
   const cullSold = m?.isCullSold ?? false;
   const receivedAmount = m?.receivedAmount ?? 0;
-  const balanceDue = m && receivedAmount > 0 ? m.finalAmount - receivedAmount : null;
+  // This sheet goes to the buyer. The sale settles when it is recorded — the
+  // app takes no payment afterwards — so a shortfall is a discount, not a debt.
+  const discount = m ? Math.max(m.finalAmount - receivedAmount, 0) : 0;
 
   const displayName = farmName.trim() || "Poultry Farm";
 
@@ -152,11 +154,10 @@ export function generateReceiptHtml(
             <span>Amount received</span>
             <span class="pos">− ${tk(receivedAmount)}</span>
           </div>` : ""}
-        ${balanceDue !== null ? `
-          <div class="balance-bar ${balanceDue > 0 ? "balance-due" : "balance-paid"}">
-            <span>${balanceDue > 0 ? "BALANCE DUE" : "FULLY PAID"}</span>
-            <span>${tk(Math.abs(balanceDue))}${balanceDue < 0 ? " (overpaid)" : ""}</span>
-          </div>` : ""}
+        <div class="balance-bar ${discount > 0 ? "balance-discount" : "balance-paid"}">
+          <span>${discount > 0 ? "DISCOUNT" : "FULLY PAID"}</span>
+          <span>${discount > 0 ? tk(discount) : tk(m.finalAmount)}</span>
+        </div>
       </div>`;
   }
 
@@ -245,7 +246,7 @@ export function generateReceiptHtml(
       padding: 8px 12px; border-radius: 4px;
       margin-top: 5px; font-weight: 700; font-size: 12px;
     }
-    .balance-due { background: #FEF0EF; color: #C0392B; }
+    .balance-discount { background: #FFF8E6; color: #9A6400; }
     .balance-paid { background: #F0FFF4; color: #1E8449; }
 
     /* Mini header (pages 2+) */

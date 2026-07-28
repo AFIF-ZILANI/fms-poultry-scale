@@ -31,6 +31,7 @@ import { formatWeight, formatDateTime, formatTk } from "@/lib/utils";
 import { getUserProfile, type OnboardingData } from "@/lib/onboarding";
 import { loadPlan, type Plan } from "@/lib/subscription";
 import type { BatchSummary, DraftSummary, SaleRecord } from "@/lib/types";
+import { Band as BAND } from "@/constants/colors";
 
 const SCREEN_W = Dimensions.get("window").width;
 
@@ -146,23 +147,6 @@ function revenueBetween(sales: SaleRecord[], start: number, end: number) {
 }
 
 // ─── Bar chart ────────────────────────────────────────────────────────────────
-
-// The readout's ink. The band keeps its own surface in both themes — an
-// instrument face does not change colour with the room.
-const BAND = {
-  light: "#101319",
-  dark: "#191C23",
-  ink: "#F2F5F9",
-  inkDim: "rgba(242,245,249,0.52)",
-  inkFaint: "rgba(242,245,249,0.28)",
-  rule: "rgba(242,245,249,0.14)",
-  // Single data hue. Validated against the band surface: emphasis is carried
-  // by a direct label, not a second tint, because every lighter step of this
-  // blue leaves the usable lightness band on a dark surface.
-  bar: "#4080FF",
-  up: "#34D399",
-  down: "#FF6B6B",
-};
 
 // Bars stand on the baseline: top corners rounded, bottom square.
 function barPath(x: number, y: number, w: number, h: number, r: number) {
@@ -606,8 +590,6 @@ function DashboardHeader({
     .toUpperCase();
 
   const totalSales = sales.length;
-  const batchesDue = batches.reduce((s, b) => s + b.due, 0);
-
 
   // meta is optional (sale might be unfinished / no deduction entered yet)
   // fall back to summing rows directly so the dashboard isn't blank
@@ -981,30 +963,20 @@ function DashboardHeader({
               style={({ pressed }) => [
                 styles.attentionPill,
                 {
-                  backgroundColor:
-                    batchesDue > 0 ? theme.dangerLight : theme.accentLight,
+                  backgroundColor: theme.accentLight,
                   opacity: pressed ? 0.8 : 1,
                 },
               ]}
             >
-              <Feather
-                name="layers"
-                size={14}
-                color={batchesDue > 0 ? theme.danger : theme.accent}
-              />
+              <Feather name="layers" size={14} color={theme.accent} />
               <Text
                 style={[
                   styles.attentionText,
-                  {
-                    color: batchesDue > 0 ? theme.danger : theme.accent,
-                    fontFamily: "Outfit_600SemiBold",
-                  },
+                  { color: theme.accent, fontFamily: "Outfit_600SemiBold" },
                 ]}
                 numberOfLines={1}
               >
-                {batchesDue > 0
-                  ? `${formatTk(batchesDue)} ${t.stillDue}`
-                  : `${t.batches} · ${batches.length}`}
+                {`${t.batches} · ${batches.length}`}
               </Text>
             </Pressable>
           )}

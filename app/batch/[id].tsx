@@ -40,7 +40,8 @@ function SessionRow({
   t: ReturnType<typeof useSettings>["t"];
 }) {
   const m = sale.meta;
-  const due = m ? Math.max(m.finalAmount - m.receivedAmount, 0) : 0;
+  // The sale settled when it was recorded; any gap is money knocked off.
+  const discount = m ? Math.max(m.finalAmount - m.receivedAmount, 0) : 0;
   const logCount = sale.rows.length + (sale.cullRows?.length ?? 0);
 
   const open = () =>
@@ -107,12 +108,14 @@ function SessionRow({
                 style={[
                   styles.sessionDue,
                   {
-                    color: due > 0 ? theme.danger : theme.success,
+                    color: discount > 0 ? theme.warm : theme.success,
                     fontFamily: "Outfit_600SemiBold",
                   },
                 ]}
               >
-                {due > 0 ? `${formatTk(due)} ${t.amountDue}` : t.paidUp}
+                {discount > 0
+                  ? `−${formatTk(discount)} ${t.discountShort}`
+                  : t.paidUp}
               </Text>
             </>
           ) : (
@@ -194,7 +197,7 @@ export default function BatchDetailScreen() {
   // of its own, so it can never drift out of sync with them.
   const finished = sales.filter((s) => s.meta);
   const revenue = finished.reduce((s, x) => s + (x.meta?.finalAmount ?? 0), 0);
-  const due = finished.reduce(
+  const discount = finished.reduce(
     (s, x) =>
       s + Math.max((x.meta?.finalAmount ?? 0) - (x.meta?.receivedAmount ?? 0), 0),
     0,
@@ -373,12 +376,12 @@ export default function BatchDetailScreen() {
             style={[
               styles.heroDue,
               {
-                color: due > 0 ? theme.danger : theme.success,
+                color: discount > 0 ? theme.warm : theme.success,
                 fontFamily: "Outfit_700Bold",
               },
             ]}
           >
-            {due > 0 ? formatTk(due) : t.paidUp}
+            {discount > 0 ? `−${formatTk(discount)}` : t.paidUp}
           </Text>
           <Text
             style={[
@@ -386,7 +389,7 @@ export default function BatchDetailScreen() {
               { color: theme.textTertiary, fontFamily: "Outfit_500Medium" },
             ]}
           >
-            {due > 0 ? t.stillDue : ""}
+            {discount > 0 ? t.discountGiven : ""}
           </Text>
         </View>
 

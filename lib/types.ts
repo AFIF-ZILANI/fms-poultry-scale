@@ -70,7 +70,7 @@ export type RowGroup = {
 /**
  * A batch with its sessions rolled up. Money comes from sale_meta_data, which
  * only exists once a session is finished — so an unfinished session inside a
- * batch adds to `draftCount` but contributes nothing to revenue or due.
+ * batch adds to `draftCount` but contributes nothing to revenue or discount.
  */
 export interface BatchSummary {
   id: string;
@@ -83,7 +83,8 @@ export interface BatchSummary {
   weightKg: number;
   revenue: number;
   received: number;
-  due: number;
+  /** Money knocked off across the batch's sessions, not money still owed. */
+  discount: number;
 }
 
 export interface DraftSummary {

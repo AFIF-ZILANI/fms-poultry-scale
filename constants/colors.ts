@@ -66,3 +66,20 @@ const Colors = {
 export default Colors;
 
 export type ThemeColors = typeof Colors.light;
+
+// The instrument band — the dark readout slab the home and batches screens are
+// built around. It keeps its own surface in both themes: an instrument face
+// does not change colour with the room.
+export const Band = {
+  light: "#101319",
+  dark: "#191C23",
+  ink: "#F2F5F9",
+  inkDim: "rgba(242,245,249,0.52)",
+  inkFaint: "rgba(242,245,249,0.28)",
+  rule: "rgba(242,245,249,0.14)",
+  // Single data hue. Emphasis is carried by a direct label and opacity, not a
+  // second tint — every lighter step of this blue fails contrast on the slab.
+  bar: "#4080FF",
+  up: "#34D399",
+  down: "#FF6B6B",
+};

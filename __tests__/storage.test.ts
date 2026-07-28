@@ -17,6 +17,8 @@ import {
   loadLastPricePerKg,
   saveLastPricePerKg,
 } from "../lib/storage";
+import fs from "fs";
+import path from "path";
 import { db } from "../db/client";
 import { users } from "../db/schema";
 import type { MeasurementRow, SaleMetaData, SaleRecord } from "../lib/types";
@@ -442,7 +444,7 @@ describe("getSaleStats", () => {
 // ─── Batches ──────────────────────────────────────────────────────────────────
 
 describe("batches", () => {
-  // finalAmount 900, receivedAmount 400 → 500 still due
+  // finalAmount 900, receivedAmount 400 → 500 knocked off as discount
   const partlyPaid = (id: string, batchId: string) =>
     makeSale({
       id,
@@ -469,12 +471,12 @@ describe("batches", () => {
       weightKg: 0,
       revenue: 0,
       received: 0,
-      due: 0,
+      discount: 0,
     });
     expect(batch.closedAt).toBeUndefined();
   });
 
-  it("rolls up birds, weight, revenue and due across sessions", async () => {
+  it("rolls up birds, weight, revenue and discount across sessions", async () => {
     const id = "b-id";
     await createBatch("user-1", id, "Shed 1");
     await saveSale("user-1", partlyPaid("s1", id));
@@ -487,7 +489,7 @@ describe("batches", () => {
       weightKg: 18,
       revenue: 1800,
       received: 800,
-      due: 1000,
+      discount: 1000,
     });
   });
 
@@ -505,11 +507,11 @@ describe("batches", () => {
       sessionCount: 2,
       draftCount: 1,
       revenue: 900,
-      due: 500,
+      discount: 500,
     });
   });
 
-  it("treats a fully paid session as owing nothing", async () => {
+  it("records no discount when the buyer paid in full", async () => {
     const id = "b-id";
     await createBatch("user-1", id, "Shed 1");
     await saveSale(
@@ -521,11 +523,11 @@ describe("batches", () => {
       }),
     );
 
-    expect((await loadBatches("user-1"))[0].due).toBe(0);
+    expect((await loadBatches("user-1"))[0].discount).toBe(0);
   });
 
-  // An overpaid session must not quietly cancel out a real debt elsewhere.
-  it("does not let an overpaid session hide another session's due", async () => {
+  // An overpaid session must not quietly cancel out a discount elsewhere.
+  it("does not let an overpaid session hide another session's discount", async () => {
     const id = "b-id";
     await createBatch("user-1", id, "Shed 1");
     await saveSale(
@@ -545,7 +547,34 @@ describe("batches", () => {
       }),
     );
 
-    expect((await loadBatches("user-1"))[0].due).toBe(900);
+    expect((await loadBatches("user-1"))[0].discount).toBe(900);
+  });
+
+  // Sales saved before the discount rule stored 0 whenever the farmer left the
+  // optional field alone. Read as a discount that is the whole sale, so
+  // migration 0010 backfills them to fully paid.
+  it("backfills legacy blank received amounts to the full sale value", async () => {
+    const id = "b-id";
+    await createBatch("user-1", id, "Shed 1");
+    await saveSale(
+      "user-1",
+      makeSale({
+        id: "legacy",
+        batchId: id,
+        meta: makeMeta({ finalAmount: 900, receivedAmount: 0 }),
+      }),
+    );
+    expect((await loadBatches("user-1"))[0].discount).toBe(900);
+
+    const backfill = fs.readFileSync(
+      path.join(__dirname, "../db/migrations/0010_settled_at_sale_time.sql"),
+      "utf8",
+    );
+    db.$client.execSync(backfill);
+
+    const [batch] = await loadBatches("user-1");
+    expect(batch.discount).toBe(0);
+    expect(batch.received).toBe(900);
   });
 
   it("ignores sessions that belong to no batch", async () => {

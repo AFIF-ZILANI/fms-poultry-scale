@@ -71,6 +71,13 @@
       "when": 1785183504271,
       "tag": "0009_fantastic_anita_blake",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1785183504272,
+      "tag": "0010_settled_at_sale_time",
+      "breakpoints": true
     }
   ]
 }

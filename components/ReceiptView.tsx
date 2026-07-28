@@ -17,6 +17,8 @@ const C = {
   redBg: "#FEF0EF",
   green: "#1E8449",
   greenBg: "#F0FFF4",
+  amber: "#9A6400",
+  amberBg: "#FFF8E6",
 };
 
 function formatTime(ts: number): string {
@@ -208,7 +210,9 @@ export function ReceiptView({ sale, farmName }: Props) {
   const cullAmount = m?.cullAmount ?? 0;
   const cullSold = m?.isCullSold ?? false;
   const receivedAmount = m?.receivedAmount ?? 0;
-  const balanceDue = m && receivedAmount > 0 ? m.finalAmount - receivedAmount : null;
+  // The receipt is handed to the buyer, so it must not call a discount a debt.
+  // The sale settles when it is recorded — no payment is taken after it.
+  const discount = m ? Math.max(m.finalAmount - receivedAmount, 0) : 0;
 
   const shortId = sale.id.replace(/-/g, "").slice(0, 8).toUpperCase();
 
@@ -400,7 +404,7 @@ export function ReceiptView({ sale, farmName }: Props) {
               </View>
             )}
 
-            {balanceDue !== null && (
+            {m && (
               <View
                 style={{
                   flexDirection: "row",
@@ -408,7 +412,7 @@ export function ReceiptView({ sale, farmName }: Props) {
                   alignItems: "center",
                   padding: 12,
                   borderRadius: 10,
-                  backgroundColor: balanceDue > 0 ? C.redBg : C.greenBg,
+                  backgroundColor: discount > 0 ? C.amberBg : C.greenBg,
                   marginTop: 6,
                 }}
               >
@@ -416,20 +420,19 @@ export function ReceiptView({ sale, farmName }: Props) {
                   style={{
                     fontSize: 15,
                     fontFamily: "Outfit_700Bold",
-                    color: balanceDue > 0 ? C.red : C.green,
+                    color: discount > 0 ? C.amber : C.green,
                   }}
                 >
-                  {balanceDue > 0 ? "BALANCE DUE" : "FULLY PAID"}
+                  {discount > 0 ? "DISCOUNT" : "FULLY PAID"}
                 </Text>
                 <Text
                   style={{
                     fontSize: 20,
                     fontFamily: "Outfit_700Bold",
-                    color: balanceDue > 0 ? C.red : C.green,
+                    color: discount > 0 ? C.amber : C.green,
                   }}
                 >
-                  {tk(Math.abs(balanceDue))}
-                  {balanceDue < 0 ? " ✓" : ""}
+                  {discount > 0 ? tk(discount) : tk(m.finalAmount)}
                 </Text>
               </View>
             )}
