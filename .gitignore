@@ -13,6 +13,8 @@ expo-env.d.ts
 ios/
 android/
 *.orig.*
+*.apk
+*.aab
 *.jks
 *.p8
 *.p12
