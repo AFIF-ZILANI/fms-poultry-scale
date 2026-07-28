@@ -218,8 +218,17 @@ const en = {
   recentSalesHeader: "RECENT SALES",
   allSalesHeader: "ALL SALES",
   viewAll: "View All",
-  noRevenueData: "No revenue data yet",
   newWeighing: "New Weighing",
+
+  // Home readout
+  earnedLabel: "Earned",
+  periodLast7d: "Last 7 days",
+  periodLast4w: "Last 4 weeks",
+  periodLast6m: "Last 6 months",
+  salesCount: (n: number) => `${n} sale${n !== 1 ? "s" : ""}`,
+  vsPrevious: "vs previous",
+  noEarlierData: "No earlier period to compare",
+  noSalesInPeriod: "No sales in this period",
 
   // Batches — a flock sold across several sessions
   newLabel: "New",
@@ -504,8 +513,17 @@ const bn: typeof en = {
   recentSalesHeader: "রিসেন্ট সেলস",
   allSalesHeader: "সব সেলস",
   viewAll: "সব দেখুন",
-  noRevenueData: "এখনো কোনো ইনকাম নাই",
   newWeighing: "নতুন মাপ",
+
+  // হোম রিডআউট
+  earnedLabel: "ইনকাম",
+  periodLast7d: "শেষ ৭ দিন",
+  periodLast4w: "শেষ ৪ সপ্তাহ",
+  periodLast6m: "শেষ ৬ মাস",
+  salesCount: (n: number) => `${n}টা সেল`,
+  vsPrevious: "আগের চেয়ে",
+  noEarlierData: "তুলনা করার মতো আগের হিসাব নাই",
+  noSalesInPeriod: "এই সময়ে কোনো সেল নাই",
 
   // ব্যাচ — এক ফ্ল্যাকের কয়েক সেশনে বিক্রি
   newLabel: "নতুন",

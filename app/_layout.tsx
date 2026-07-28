@@ -15,6 +15,12 @@ import {
   Outfit_600SemiBold,
   Outfit_700Bold,
 } from "@expo-google-fonts/outfit";
+// Figures wear a mono face so digits stay column-aligned as values change —
+// the readout on the home screen depends on it.
+import {
+  IBMPlexMono_500Medium,
+  IBMPlexMono_600SemiBold,
+} from "@expo-google-fonts/ibm-plex-mono";
 import * as SecureStore from "expo-secure-store";
 import { Image } from "react-native";
 import SplashImage from "@/assets/images/splash-icon.png";
@@ -101,6 +107,8 @@ export default function RootLayout() {
     Outfit_500Medium,
     Outfit_600SemiBold,
     Outfit_700Bold,
+    IBMPlexMono_500Medium,
+    IBMPlexMono_600SemiBold,
   });
 
   useEffect(() => {
