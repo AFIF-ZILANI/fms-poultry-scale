@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -16,14 +16,7 @@ import { router, useFocusEffect } from "expo-router";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import Animated, { FadeInDown, FadeIn } from "react-native-reanimated";
-import Svg, {
-  Rect,
-  Text as SvgText,
-  G,
-  Defs,
-  LinearGradient as SvgGradient,
-  Stop,
-} from "react-native-svg";
+import Svg, { Rect, Path, Text as SvgText, G } from "react-native-svg";
 import * as Haptics from "expo-haptics";
 import { useUser } from "@clerk/expo";
 import { useTheme } from "@/lib/useTheme";
@@ -34,12 +27,7 @@ import {
   loadDrafts,
   loadBatches,
 } from "@/lib/storage";
-import {
-  formatWeight,
-  formatDateTime,
-  formatTk,
-  formatTkCompact,
-} from "@/lib/utils";
+import { formatWeight, formatDateTime, formatTk } from "@/lib/utils";
 import { getUserProfile, type OnboardingData } from "@/lib/onboarding";
 import { loadPlan, type Plan } from "@/lib/subscription";
 import type { BatchSummary, DraftSummary, SaleRecord } from "@/lib/types";
@@ -119,85 +107,188 @@ function buildBars(sales: SaleRecord[], period: ChartPeriod): Bar[] {
   });
 }
 
-function getGreeting(t: any): string {
-  const h = new Date().getHours();
-  if (h < 12) return t.goodMorning;
-  if (h < 17) return t.goodAfternoon;
-  return t.goodEvening;
+// The window the chart covers, and the equally long window immediately
+// before it — so "earned" can be stated against something.
+function periodWindows(period: ChartPeriod): {
+  start: number;
+  end: number;
+  prevStart: number;
+} {
+  const now = new Date();
+  const today = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate(),
+  ).getTime();
+  const DAY = 86_400_000;
+
+  if (period === "7d") {
+    const start = today - 6 * DAY;
+    return { start, end: today + DAY, prevStart: start - 7 * DAY };
+  }
+  if (period === "4w") {
+    const start = today - 21 * DAY;
+    return { start, end: today + 7 * DAY, prevStart: start - 28 * DAY };
+  }
+  const start = new Date(now.getFullYear(), now.getMonth() - 5, 1).getTime();
+  const prevStart = new Date(
+    now.getFullYear(),
+    now.getMonth() - 11,
+    1,
+  ).getTime();
+  return { start, end: now.getTime() + DAY, prevStart };
+}
+
+function revenueBetween(sales: SaleRecord[], start: number, end: number) {
+  return sales
+    .filter((s) => s.createdAt >= start && s.createdAt < end)
+    .reduce((sum, s) => sum + (s.meta?.finalAmount ?? 0), 0);
 }
 
 // ─── Bar chart ────────────────────────────────────────────────────────────────
 
-function RevenueChart({ bars }: { bars: Bar[] }) {
+// The readout's ink. The band keeps its own surface in both themes — an
+// instrument face does not change colour with the room.
+const BAND = {
+  light: "#101319",
+  dark: "#191C23",
+  ink: "#F2F5F9",
+  inkDim: "rgba(242,245,249,0.52)",
+  inkFaint: "rgba(242,245,249,0.28)",
+  rule: "rgba(242,245,249,0.14)",
+  // Single data hue. Validated against the band surface: emphasis is carried
+  // by a direct label, not a second tint, because every lighter step of this
+  // blue leaves the usable lightness band on a dark surface.
+  bar: "#4080FF",
+  up: "#34D399",
+  down: "#FF6B6B",
+};
+
+// Bars stand on the baseline: top corners rounded, bottom square.
+function barPath(x: number, y: number, w: number, h: number, r: number) {
+  const rr = Math.max(0, Math.min(r, w / 2, h));
+  return [
+    `M${x},${y + h}`,
+    `L${x},${y + rr}`,
+    `Q${x},${y} ${x + rr},${y}`,
+    `L${x + w - rr},${y}`,
+    `Q${x + w},${y} ${x + w},${y + rr}`,
+    `L${x + w},${y + h}`,
+    "Z",
+  ].join(" ");
+}
+
+function RevenueChart({
+  bars,
+  width,
+  selected,
+  onSelect,
+}: {
+  bars: Bar[];
+  width: number;
+  selected: number | null;
+  onSelect: (i: number) => void;
+}) {
   const count = bars.length;
-  const W = SCREEN_W - 96;
-  const H = 72;
-  const SLOT = W / count;
-  const BAR_W = Math.max(Math.floor(SLOT * 0.52), 8);
-  const GAP = SLOT - BAR_W;
+  const H = 78;
+  const LABEL_H = 18;
+  const SLOT = width / count;
+  const BAR_W = Math.max(Math.min(SLOT - 9, 26), 7);
   const maxVal = Math.max(...bars.map((b) => b.revenue), 1);
-  const peakIdx = bars.reduce(
-    (mi, b, i) => (b.revenue > bars[mi].revenue ? i : mi),
-    0,
-  );
   const lastIdx = count - 1;
+  // Nothing selected means the newest bucket is the one being read.
+  const readIdx = selected ?? lastIdx;
 
   return (
-    <Svg width={W} height={H + 22}>
-      <Defs>
-        <SvgGradient id="barGrad" x1="0" y1="0" x2="0" y2="1">
-          <Stop offset="0" stopColor="#6FA3FF" stopOpacity="1" />
-          <Stop offset="1" stopColor="#4080FF" stopOpacity="0.7" />
-        </SvgGradient>
-        <SvgGradient id="emptyGrad" x1="0" y1="0" x2="0" y2="1">
-          <Stop offset="0" stopColor="#FFFFFF" stopOpacity="0.12" />
-          <Stop offset="1" stopColor="#FFFFFF" stopOpacity="0.04" />
-        </SvgGradient>
-      </Defs>
+    <Svg width={width} height={H + LABEL_H}>
       {bars.map((bar, i) => {
+        const x = i * SLOT + (SLOT - BAR_W) / 2;
+        const isRead = i === readIdx;
         const hasRev = bar.revenue > 0;
-        const barH = hasRev ? Math.max((bar.revenue / maxVal) * H, 6) : 3;
-        const x = i * SLOT + GAP / 2;
+        const barH = hasRev ? Math.max((bar.revenue / maxVal) * (H - 8), 5) : 0;
         const y = H - barH;
-        const isLast = i === lastIdx;
-        const isPeak = i === peakIdx && hasRev;
+
         return (
-          <G key={i}>
+          <G key={i} onPress={() => onSelect(i)}>
+            {/* Touch target spans the whole slot, not just the mark. */}
             <Rect
-              x={x}
-              y={y}
-              width={BAR_W}
-              height={barH}
-              rx={5}
-              fill={hasRev ? "url(#barGrad)" : "url(#emptyGrad)"}
-              opacity={isLast ? 1 : hasRev ? 0.82 : 1}
+              x={i * SLOT}
+              y={0}
+              width={SLOT}
+              height={H + LABEL_H}
+              fill="transparent"
             />
-            {isPeak && (
-              <SvgText
-                x={x + BAR_W / 2}
-                y={y - 5}
-                textAnchor="middle"
-                fontSize={9}
-                fill="#6FA3FF"
-                fontFamily="Outfit_600SemiBold"
-              >
-                {formatTkCompact(bar.revenue)}
-              </SvgText>
+            {hasRev ? (
+              <Path
+                d={barPath(x, y, BAR_W, barH, 4)}
+                fill={BAND.bar}
+                opacity={isRead ? 1 : 0.42}
+              />
+            ) : (
+              // An empty bucket is an absence, not a tiny value: a flat tick
+              // on the baseline rather than a stub that reads as revenue.
+              <Rect
+                x={x}
+                y={H - 2}
+                width={BAR_W}
+                height={2}
+                fill={BAND.inkFaint}
+              />
             )}
             <SvgText
-              x={x + BAR_W / 2}
-              y={H + 16}
+              x={i * SLOT + SLOT / 2}
+              y={H + 13}
               textAnchor="middle"
               fontSize={9.5}
-              fill={isLast ? "#fff" : "rgba(255,255,255,0.4)"}
-              fontFamily={isLast ? "Outfit_700Bold" : "Outfit_400Regular"}
+              fill={isRead ? BAND.ink : BAND.inkFaint}
+              fontFamily={isRead ? "Outfit_600SemiBold" : "Outfit_400Regular"}
             >
               {bar.label}
             </SvgText>
           </G>
         );
       })}
+      {/* Baseline — the same rule the facts below hang from. */}
+      <Rect x={0} y={H} width={width} height={1} fill={BAND.rule} />
     </Svg>
+  );
+}
+
+// A single qualifying figure under the ledger rule. Value in the mono face so
+// the three columns line up; label in tracked caps so it recedes.
+function Fact({
+  value,
+  unit,
+  label,
+}: {
+  value: string;
+  unit?: string;
+  label: string;
+}) {
+  return (
+    <View style={styles.fact}>
+      <View style={styles.factValueRow}>
+        <Text
+          style={[styles.factValue, { fontFamily: "IBMPlexMono_500Medium" }]}
+          numberOfLines={1}
+        >
+          {value}
+        </Text>
+        {!!unit && (
+          <Text
+            style={[styles.factUnit, { fontFamily: "Outfit_500Medium" }]}
+          >
+            {unit}
+          </Text>
+        )}
+      </View>
+      <Text
+        style={[styles.factLabel, { fontFamily: "Outfit_500Medium" }]}
+        numberOfLines={1}
+      >
+        {label}
+      </Text>
+    </View>
   );
 }
 
@@ -507,8 +598,6 @@ function DashboardHeader({
 }) {
   const { user } = useUser();
   const isFarmer = profile?.role === "farmer";
-  const displayName =
-    (profile?.name || user?.firstName || "").split(" ")[0] || "there";
   const initials = (profile?.name || user?.firstName || "?")
     .split(" ")
     .map((w: string) => w[0])
@@ -519,10 +608,6 @@ function DashboardHeader({
   const totalSales = sales.length;
   const batchesDue = batches.reduce((s, b) => s + b.due, 0);
 
-  const totalRevenue = useMemo(
-    () => sales.reduce((s, r) => s + (r.meta?.finalAmount ?? 0), 0),
-    [sales],
-  );
 
   // meta is optional (sale might be unfinished / no deduction entered yet)
   // fall back to summing rows directly so the dashboard isn't blank
@@ -551,7 +636,23 @@ function DashboardHeader({
     [sales],
   );
 
+  const [selectedBar, setSelectedBar] = useState<number | null>(null);
   const bars = useMemo(() => buildBars(sales, period), [sales, period]);
+  const { previousRevenue, periodSales } = useMemo(() => {
+    const { start, end, prevStart } = periodWindows(period);
+    return {
+      previousRevenue: revenueBetween(sales, prevStart, start),
+      // Counted over the same window as the figure above it, so the two
+      // numbers never describe different spans of time.
+      periodSales: sales.filter(
+        (x) => x.createdAt >= start && x.createdAt < end,
+      ).length,
+    };
+  }, [sales, period]);
+
+  // A tapped bar belongs to the period it was tapped in.
+  useEffect(() => setSelectedBar(null), [period]);
+
   const hasRevenue = bars.some((b) => b.revenue > 0);
   const isPremium = plan === "premium";
 
@@ -633,16 +734,30 @@ function DashboardHeader({
         },
       ];
 
-  const wholesalerPeriods: { label: string; value: ChartPeriod }[] = [
+  const periodOptions: { label: string; value: ChartPeriod }[] = [
     { label: "7D", value: "7d" },
     { label: "4W", value: "4w" },
+    { label: "6M", value: "6m" },
   ];
 
-  const chartPeriodLabel = isFarmer
-    ? "Last 6 Months"
-    : period === "7d"
-      ? "Last 7 Days"
-      : "Last 4 Weeks";
+  const periodName =
+    period === "7d"
+      ? t.periodLast7d
+      : period === "4w"
+        ? t.periodLast4w
+        : t.periodLast6m;
+
+  // The reading: the selected bucket if one was tapped, otherwise the whole
+  // period. Shown in full — a scale never abbreviates what it weighs.
+  const periodRevenue = bars.reduce((sum, b) => sum + b.revenue, 0);
+  const reading = selectedBar != null ? bars[selectedBar].revenue : periodRevenue;
+  const readingLabel =
+    selectedBar != null ? bars[selectedBar].label : periodName;
+
+  const deltaPct =
+    previousRevenue > 0
+      ? ((periodRevenue - previousRevenue) / previousRevenue) * 100
+      : null;
 
   const webTopInset = Platform.OS === "web" ? 67 : 0;
 
@@ -714,230 +829,187 @@ function DashboardHeader({
         </Pressable>
       </View>
 
-      {/* ── Greeting ── */}
-      <View style={styles.greetingRow}>
-        <Text
-          style={[
-            styles.greetSub,
-            { color: theme.textTertiary, fontFamily: "Outfit_400Regular" },
-          ]}
-        >
-          {getGreeting(t)}
-        </Text>
-        <Text
-          style={[
-            styles.greetName,
-            { color: theme.text, fontFamily: "Outfit_700Bold" },
-          ]}
-        >
-          {displayName} 👋
-        </Text>
-      </View>
-
-      {/* ── Draft banner ── */}
-      {drafts.length > 0 && (
-        <Pressable
-          onPress={() => router.push("/drafts")}
-          style={({ pressed }) => [
-            styles.draftBanner,
-            {
-              backgroundColor: theme.warmLight,
-              borderColor: theme.warm,
-              opacity: pressed ? 0.85 : 1,
-            },
-          ]}
-        >
-          <MaterialCommunityIcons
-            name="progress-clock"
-            size={16}
-            color={theme.warm}
-          />
-          <Text
-            style={[
-              styles.draftText,
-              { color: theme.warm, fontFamily: "Outfit_600SemiBold", flex: 1 },
-            ]}
-          >
-            {t.homeDraftBanner(drafts.length)}
+      {/* ── Readout band ──────────────────────────────────────────────
+          The screen's thesis: this app is a scale, so its home reads like an
+          instrument face. One dark slab holds the figure, what it is measured
+          against, and its history, sharing a single baseline rule. */}
+      <View
+        style={[
+          styles.band,
+          { backgroundColor: theme.isDark ? BAND.dark : BAND.light },
+        ]}
+      >
+        <View style={styles.bandTop}>
+          <Text style={[styles.eyebrow, { fontFamily: "Outfit_600SemiBold" }]}>
+            {t.earnedLabel}
           </Text>
-          <Feather name="chevron-right" size={15} color={theme.warm} />
-        </Pressable>
-      )}
+          <PeriodToggle
+            options={periodOptions}
+            active={period}
+            onSelect={onPeriodChange}
+          />
+        </View>
 
-      {/* ── Batches ── leads with outstanding money, which is what makes a
-          farmer open the batch in the first place. */}
-      {batches.length > 0 && (
-        <Pressable
-          onPress={() => router.push("/batches")}
-          style={({ pressed }) => [
-            styles.draftBanner,
-            {
-              backgroundColor: theme.accentLight,
-              borderColor: theme.accent,
-              opacity: pressed ? 0.85 : 1,
-            },
-          ]}
+        <Text
+          style={[styles.reading, { fontFamily: "IBMPlexMono_600SemiBold" }]}
+          numberOfLines={1}
+          adjustsFontSizeToFit
+          minimumFontScale={0.55}
         >
-          <Feather name="layers" size={16} color={theme.accent} />
+          {formatTk(reading)}
+        </Text>
+
+        <View style={styles.readingMetaRow}>
           <Text
-            style={[
-              styles.draftText,
-              { color: theme.accent, fontFamily: "Outfit_600SemiBold", flex: 1 },
-            ]}
+            style={[styles.readingMeta, { fontFamily: "Outfit_400Regular" }]}
             numberOfLines={1}
           >
-            {t.batches} · {batches.length}
-            {batchesDue > 0 ? `  ·  ${formatTk(batchesDue)} ${t.stillDue}` : ""}
+            {readingLabel} · {t.salesCount(periodSales)}
           </Text>
-          <Feather name="chevron-right" size={15} color={theme.accent} />
-        </Pressable>
-      )}
 
-      {/* ── Revenue hero card ── */}
-      <View style={styles.heroCard}>
-        <LinearGradient
-          colors={["#101013", "#18181E", "#101013"]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.heroCardInner}
-        >
-          <View style={styles.heroCardTop}>
-            <View>
+          {selectedBar == null &&
+            (deltaPct == null ? (
               <Text
-                style={[
-                  styles.heroCardLabel,
-                  { fontFamily: "Outfit_400Regular" },
-                ]}
+                style={[styles.deltaMuted, { fontFamily: "Outfit_400Regular" }]}
+                numberOfLines={1}
               >
-                {t.dashRevenue}
+                {periodRevenue > 0 ? t.noEarlierData : ""}
               </Text>
-              <Text
-                style={[
-                  styles.heroCardAmount,
-                  { fontFamily: "Outfit_700Bold" },
-                ]}
-              >
-                {formatTkCompact(totalRevenue)}
-              </Text>
-            </View>
-            <View
-              style={[
-                styles.salesCountPill,
-                { backgroundColor: "rgba(255,255,255,0.1)" },
-              ]}
-            >
-              <MaterialCommunityIcons
-                name="receipt"
-                size={13}
-                color="rgba(255,255,255,0.6)"
-              />
-              <Text
-                style={[
-                  styles.salesCountText,
-                  { fontFamily: "Outfit_600SemiBold" },
-                ]}
-              >
-                {totalSales} {totalSales === 1 ? "sale" : "sales"}
-              </Text>
-            </View>
-          </View>
-
-          <View style={styles.periodRow}>
-            <Text
-              style={[styles.periodLabel, { fontFamily: "Outfit_400Regular" }]}
-            >
-              {chartPeriodLabel}
-            </Text>
-            {!isFarmer && (
-              <PeriodToggle
-                options={wholesalerPeriods}
-                active={period}
-                onSelect={onPeriodChange}
-              />
-            )}
-          </View>
-
-          <View style={styles.chartArea}>
-            {hasRevenue ? (
-              <RevenueChart bars={bars} />
             ) : (
-              <View style={styles.noChartWrap}>
+              <View style={styles.deltaRow}>
+                <Feather
+                  name={deltaPct >= 0 ? "arrow-up-right" : "arrow-down-right"}
+                  size={12}
+                  color={deltaPct >= 0 ? BAND.up : BAND.down}
+                />
                 <Text
                   style={[
-                    styles.noChartText,
+                    styles.delta,
+                    {
+                      color: deltaPct >= 0 ? BAND.up : BAND.down,
+                      fontFamily: "IBMPlexMono_600SemiBold",
+                    },
+                  ]}
+                >
+                  {Math.abs(deltaPct).toFixed(0)}%
+                </Text>
+                <Text
+                  style={[
+                    styles.deltaSuffix,
                     { fontFamily: "Outfit_400Regular" },
                   ]}
                 >
-                  {t.noRevenueData}
+                  {t.vsPrevious}
                 </Text>
               </View>
-            )}
-          </View>
+            ))}
+        </View>
 
-          <View style={styles.heroChips}>
-            <View
-              style={[
-                styles.heroChip,
-                { backgroundColor: "rgba(255,255,255,0.08)" },
-              ]}
-            >
+        <View style={styles.chartArea}>
+          {hasRevenue ? (
+            <RevenueChart
+              bars={bars}
+              width={SCREEN_W - 32 - 36}
+              selected={selectedBar}
+              onSelect={(i) =>
+                setSelectedBar((prev) => (prev === i ? null : i))
+              }
+            />
+          ) : (
+            <View style={styles.noChartWrap}>
               <Text
-                style={[styles.heroChipVal, { fontFamily: "Outfit_700Bold" }]}
+                style={[styles.noChartText, { fontFamily: "Outfit_400Regular" }]}
               >
-                {formatWeight(totalWeightKg)} KG
-              </Text>
-              <Text
-                style={[
-                  styles.heroChipLabel,
-                  { fontFamily: "Outfit_400Regular" },
-                ]}
-              >
-                {t.dashWeightSold}
+                {t.noSalesInPeriod}
               </Text>
             </View>
-            <View
-              style={[
-                styles.heroChip,
-                { backgroundColor: "rgba(255,255,255,0.08)" },
-              ]}
-            >
-              <Text
-                style={[styles.heroChipVal, { fontFamily: "Outfit_700Bold" }]}
-              >
-                {totalBirds > 0 ? totalBirds.toLocaleString() : "—"}
-              </Text>
-              <Text
-                style={[
-                  styles.heroChipLabel,
-                  { fontFamily: "Outfit_400Regular" },
-                ]}
-              >
-                {t.totalBirdsSold}
-              </Text>
-            </View>
-            <View
-              style={[
-                styles.heroChip,
-                { backgroundColor: "rgba(255,255,255,0.08)" },
-              ]}
-            >
-              <Text
-                style={[styles.heroChipVal, { fontFamily: "Outfit_700Bold" }]}
-              >
-                {bestPrice > 0 ? `৳${bestPrice.toFixed(0)}` : "—"}
-              </Text>
-              <Text
-                style={[
-                  styles.heroChipLabel,
-                  { fontFamily: "Outfit_400Regular" },
-                ]}
-              >
-                {t.bestPriceLabel}
-              </Text>
-            </View>
-          </View>
-        </LinearGradient>
+          )}
+        </View>
+
+        {/* Facts hang from the same rule the bars stand on. */}
+        <View style={styles.factRow}>
+          <Fact
+            value={formatWeight(totalWeightKg)}
+            unit="KG"
+            label={t.dashWeightSold}
+          />
+          <Fact
+            value={totalBirds > 0 ? totalBirds.toLocaleString() : "—"}
+            label={t.totalBirdsSold}
+          />
+          <Fact
+            value={avgPriceKg > 0 ? `৳${avgPriceKg.toFixed(0)}` : "—"}
+            unit={t.perKgShort}
+            label={t.avgPurchasePrice}
+          />
+        </View>
       </View>
+
+      {/* ── Needs attention ── two compact pills, not two stacked banners. */}
+      {(drafts.length > 0 || batches.length > 0) && (
+        <View style={styles.attentionRow}>
+          {drafts.length > 0 && (
+            <Pressable
+              onPress={() => router.push("/drafts")}
+              style={({ pressed }) => [
+                styles.attentionPill,
+                {
+                  backgroundColor: theme.warmLight,
+                  opacity: pressed ? 0.8 : 1,
+                },
+              ]}
+            >
+              <MaterialCommunityIcons
+                name="progress-clock"
+                size={15}
+                color={theme.warm}
+              />
+              <Text
+                style={[
+                  styles.attentionText,
+                  { color: theme.warm, fontFamily: "Outfit_600SemiBold" },
+                ]}
+                numberOfLines={1}
+              >
+                {t.draftsPaused(drafts.length)}
+              </Text>
+            </Pressable>
+          )}
+          {batches.length > 0 && (
+            <Pressable
+              onPress={() => router.push("/batches")}
+              style={({ pressed }) => [
+                styles.attentionPill,
+                {
+                  backgroundColor:
+                    batchesDue > 0 ? theme.dangerLight : theme.accentLight,
+                  opacity: pressed ? 0.8 : 1,
+                },
+              ]}
+            >
+              <Feather
+                name="layers"
+                size={14}
+                color={batchesDue > 0 ? theme.danger : theme.accent}
+              />
+              <Text
+                style={[
+                  styles.attentionText,
+                  {
+                    color: batchesDue > 0 ? theme.danger : theme.accent,
+                    fontFamily: "Outfit_600SemiBold",
+                  },
+                ]}
+                numberOfLines={1}
+              >
+                {batchesDue > 0
+                  ? `${formatTk(batchesDue)} ${t.stillDue}`
+                  : `${t.batches} · ${batches.length}`}
+              </Text>
+            </Pressable>
+          )}
+        </View>
+      )}
 
       {/* ── Insights scroll ── */}
       {totalSales > 0 && (
@@ -1381,97 +1453,88 @@ const styles = StyleSheet.create({
     borderColor: "#fff",
   },
 
-  greetingRow: { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 4 },
-  greetSub: { fontSize: 13, marginBottom: 2 },
-  greetName: { fontSize: 24 },
-
-  draftBanner: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    marginHorizontal: 16,
-    marginTop: 14,
-    paddingHorizontal: 14,
-    paddingVertical: 11,
-    borderRadius: 14,
-    borderWidth: 1.5,
-  },
-  draftText: { fontSize: 13 },
-
-  heroCard: {
+  band: {
     marginTop: 16,
-    borderRadius: 22,
-    overflow: "hidden",
+    marginHorizontal: 16,
+    borderRadius: 20,
+    paddingHorizontal: 18,
+    paddingTop: 16,
+    paddingBottom: 14,
     ...Platform.select({
       ios: {
         shadowColor: "#000",
-        shadowOffset: { width: 0, height: 8 },
-        shadowOpacity: 0.25,
-        shadowRadius: 16,
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.18,
+        shadowRadius: 14,
       },
-      android: { elevation: 10 },
+      android: { elevation: 6 },
     }),
   },
-  heroCardInner: { padding: 20 },
-  heroCardTop: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    justifyContent: "space-between",
-    marginBottom: 12,
-  },
-  heroCardLabel: {
-    fontSize: 12,
-    color: "rgba(255,255,255,0.5)",
-    marginBottom: 4,
-    textTransform: "uppercase",
-    letterSpacing: 0.8,
-  },
-  heroCardAmount: { fontSize: 36, color: "#fff", letterSpacing: -1 },
-  salesCountPill: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 20,
-    marginTop: 4,
-  },
-  salesCountText: { fontSize: 12, color: "rgba(255,255,255,0.65)" },
-
-  periodRow: {
+  bandTop: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: 12,
+    marginBottom: 6,
   },
-  periodLabel: {
-    fontSize: 11,
-    color: "rgba(255,255,255,0.4)",
-    letterSpacing: 0.5,
-  },
-  toggleRow: { flexDirection: "row", borderRadius: 20, padding: 2 },
-  toggleBtn: { paddingHorizontal: 14, paddingVertical: 5, borderRadius: 18 },
-  toggleBtnText: { fontSize: 11, letterSpacing: 0.3 },
-
-  chartArea: { marginBottom: 12 },
-  noChartWrap: { alignItems: "center", paddingVertical: 24 },
-  noChartText: { fontSize: 13, color: "rgba(255,255,255,0.35)" },
-  heroChips: { flexDirection: "row", gap: 8, marginTop: 4 },
-  heroChip: {
-    flex: 1,
-    borderRadius: 12,
-    padding: 12,
-    gap: 3,
-    alignItems: "center",
-  },
-  heroChipVal: { fontSize: 14, color: "#fff" },
-  heroChipLabel: {
+  eyebrow: {
     fontSize: 10,
-    color: "rgba(255,255,255,0.45)",
+    color: BAND.inkDim,
     textTransform: "uppercase",
-    letterSpacing: 0.4,
-    textAlign: "center",
+    letterSpacing: 1.6,
   },
+  // The reading itself: full figure, never abbreviated, mono so the digits
+  // hold their columns as the value changes.
+  reading: { fontSize: 38, color: BAND.ink, letterSpacing: -0.5 },
+  readingMetaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+    marginTop: 2,
+    minHeight: 18,
+  },
+  readingMeta: { fontSize: 12, color: BAND.inkDim, flexShrink: 1 },
+  deltaRow: { flexDirection: "row", alignItems: "center", gap: 3 },
+  delta: { fontSize: 12 },
+  deltaSuffix: { fontSize: 11, color: BAND.inkFaint },
+  deltaMuted: { fontSize: 11, color: BAND.inkFaint, flexShrink: 1 },
+
+  toggleRow: { flexDirection: "row", borderRadius: 20, padding: 2 },
+  toggleBtn: { paddingHorizontal: 11, paddingVertical: 4, borderRadius: 18 },
+  toggleBtnText: { fontSize: 10.5, letterSpacing: 0.3 },
+
+  chartArea: { marginTop: 14 },
+  noChartWrap: { alignItems: "center", justifyContent: "center", height: 96 },
+  noChartText: { fontSize: 12.5, color: BAND.inkFaint },
+
+  factRow: { flexDirection: "row", marginTop: 12 },
+  fact: { flex: 1, gap: 2 },
+  factValueRow: { flexDirection: "row", alignItems: "baseline", gap: 3 },
+  factValue: { fontSize: 14, color: BAND.ink },
+  factUnit: { fontSize: 10, color: BAND.inkDim },
+  factLabel: {
+    fontSize: 9.5,
+    color: BAND.inkFaint,
+    textTransform: "uppercase",
+    letterSpacing: 0.7,
+  },
+
+  attentionRow: {
+    flexDirection: "row",
+    gap: 8,
+    marginHorizontal: 16,
+    marginTop: 10,
+  },
+  attentionPill: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 7,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 12,
+  },
+  attentionText: { fontSize: 12, flexShrink: 1 },
 
   insightsSection: { marginTop: 22 },
   sectionLabel: {

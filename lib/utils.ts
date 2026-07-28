@@ -25,13 +25,6 @@ export function formatTk(n: number): string {
   return `৳${n.toLocaleString("en-PK", { maximumFractionDigits: 0 })}`;
 }
 
-// Abbreviated, for chart labels and dense cards where space is tight.
-export function formatTkCompact(n: number): string {
-  if (n >= 1_000_000) return `৳${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `৳${(n / 1_000).toFixed(0)}K`;
-  return n > 0 ? `৳${n.toFixed(0)}` : "৳0";
-}
-
 // Crate deduction: the trade convention is a fixed weight knocked off per
 // crate. `fullCratesOnly` means a part-filled crate earns no deduction.
 // Lives here rather than in the measurement screen so it can be tested.
