@@ -38,7 +38,7 @@ export default function OnboardingScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const theme = useTheme();
-  const { t } = useSettings();
+  const { t, language, setLanguage } = useSettings();
 
   const [step, setStep] = useState(0);
   const [saving, setSaving] = useState(false);
@@ -102,10 +102,7 @@ export default function OnboardingScreen() {
     if (step > 0) animateToStep(step - 1);
   };
 
-  const handleRoleSelect = (r: UserRole) => {
-    setRole(r);
-    setTimeout(() => animateToStep(1), 180);
-  };
+  const handleRoleSelect = (r: UserRole) => setRole(r);
 
   const handleFinish = async (plan: Plan) => {
     if (!user) return;
@@ -132,6 +129,9 @@ export default function OnboardingScreen() {
   };
 
   const step2CanProceed = name.trim().length > 0 && phone.trim().length >= 10;
+  // Step 3 (farm/business details) is optional, so it is always passable.
+  const canProceed =
+    step === 0 ? role !== null : step === 1 ? step2CanProceed : true;
 
   return (
     <View style={[styles.root, { backgroundColor: theme.background }]}>
@@ -162,15 +162,38 @@ export default function OnboardingScreen() {
             />
           ))}
         </View>
+        {/* The audience is Bengali-first, and settings live behind
+            onboarding — so the language switch has to be reachable here,
+            before a single word has to be understood. */}
         <View style={styles.headerSide}>
-          <Text
-            style={[
-              styles.stepLabel,
-              { color: theme.textTertiary, fontFamily: "Outfit_400Regular" },
-            ]}
-          >
-            {step + 1}/{TOTAL_STEPS}
-          </Text>
+          <View style={[styles.langRow, { backgroundColor: theme.borderLight }]}>
+            {(["en", "bn"] as const).map((code) => {
+              const on = language === code;
+              return (
+                <Pressable
+                  key={code}
+                  onPress={() => setLanguage(code)}
+                  hitSlop={6}
+                  style={[
+                    styles.langBtn,
+                    on && { backgroundColor: theme.surface },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.langText,
+                      {
+                        color: on ? theme.text : theme.textTertiary,
+                        fontFamily: on ? "Outfit_600SemiBold" : "Outfit_400Regular",
+                      },
+                    ]}
+                  >
+                    {code === "en" ? "EN" : "বাং"}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
         </View>
       </View>
 
@@ -226,7 +249,7 @@ export default function OnboardingScreen() {
           )}
         </Animated.View>
 
-        {step === 1 && (
+        {step < TOTAL_STEPS - 1 && (
           <View
             style={[styles.bottomBar, { paddingBottom: insets.bottom + 16 }]}
           >
@@ -234,10 +257,10 @@ export default function OnboardingScreen() {
               style={({ pressed }) => [
                 styles.primaryBtn,
                 { backgroundColor: theme.accent, opacity: pressed ? 0.85 : 1 },
-                !step2CanProceed && styles.btnDisabled,
+                !canProceed && styles.btnDisabled,
               ]}
               onPress={goNext}
-              disabled={!step2CanProceed}
+              disabled={!canProceed}
             >
               <Text
                 style={[
@@ -245,7 +268,7 @@ export default function OnboardingScreen() {
                   { fontFamily: "Outfit_600SemiBold" },
                 ]}
               >
-                Continue
+                {t.obContinue}
               </Text>
               <MaterialCommunityIcons
                 name="arrow-right"
@@ -254,6 +277,21 @@ export default function OnboardingScreen() {
                 style={{ marginLeft: 8 }}
               />
             </Pressable>
+            {step === 2 && (
+              <Pressable onPress={goNext} style={styles.skipBtn}>
+                <Text
+                  style={[
+                    styles.skipText,
+                    {
+                      color: theme.textTertiary,
+                      fontFamily: "Outfit_400Regular",
+                    },
+                  ]}
+                >
+                  {t.obSkip}
+                </Text>
+              </Pressable>
+            )}
           </View>
         )}
       </KeyboardAvoidingView>
@@ -263,14 +301,28 @@ export default function OnboardingScreen() {
 
 // ─── Step 1: Role ────────────────────────────────────────────────────────────
 
+// The choice is really which side of the trade you stand on, so each card
+// leads with the verb — "I sell" / "I buy" — and then says what the app will
+// do for that side. The glyphs are the two things the trade actually moves:
+// the flock, and the truck it leaves on. (A tractor is crop farming, and a
+// shopfront is retail; neither is this business.)
 function RoleStep({ role, onSelect, theme, t }: any) {
-  const scaleA = useRef(new Animated.Value(1)).current;
-  const scaleB = useRef(new Animated.Value(1)).current;
-
-  const pressIn = (a: Animated.Value) =>
-    Animated.spring(a, { toValue: 0.96, useNativeDriver: true }).start();
-  const pressOut = (a: Animated.Value) =>
-    Animated.spring(a, { toValue: 1, useNativeDriver: true }).start();
+  const options = [
+    {
+      key: "farmer" as UserRole,
+      icon: "bird",
+      eyebrow: t.obSellEyebrow,
+      title: t.farmerRole,
+      benefit: t.obFarmerBenefit,
+    },
+    {
+      key: "wholesaler" as UserRole,
+      icon: "truck-delivery",
+      eyebrow: t.obBuyEyebrow,
+      title: t.wholesalerRole,
+      benefit: t.obWholesalerBenefit,
+    },
+  ];
 
   return (
     <ScrollView
@@ -283,7 +335,7 @@ function RoleStep({ role, onSelect, theme, t }: any) {
           { color: theme.text, fontFamily: "Outfit_700Bold" },
         ]}
       >
-        Who are you?
+        {t.obRoleTitle}
       </Text>
       <Text
         style={[
@@ -291,65 +343,84 @@ function RoleStep({ role, onSelect, theme, t }: any) {
           { color: theme.textSecondary, fontFamily: "Outfit_400Regular" },
         ]}
       >
-        Select your role to personalise your experience
+        {t.obRoleSub}
       </Text>
 
       <View style={styles.roleCards}>
-        {(
-          [
-            {
-              key: "farmer" as UserRole,
-              icon: "tractor",
-              title: t.farmerRole,
-              desc: "I raise and sell poultry",
-              anim: scaleA,
-            },
-            {
-              key: "wholesaler" as UserRole,
-              icon: "store-outline",
-              title: t.wholesalerRole,
-              desc: "I buy and distribute poultry",
-              anim: scaleB,
-            },
-          ] as const
-        ).map(({ key, icon, title, desc, anim }) => (
-          <Animated.View key={key} style={{ transform: [{ scale: anim }] }}>
+        {options.map(({ key, icon, eyebrow, title, benefit }) => {
+          const selected = role === key;
+          return (
             <Pressable
-              onPressIn={() => pressIn(anim)}
-              onPressOut={() => pressOut(anim)}
+              key={key}
               onPress={() => onSelect(key)}
-              style={[
+              accessibilityRole="radio"
+              accessibilityState={{ selected }}
+              style={({ pressed }) => [
                 styles.roleCard,
                 {
-                  backgroundColor: theme.surface,
-                  borderColor: role === key ? theme.accent : theme.border,
-                  borderWidth: role === key ? 2.5 : 1.5,
+                  backgroundColor: selected ? theme.accentLight : theme.surface,
+                  borderColor: selected ? theme.accent : theme.border,
+                  opacity: pressed ? 0.9 : 1,
                 },
               ]}
             >
-              <View
-                style={[
-                  styles.roleIconBg,
-                  {
-                    backgroundColor:
-                      role === key ? theme.accent : theme.accentLight,
-                  },
-                ]}
-              >
-                <MaterialCommunityIcons
-                  name={icon as any}
-                  size={44}
-                  color={role === key ? "#fff" : theme.accent}
-                />
+              <View style={styles.roleCardHead}>
+                <View
+                  style={[
+                    styles.roleIcon,
+                    {
+                      backgroundColor: selected ? theme.accent : theme.borderLight,
+                    },
+                  ]}
+                >
+                  <MaterialCommunityIcons
+                    name={icon as any}
+                    size={22}
+                    color={selected ? "#fff" : theme.textSecondary}
+                  />
+                </View>
+
+                <View style={{ flex: 1 }}>
+                  <Text
+                    style={[
+                      styles.roleEyebrow,
+                      {
+                        color: selected ? theme.accent : theme.textTertiary,
+                        fontFamily: "Outfit_600SemiBold",
+                      },
+                    ]}
+                  >
+                    {eyebrow}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.roleCardTitle,
+                      { color: theme.text, fontFamily: "Outfit_700Bold" },
+                    ]}
+                  >
+                    {title}
+                  </Text>
+                </View>
+
+                <View
+                  style={[
+                    styles.radio,
+                    {
+                      borderColor: selected ? theme.accent : theme.border,
+                      backgroundColor: selected ? theme.accent : "transparent",
+                    },
+                  ]}
+                >
+                  {selected && (
+                    <MaterialCommunityIcons
+                      name="check"
+                      size={13}
+                      color="#fff"
+                    />
+                  )}
+                </View>
               </View>
-              <Text
-                style={[
-                  styles.roleCardTitle,
-                  { color: theme.text, fontFamily: "Outfit_700Bold" },
-                ]}
-              >
-                {title}
-              </Text>
+
               <Text
                 style={[
                   styles.roleCardDesc,
@@ -359,18 +430,11 @@ function RoleStep({ role, onSelect, theme, t }: any) {
                   },
                 ]}
               >
-                {desc}
+                {benefit}
               </Text>
-              {role === key && (
-                <View
-                  style={[styles.checkBadge, { backgroundColor: theme.accent }]}
-                >
-                  <MaterialCommunityIcons name="check" size={14} color="#fff" />
-                </View>
-              )}
             </Pressable>
-          </Animated.View>
-        ))}
+          );
+        })}
       </View>
     </ScrollView>
   );
@@ -401,7 +465,7 @@ function BasicInfoStep({
           { color: theme.text, fontFamily: "Outfit_700Bold" },
         ]}
       >
-        Tell us about yourself
+        {t.obBasicTitle}
       </Text>
       <Text
         style={[
@@ -409,16 +473,16 @@ function BasicInfoStep({
           { color: theme.textSecondary, fontFamily: "Outfit_400Regular" },
         ]}
       >
-        This helps personalise your records
+        {t.obBasicSub}
       </Text>
 
       <View style={styles.fields}>
         <InfoField
           icon="account-outline"
-          label={`Full Name *`}
+          label={`${t.obFullName} *`}
           value={name}
           onChange={onName}
-          placeholder="Your full name"
+          placeholder={t.obFullNamePlaceholder}
           theme={theme}
           returnKeyType="next"
         />
@@ -434,7 +498,7 @@ function BasicInfoStep({
         />
         <InfoField
           icon="map-marker-outline"
-          label={`${t.address} (optional)`}
+          label={`${t.address} (${t.optional})`}
           value={location}
           onChange={onLocation}
           placeholder={t.addressPlaceholder}
@@ -472,7 +536,7 @@ function BusinessStep({
             { color: theme.accent, fontFamily: "Outfit_600SemiBold" },
           ]}
         >
-          Optional
+          {t.optional}
         </Text>
       </View>
       <Text
@@ -481,7 +545,7 @@ function BusinessStep({
           { color: theme.text, fontFamily: "Outfit_700Bold" },
         ]}
       >
-        {isFarmer ? "About your farm" : "Your business"}
+        {isFarmer ? t.obFarmTitle : t.obBusinessTitle}
       </Text>
       <Text
         style={[
@@ -489,7 +553,7 @@ function BusinessStep({
           { color: theme.textSecondary, fontFamily: "Outfit_400Regular" },
         ]}
       >
-        Add details now or fill in later from your profile
+        {t.obDetailsSub}
       </Text>
 
       <View style={styles.fields}>
@@ -499,7 +563,7 @@ function BusinessStep({
             label={t.farmName}
             value={farmName}
             onChange={onFarmName}
-            placeholder="e.g. Green Valley Farm"
+            placeholder={t.obFarmNamePlaceholder}
             theme={theme}
             returnKeyType="done"
             onSubmitEditing={onNext}
@@ -518,40 +582,6 @@ function BusinessStep({
         )}
       </View>
 
-      <View style={[styles.finishBtns, { marginTop: 32 }]}>
-        <Pressable
-          style={({ pressed }) => [
-            styles.primaryBtn,
-            { backgroundColor: theme.accent, opacity: pressed ? 0.85 : 1 },
-          ]}
-          onPress={onNext}
-        >
-          <Text
-            style={[
-              styles.primaryBtnText,
-              { fontFamily: "Outfit_600SemiBold" },
-            ]}
-          >
-            Continue
-          </Text>
-          <MaterialCommunityIcons
-            name="arrow-right"
-            size={20}
-            color="#fff"
-            style={{ marginLeft: 8 }}
-          />
-        </Pressable>
-        <Pressable onPress={onNext} style={styles.skipBtn}>
-          <Text
-            style={[
-              styles.skipText,
-              { color: theme.textTertiary, fontFamily: "Outfit_400Regular" },
-            ]}
-          >
-            Skip for now
-          </Text>
-        </Pressable>
-      </View>
     </ScrollView>
   );
 }
@@ -852,33 +882,33 @@ const styles = StyleSheet.create({
   },
   stepTitle: { fontSize: 28, marginTop: 8 },
   stepSub: { fontSize: 15, marginTop: -4, marginBottom: 8 },
-  roleCards: { gap: 16, marginTop: 8 },
+  langRow: { flexDirection: "row", borderRadius: 9, padding: 2 },
+  langBtn: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 7 },
+  langText: { fontSize: 11 },
+
+  roleCards: { gap: 12, marginTop: 8 },
   roleCard: {
-    borderRadius: 20,
-    padding: 24,
-    alignItems: "center",
+    borderRadius: 18,
+    borderWidth: 1.5,
+    padding: 16,
     gap: 10,
-    position: "relative",
-    minHeight: 160,
-    justifyContent: "center",
   },
-  roleIconBg: {
-    width: 80,
-    height: 80,
-    borderRadius: 24,
+  roleCardHead: { flexDirection: "row", alignItems: "center", gap: 12 },
+  roleIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 13,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 4,
   },
-  roleCardTitle: { fontSize: 20 },
-  roleCardDesc: { fontSize: 14, textAlign: "center" },
-  checkBadge: {
-    position: "absolute",
-    top: 14,
-    right: 14,
-    width: 24,
-    height: 24,
-    borderRadius: 12,
+  roleEyebrow: { fontSize: 10.5, letterSpacing: 1, textTransform: "uppercase" },
+  roleCardTitle: { fontSize: 19, marginTop: 1 },
+  roleCardDesc: { fontSize: 13.5, lineHeight: 20 },
+  radio: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 1.5,
     alignItems: "center",
     justifyContent: "center",
   },
