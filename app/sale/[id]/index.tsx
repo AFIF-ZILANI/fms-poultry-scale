@@ -134,9 +134,11 @@ export default function SaleDetailScreen() {
   const subtotalGross = meta ? meta.mainWeightKg - meta.cullWeightKg : 0;
   const rawCrates = meta ? meta.totalCrates : 0;
 
-  const balanceDue =
+  // Nothing in the app records a payment after the sale, so a shortfall is
+  // money the farmer knocked off rather than a balance still owed.
+  const discount =
     meta?.receivedAmount != null && meta?.finalAmount != null
-      ? meta?.finalAmount - meta?.receivedAmount
+      ? Math.max(meta.finalAmount - meta.receivedAmount, 0)
       : null;
 
   return (
@@ -525,42 +527,35 @@ export default function SaleDetailScreen() {
                 </View>
               )}
 
-              {/* Balance due */}
-              {balanceDue !== null && (
+              {/* Discount — what the buyer was let off, not what they owe. */}
+              {discount !== null && discount > 0 && (
                 <View
                   style={[
                     styles.balanceRow,
-                    {
-                      backgroundColor:
-                        balanceDue > 0 ? theme.dangerLight : theme.successLight,
-                    },
+                    { backgroundColor: theme.warmLight },
                   ]}
                 >
                   <Text
                     style={[
                       styles.finalLabel,
                       {
-                        color: balanceDue > 0 ? theme.danger : theme.success,
+                        color: theme.warm,
                         fontFamily: "Outfit_600SemiBold",
                       },
                     ]}
                   >
-                    {t.balanceDue}
+                    {t.discountGiven}
                   </Text>
                   <Text
                     style={[
                       styles.finalValue,
-                      {
-                        color: balanceDue > 0 ? theme.danger : theme.success,
-                        fontFamily: "Outfit_700Bold",
-                      },
+                      { color: theme.warm, fontFamily: "Outfit_700Bold" },
                     ]}
                   >
                     Tk{" "}
-                    {Math.abs(balanceDue).toLocaleString("en-PK", {
+                    {discount.toLocaleString("en-PK", {
                       maximumFractionDigits: 2,
                     })}
-                    {balanceDue < 0 ? " ✓" : ""}
                   </Text>
                 </View>
               )}

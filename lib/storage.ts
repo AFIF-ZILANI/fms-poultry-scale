@@ -339,8 +339,10 @@ export async function deleteSale(id: string): Promise<void> {
 export type Batch = typeof batches.$inferSelect;
 
 // Rolled up in SQL, same shape as loadDrafts: one leftJoin + groupBy, never a
-// query per batch. `due` is clamped at 0 so an overpaid session cannot show as
-// negative money owed, and cannot mask a real debt on a sibling session.
+// query per batch. A sale settles when it is recorded — nothing in the app
+// takes a payment later — so the gap under the final amount is money the
+// farmer knocked off, not money still owed. Clamped at 0 per session so an
+// overpaid one cannot cancel out a discount given on a sibling.
 export async function loadBatches(
   userId: string,
   opts: { includeClosed?: boolean } = {},
@@ -357,7 +359,7 @@ export async function loadBatches(
       weightKg: sql<number>`coalesce(sum(${saleMetaData.netWeightKg}), 0)`,
       revenue: sql<number>`coalesce(sum(${saleMetaData.finalAmount}), 0)`,
       received: sql<number>`coalesce(sum(${saleMetaData.receivedAmount}), 0)`,
-      due: sql<number>`coalesce(sum(max(${saleMetaData.finalAmount} - ${saleMetaData.receivedAmount}, 0)), 0)`,
+      discount: sql<number>`coalesce(sum(max(${saleMetaData.finalAmount} - ${saleMetaData.receivedAmount}, 0)), 0)`,
     })
     .from(batches)
     .leftJoin(sales, eq(sales.batchId, batches.id))
@@ -381,7 +383,7 @@ export async function loadBatches(
     weightKg: Number(r.weightKg),
     revenue: Number(r.revenue),
     received: Number(r.received),
-    due: Number(r.due),
+    discount: Number(r.discount),
   }));
 }
 

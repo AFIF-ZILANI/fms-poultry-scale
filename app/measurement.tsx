@@ -277,160 +277,263 @@ function SummaryRow({
   );
 }
 
-function PcsOptionalDialog({
+// A selectable row: the mark on the left, what it does on the right. Used for
+// both decisions in the setup sheet so they read as one kind of choice.
+function ChoiceRow({
+  selected,
+  title,
+  subtitle,
+  badge,
+  aside,
+  theme,
+  onPress,
+}: {
+  selected: boolean;
+  title: string;
+  subtitle?: string;
+  badge?: string;
+  aside?: string;
+  theme: ReturnType<typeof useTheme>;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.choiceRow,
+        {
+          backgroundColor: selected ? theme.accentLight : "transparent",
+          borderColor: selected ? theme.accent : theme.border,
+          opacity: pressed ? 0.8 : 1,
+        },
+      ]}
+    >
+      <View
+        style={[
+          styles.radio,
+          { borderColor: selected ? theme.accent : theme.textTertiary },
+        ]}
+      >
+        {selected && (
+          <View style={[styles.radioDot, { backgroundColor: theme.accent }]} />
+        )}
+      </View>
+
+      <View style={{ flex: 1 }}>
+        <View style={styles.choiceTitleRow}>
+          <Text
+            style={[
+              styles.choiceTitle,
+              {
+                color: theme.text,
+                fontFamily: selected ? "Outfit_600SemiBold" : "Outfit_500Medium",
+              },
+            ]}
+            numberOfLines={1}
+          >
+            {title}
+          </Text>
+          {!!badge && (
+            <View
+              style={[styles.choiceBadge, { backgroundColor: theme.successLight }]}
+            >
+              <Text
+                style={[
+                  styles.choiceBadgeText,
+                  { color: theme.success, fontFamily: "Outfit_600SemiBold" },
+                ]}
+              >
+                {badge}
+              </Text>
+            </View>
+          )}
+        </View>
+        {!!subtitle && (
+          <Text
+            style={[
+              styles.choiceSub,
+              { color: theme.textTertiary, fontFamily: "Outfit_400Regular" },
+            ]}
+            numberOfLines={2}
+          >
+            {subtitle}
+          </Text>
+        )}
+      </View>
+
+      {!!aside && (
+        <Text
+          style={[
+            styles.choiceAside,
+            { color: theme.textTertiary, fontFamily: "Outfit_500Medium" },
+          ]}
+          numberOfLines={1}
+        >
+          {aside}
+        </Text>
+      )}
+    </Pressable>
+  );
+}
+
+// Session setup. Two decisions — whether bird count is tracked, and which batch
+// this session belongs to — presented as one kind of choice each and confirmed
+// by a single action, rather than two equal buttons that also dismissed.
+function SessionSetupDialog({
   visible,
   theme,
   batches,
   selectedBatchId,
   onSelectBatch,
-  onTrack,
-  onSkip,
+  onStart,
 }: {
   visible: boolean;
   theme: ReturnType<typeof useTheme>;
   batches: BatchSummary[];
   selectedBatchId?: string;
   onSelectBatch: (id?: string) => void;
-  onTrack: () => void;
-  onSkip: () => void;
+  onStart: (trackCount: boolean) => void;
 }) {
   const { t } = useSettings();
+  // Tracking is the path that keeps the numbers honest, so it starts selected.
+  const [trackCount, setTrackCount] = useState(true);
+
   return (
     <Modal visible={visible} transparent animationType="fade">
-      <View style={styles.cullOverlay}>
+      <View style={[styles.setupOverlay, { backgroundColor: theme.overlay }]}>
         <Animated.View
-          entering={Platform.OS !== "web" ? FadeIn.duration(200) : undefined}
+          entering={Platform.OS !== "web" ? FadeInDown.duration(200) : undefined}
           style={[
-            styles.cullCard,
+            styles.setupCard,
             { backgroundColor: theme.surface, borderColor: theme.borderLight },
           ]}
         >
-          <View
-            style={[
-              styles.cullIconWrap,
-              { backgroundColor: theme.accentLight },
-            ]}
-          >
-            <MaterialCommunityIcons
-              name="counter"
-              size={28}
-              color={theme.accent}
-            />
-          </View>
-          <Text
-            style={[
-              styles.cullTitle,
-              { color: theme.text, fontFamily: "Outfit_700Bold" },
-            ]}
-          >
-            {t.pcsOptionalTitle}
-          </Text>
-          <Text
-            style={[
-              styles.cullHint,
-              { color: theme.textTertiary, fontFamily: "Outfit_400Regular" },
-            ]}
-          >
-            {t.pcsOptionalDesc}
-          </Text>
-
-          {/* Only shown once the farmer actually has batches, so anyone who
-              never uses them sees no extra step. */}
-          {batches.length > 0 && (
-            <View style={styles.batchPick}>
+          <View style={styles.setupHead}>
+            <View
+              style={[styles.setupIcon, { backgroundColor: theme.accentLight }]}
+            >
+              <MaterialCommunityIcons
+                name="scale-balance"
+                size={19}
+                color={theme.accent}
+              />
+            </View>
+            <View style={{ flex: 1 }}>
               <Text
                 style={[
-                  styles.batchPickLabel,
+                  styles.setupTitle,
+                  { color: theme.text, fontFamily: "Outfit_700Bold" },
+                ]}
+              >
+                {t.sessionSetup}
+              </Text>
+              <Text
+                style={[
+                  styles.setupHint,
                   {
                     color: theme.textTertiary,
-                    fontFamily: "Outfit_600SemiBold",
+                    fontFamily: "Outfit_400Regular",
                   },
                 ]}
               >
-                {t.addToBatch}
+                {batches.length > 0 ? t.sessionSetupHint : t.pcsOptionalDesc}
               </Text>
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.batchPickRow}
-              >
-                {[undefined, ...batches.map((b) => b.id)].map((id) => {
-                  const selected = selectedBatchId === id;
-                  const label =
-                    id === undefined
-                      ? t.noBatch
-                      : (batches.find((b) => b.id === id)?.name ?? "");
-                  return (
-                    <Pressable
-                      key={id ?? "none"}
-                      onPress={() => onSelectBatch(id)}
-                      style={({ pressed }) => [
-                        styles.batchChip,
-                        {
-                          backgroundColor: selected
-                            ? theme.accent
-                            : theme.borderLight,
-                          opacity: pressed ? 0.7 : 1,
-                        },
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.batchChipText,
-                          {
-                            color: selected ? "#fff" : theme.textSecondary,
-                            fontFamily: "Outfit_600SemiBold",
-                          },
-                        ]}
-                        numberOfLines={1}
-                      >
-                        {label}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </ScrollView>
             </View>
-          )}
+          </View>
 
-          <View style={styles.cullBtns}>
-            <Pressable
-              onPress={onSkip}
-              style={({ pressed }) => [
-                styles.cullNoBtn,
-                { borderColor: theme.border, opacity: pressed ? 0.7 : 1 },
-              ]}
-            >
-              <Text
-                style={[
-                  styles.cullNoBtnText,
-                  { color: theme.text, fontFamily: "Outfit_600SemiBold" },
-                ]}
-              >
-                {t.pcsOptionalSkip}
-              </Text>
-            </Pressable>
-            <Pressable
-              onPress={onTrack}
-              style={({ pressed }) => [
-                styles.cullYesBtn,
+          <ScrollView
+            style={styles.setupScroll}
+            showsVerticalScrollIndicator={false}
+            bounces={false}
+          >
+            <Text
+              style={[
+                styles.setupLabel,
                 {
-                  backgroundColor: theme.accent,
-                  transform: [{ scale: pressed ? 0.97 : 1 }],
+                  color: theme.textTertiary,
+                  fontFamily: "Outfit_600SemiBold",
                 },
               ]}
             >
-              <Ionicons name="checkmark" size={16} color="#FFF" />
-              <Text
-                style={[
-                  styles.cullYesBtnText,
-                  { fontFamily: "Outfit_700Bold" },
-                ]}
-              >
-                {t.pcsOptionalTrack}
-              </Text>
-            </Pressable>
-          </View>
+              {t.pcsOptionalTitle}
+            </Text>
+            <View style={styles.choiceStack}>
+              <ChoiceRow
+                selected={trackCount}
+                title={t.pcsOptionalTrack}
+                subtitle={t.pcsTrackWhy}
+                badge={t.recommended}
+                theme={theme}
+                onPress={() => setTrackCount(true)}
+              />
+              <ChoiceRow
+                selected={!trackCount}
+                title={t.pcsOptionalSkip}
+                subtitle={t.pcsSkipWhy}
+                theme={theme}
+                onPress={() => setTrackCount(false)}
+              />
+            </View>
+
+            {/* Only shown once the farmer actually has batches, so anyone who
+                never uses them sees no extra step. */}
+            {batches.length > 0 && (
+              <>
+                <View
+                  style={[styles.setupRule, { backgroundColor: theme.borderLight }]}
+                />
+                <Text
+                  style={[
+                    styles.setupLabel,
+                    {
+                      color: theme.textTertiary,
+                      fontFamily: "Outfit_600SemiBold",
+                    },
+                  ]}
+                >
+                  {t.addToBatch}
+                </Text>
+                <View style={styles.choiceStack}>
+                  <ChoiceRow
+                    selected={selectedBatchId === undefined}
+                    title={t.noBatch}
+                    subtitle={t.standaloneSession}
+                    theme={theme}
+                    onPress={() => onSelectBatch(undefined)}
+                  />
+                  {batches.map((b) => (
+                    <ChoiceRow
+                      key={b.id}
+                      selected={selectedBatchId === b.id}
+                      title={b.name}
+                      aside={t.batchSessions(b.sessionCount)}
+                      theme={theme}
+                      onPress={() => onSelectBatch(b.id)}
+                    />
+                  ))}
+                </View>
+              </>
+            )}
+          </ScrollView>
+
+          <Pressable
+            onPress={() => onStart(trackCount)}
+            style={({ pressed }) => [
+              styles.setupStartBtn,
+              {
+                backgroundColor: theme.accent,
+                transform: [{ scale: pressed ? 0.98 : 1 }],
+              },
+            ]}
+            testID="session-start-btn"
+          >
+            <Text
+              style={[styles.setupStartText, { fontFamily: "Outfit_700Bold" }]}
+            >
+              {t.startWeighing}
+            </Text>
+            <Feather name="arrow-right" size={17} color="#fff" />
+          </Pressable>
         </Animated.View>
       </View>
     </Modal>
@@ -668,10 +771,15 @@ function TradeDeductionModal({
     !isNaN(receivedAmountNum) &&
     receivedAmountNum > 0;
 
-  const balanceDue =
-    validReceivedAmount && finalAmount !== null
-      ? finalAmount - receivedAmountNum
-      : null;
+  // The sale settles here — there is no later payment step anywhere in the
+  // app — so an untouched field means the buyer paid the whole amount. A
+  // smaller figure the farmer types in is money knocked off, not money owed.
+  const effectiveReceived = validReceivedAmount
+    ? receivedAmountNum
+    : (finalAmount ?? 0);
+
+  const discount =
+    finalAmount !== null ? Math.max(finalAmount - effectiveReceived, 0) : null;
 
   const handleSave = async () => {
     if (
@@ -710,7 +818,7 @@ function TradeDeductionModal({
         cullPcs: hasCull ? cullPcs : undefined,
         cullAmount,
         finalAmount,
-        receivedAmount: validReceivedAmount ? receivedAmountNum : 0,
+        receivedAmount: effectiveReceived,
         totalDeductionWtKg: calc.totalDeductionKg,
         netWeightKg: netMainWeight,
         totalCrates: calc.totalCrates,
@@ -794,7 +902,7 @@ function TradeDeductionModal({
               { color: theme.text, fontFamily: "Outfit_700Bold" },
             ]}
           >
-            {t.tradeDeduction}
+            {t.saleSummary}
           </Text>
           <View style={{ width: 36 }} />
         </View>
@@ -1535,12 +1643,27 @@ function TradeDeductionModal({
                       </Text>
                     </View>
                   </View>
+                  <Text
+                    style={[
+                      styles.receivedHint,
+                      {
+                        color: theme.textTertiary,
+                        fontFamily: "Outfit_400Regular",
+                      },
+                    ]}
+                  >
+                    {t.receivedAmountHint}
+                  </Text>
                   <TextInput
                     ref={receivedRef}
                     value={receivedAmount}
                     onChangeText={setReceivedAmount}
                     keyboardType="decimal-pad"
-                    placeholder="Tk 0.00"
+                    // Empty means the full amount was handed over, so the
+                    // placeholder shows exactly what will be recorded.
+                    placeholder={`Tk ${finalAmount.toLocaleString("en-PK", {
+                      maximumFractionDigits: 2,
+                    })}`}
                     placeholderTextColor={theme.textTertiary}
                     returnKeyType="done"
                     onSubmitEditing={Keyboard.dismiss}
@@ -1556,46 +1679,38 @@ function TradeDeductionModal({
                     testID="received-amount-input"
                   />
 
-                  {/* Balance due preview */}
-                  {balanceDue !== null && (
+                  {/* What the farmer actually took, and what they let go. */}
+                  {discount !== null && discount > 0 && (
                     <View
                       style={[
-                        styles.balanceDueRow,
-                        {
-                          backgroundColor:
-                            balanceDue > 0
-                              ? theme.dangerLight
-                              : theme.successLight,
-                        },
+                        styles.discountRow,
+                        { backgroundColor: theme.warmLight },
                       ]}
                     >
                       <Text
                         style={[
-                          styles.balanceDueLabel,
+                          styles.discountLabel,
                           {
-                            color:
-                              balanceDue > 0 ? theme.danger : theme.success,
+                            color: theme.warm,
                             fontFamily: "Outfit_600SemiBold",
                           },
                         ]}
                       >
-                        {t.balanceDue}
+                        {t.discountGiven}
                       </Text>
                       <Text
                         style={[
-                          styles.balanceDueValue,
+                          styles.discountValue,
                           {
-                            color:
-                              balanceDue > 0 ? theme.danger : theme.success,
+                            color: theme.warm,
                             fontFamily: "Outfit_700Bold",
                           },
                         ]}
                       >
                         Tk{" "}
-                        {Math.abs(balanceDue).toLocaleString("en-PK", {
+                        {discount.toLocaleString("en-PK", {
                           maximumFractionDigits: 2,
                         })}
-                        {balanceDue < 0 ? " (overpaid)" : ""}
                       </Text>
                     </View>
                   )}
@@ -1979,18 +2094,14 @@ export default function MeasurementScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      <PcsOptionalDialog
+      <SessionSetupDialog
         visible={showPcsDialog}
         theme={theme}
         batches={activeBatches}
         selectedBatchId={batchId}
         onSelectBatch={setBatchId}
-        onTrack={() => {
-          setPcsOptional(false);
-          setShowPcsDialog(false);
-        }}
-        onSkip={() => {
-          setPcsOptional(true);
+        onStart={(trackCount) => {
+          setPcsOptional(!trackCount);
           setShowPcsDialog(false);
         }}
       />
@@ -2486,16 +2597,83 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
   },
   mainSummaryText: { fontSize: 13, flexShrink: 1 },
-  batchPick: { alignSelf: "stretch", gap: 7, marginTop: 4 },
-  batchPickLabel: { fontSize: 10, letterSpacing: 0.8 },
-  batchPickRow: { gap: 7, paddingRight: 4 },
-  batchChip: {
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 10,
-    maxWidth: 160,
+  // ── Session setup sheet ──
+  setupOverlay: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 20,
   },
-  batchChipText: { fontSize: 12 },
+  setupCard: {
+    width: "100%",
+    maxWidth: 440,
+    maxHeight: "88%",
+    borderRadius: 24,
+    borderWidth: 1,
+    padding: 20,
+  },
+  setupHead: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 11,
+    marginBottom: 16,
+  },
+  setupIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  setupTitle: { fontSize: 18 },
+  setupHint: { fontSize: 12, marginTop: 2, lineHeight: 17 },
+  setupScroll: { flexGrow: 0 },
+  setupLabel: {
+    fontSize: 10,
+    letterSpacing: 1.1,
+    textTransform: "uppercase",
+    marginBottom: 8,
+  },
+  setupRule: { height: 1, marginVertical: 16 },
+  choiceStack: { gap: 8 },
+  choiceRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 11,
+    borderWidth: 1.5,
+    borderRadius: 14,
+    paddingHorizontal: 13,
+    paddingVertical: 12,
+  },
+  radio: {
+    width: 19,
+    height: 19,
+    borderRadius: 10,
+    borderWidth: 2,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  radioDot: { width: 9, height: 9, borderRadius: 5 },
+  choiceTitleRow: { flexDirection: "row", alignItems: "center", gap: 7 },
+  choiceTitle: { fontSize: 14.5, flexShrink: 1 },
+  choiceBadge: {
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  choiceBadgeText: { fontSize: 9, letterSpacing: 0.4 },
+  choiceSub: { fontSize: 11.5, marginTop: 2, lineHeight: 16 },
+  choiceAside: { fontSize: 11 },
+  setupStartBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    height: 52,
+    borderRadius: 16,
+    marginTop: 18,
+  },
+  setupStartText: { color: "#fff", fontSize: 15.5 },
   backToMainBtn: {
     marginLeft: "auto",
     flexDirection: "row",
@@ -2862,6 +3040,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   receivedAmountLabel: { fontSize: 14, flex: 1 },
+  receivedHint: { fontSize: 12, marginBottom: 8, marginTop: -2 },
   optionalBadge: {
     paddingHorizontal: 8,
     paddingVertical: 2,
@@ -2875,7 +3054,7 @@ const styles = StyleSheet.create({
     fontSize: 18,
     borderWidth: 1,
   },
-  balanceDueRow: {
+  discountRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
@@ -2883,8 +3062,8 @@ const styles = StyleSheet.create({
     padding: 12,
     borderRadius: 10,
   },
-  balanceDueLabel: { fontSize: 14 },
-  balanceDueValue: { fontSize: 18 },
+  discountLabel: { fontSize: 14 },
+  discountValue: { fontSize: 18 },
   segmentRow: {
     flexDirection: "row",
     gap: 6,
