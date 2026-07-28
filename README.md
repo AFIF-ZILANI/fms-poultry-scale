@@ -1,6 +1,6 @@
 # PoultryScale
 
-A weighing and sale-recording app for poultry farmers and wholesalers in Bangladesh.
+A weighing and sale-recording app for poultry farmers and wholesalers.
 
 A farmer sells a flock by putting crates of birds on a scale, one after another, then knocking off an agreed weight per crate before money is worked out. PoultryScale is the instrument for that: it records every weighing as it happens, applies the trade's crate deduction, prices the result, and hands the buyer a receipt. It works fully offline, because the shed is not where connectivity lives.
 
