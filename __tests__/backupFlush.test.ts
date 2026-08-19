@@ -107,4 +107,19 @@ describe("flushBackupQueue", () => {
 
     expect(order.indexOf("users")).toBeLessThan(order.indexOf("batches"));
   });
+
+  it("maps camelCase local fields to snake_case remote columns", async () => {
+    await db.insert(users).values({ id: "u1" });
+    await db.insert(batches).values({
+      id: "b1", userId: "u1", name: "Shed 1",
+      createdAt: new Date(), updatedAt: new Date(),
+    });
+    const { client, upserts } = fakeSupabase();
+
+    await flushBackupQueue(client);
+
+    const batchUpsert = upserts.find((u) => u.table === "batches");
+    expect(batchUpsert?.rows[0]).toHaveProperty("user_id", "u1");
+    expect(batchUpsert?.rows[0]).not.toHaveProperty("userId");
+  });
 });
