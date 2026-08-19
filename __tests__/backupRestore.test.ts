@@ -1,11 +1,15 @@
 import { db } from "../db/client";
-import { users, sales, batches } from "../db/schema";
+import { users, sales, batches, dataBackupQueue } from "../db/schema";
 import { applyMigrations, resetDb } from "./helpers/db";
 import { restoreIfEmpty } from "../lib/backupSync/restore";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 beforeAll(() => applyMigrations());
-beforeEach(() => resetDb());
+beforeEach(() => {
+  resetDb();
+  (AsyncStorage as unknown as { __resetStore: () => void }).__resetStore();
+});
 
 function fakeSupabase(rows: Record<string, any[]>) {
   const client = {
@@ -89,5 +93,38 @@ describe("restoreIfEmpty", () => {
     const [restoredSale] = await db.select().from(sales);
     expect(restoredSale.id).toBe("s1");
     expect(restoredSale.createdAt).toBeInstanceOf(Date);
+    // The insert triggers (Task 2) fire on these restored rows too — the
+    // queue they land in must be cleared, or restore would immediately
+    // push back data that's already on Supabase.
+    expect(await db.select().from(dataBackupQueue)).toHaveLength(0);
+  });
+
+  it("does not re-restore once the one-time flag is set, even if sales is empty", async () => {
+    await AsyncStorage.setItem("backup-restore-checked", "true");
+    const supabase = fakeSupabase({
+      users: [{
+        id: "u1", name: "Remote Name", is_onboarded: true, role: "farmer",
+        subscription_plan: "community", created_at: "2026-01-01T00:00:00Z",
+      }],
+      batches: [{
+        id: "b1", user_id: "u1", name: "Shed 1", closed_at: null,
+        created_at: "2026-01-01T00:00:00Z", updated_at: "2026-01-01T00:00:00Z",
+      }],
+    });
+
+    await restoreIfEmpty("u1", supabase);
+
+    // This is the resurrection scenario: sales is empty (as it would be
+    // right after a locally-deleted, not-yet-flushed sale), but the flag
+    // being set means "already resolved for this install" — restore must
+    // not run again and pull anything back down.
+    expect(await db.select().from(sales)).toHaveLength(0);
+    expect(await db.select().from(batches)).toHaveLength(0);
+  });
+
+  it("sets the one-time flag after resolving, even when there was nothing to restore", async () => {
+    const supabase = fakeSupabase({ users: [] });
+    await restoreIfEmpty("u1", supabase);
+    expect(await AsyncStorage.getItem("backup-restore-checked")).toBe("true");
   });
 });

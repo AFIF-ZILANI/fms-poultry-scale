@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { db } from "@/db/client";
 import {
   dataBackupQueue,
@@ -10,6 +11,8 @@ import {
   measurementRows,
   rowEditHistory,
 } from "@/db/schema";
+
+const RESTORE_CHECKED_KEY = "backup-restore-checked";
 
 function toDate(v: string | null): Date | null {
   return v === null || v === undefined ? null : new Date(v);
@@ -124,55 +127,74 @@ function fromRemoteEditHistory(r: any): typeof rowEditHistory.$inferInsert {
   };
 }
 
-// Parent-first, same order the flush upserts use — a child row's FK must
-// already exist locally before the child is inserted.
+// Gated by a persisted one-time flag, not a live "is sales empty" check: a
+// user can legitimately empty their local sales table through normal use
+// (deleting their last sale). If that delete's queue entry hasn't flushed
+// to Supabase yet, a bare emptiness check can't tell that apart from a
+// fresh install — it would pull the not-yet-deleted row back down and then
+// clear the very queue entry that would have propagated the delete,
+// permanently reviving data the user removed. The flag makes this run its
+// restore-or-not decision exactly once per local install; a genuine
+// reinstall/new device has no AsyncStorage data either, so restore still
+// fires correctly there.
+//
+// Insert order is parent-first, same order the flush upserts use — a
+// child row's FK must already exist locally before the child is inserted.
 export async function restoreIfEmpty(userId: string, supabase: SupabaseClient): Promise<void> {
-  const hasLocalData = await db.select().from(sales).limit(1).get();
-  if (hasLocalData) return; // not a fresh install/device — never overwrite live local data
+  if (await AsyncStorage.getItem(RESTORE_CHECKED_KEY)) return; // already resolved for this install
 
-  const { data: remoteUser } = await supabase.from("users").select("*").eq("id", userId).maybeSingle();
-  if (!remoteUser) return; // genuinely new account, nothing to restore
+  try {
+    const hasLocalData = await db.select().from(sales).limit(1).get();
+    if (hasLocalData) return; // not a fresh install/device — never overwrite live local data
 
-  await db.insert(users).values(fromRemoteUser(remoteUser)).onConflictDoNothing();
+    const { data: remoteUser } = await supabase.from("users").select("*").eq("id", userId).maybeSingle();
+    if (!remoteUser) return; // genuinely new account, nothing to restore
 
-  const { data: prefs } = await supabase.from("user_prefs").select("*").eq("user_id", userId);
-  if (prefs?.length) {
-    await db.insert(userPrefs).values(prefs.map(fromRemoteUserPrefs)).onConflictDoNothing();
-  }
+    await db.insert(users).values(fromRemoteUser(remoteUser)).onConflictDoNothing();
 
-  const { data: remoteBatches } = await supabase.from("batches").select("*").eq("user_id", userId);
-  if (remoteBatches?.length) {
-    await db.insert(batches).values(remoteBatches.map(fromRemoteBatch)).onConflictDoNothing();
-  }
-
-  const { data: remoteSales } = await supabase.from("sales").select("*").eq("user_id", userId);
-  if (remoteSales?.length) {
-    await db.insert(sales).values(remoteSales.map(fromRemoteSale)).onConflictDoNothing();
-  }
-
-  const saleIds: string[] = (remoteSales ?? []).map((s: any) => s.id);
-  if (saleIds.length) {
-    const { data: meta } = await supabase.from("sale_meta_data").select("*").in("sale_id", saleIds);
-    if (meta?.length) {
-      await db.insert(saleMetaData).values(meta.map(fromRemoteSaleMeta)).onConflictDoNothing();
+    const { data: prefs } = await supabase.from("user_prefs").select("*").eq("user_id", userId);
+    if (prefs?.length) {
+      await db.insert(userPrefs).values(prefs.map(fromRemoteUserPrefs)).onConflictDoNothing();
     }
 
-    const { data: rows } = await supabase.from("measurement_rows").select("*").in("sale_id", saleIds);
-    if (rows?.length) {
-      await db.insert(measurementRows).values(rows.map(fromRemoteMeasurementRow)).onConflictDoNothing();
+    const { data: remoteBatches } = await supabase.from("batches").select("*").eq("user_id", userId);
+    if (remoteBatches?.length) {
+      await db.insert(batches).values(remoteBatches.map(fromRemoteBatch)).onConflictDoNothing();
     }
 
-    const rowIds: string[] = (rows ?? []).map((r: any) => r.id);
-    if (rowIds.length) {
-      const { data: history } = await supabase.from("row_edit_history").select("*").in("row_id", rowIds);
-      if (history?.length) {
-        await db.insert(rowEditHistory).values(history.map(fromRemoteEditHistory)).onConflictDoNothing();
+    const { data: remoteSales } = await supabase.from("sales").select("*").eq("user_id", userId);
+    if (remoteSales?.length) {
+      await db.insert(sales).values(remoteSales.map(fromRemoteSale)).onConflictDoNothing();
+    }
+
+    const saleIds: string[] = (remoteSales ?? []).map((s: any) => s.id);
+    if (saleIds.length) {
+      const { data: meta } = await supabase.from("sale_meta_data").select("*").in("sale_id", saleIds);
+      if (meta?.length) {
+        await db.insert(saleMetaData).values(meta.map(fromRemoteSaleMeta)).onConflictDoNothing();
+      }
+
+      const { data: rows } = await supabase.from("measurement_rows").select("*").in("sale_id", saleIds);
+      if (rows?.length) {
+        await db.insert(measurementRows).values(rows.map(fromRemoteMeasurementRow)).onConflictDoNothing();
+      }
+
+      const rowIds: string[] = (rows ?? []).map((r: any) => r.id);
+      if (rowIds.length) {
+        const { data: history } = await supabase.from("row_edit_history").select("*").in("row_id", rowIds);
+        if (history?.length) {
+          await db.insert(rowEditHistory).values(history.map(fromRemoteEditHistory)).onConflictDoNothing();
+        }
       }
     }
-  }
 
-  // The restored rows are already identical to what's on Supabase, but the
-  // insert triggers from Task 2 fired anyway and queued them as dirty —
-  // clear that so restore doesn't cause an immediate, redundant push.
-  await db.delete(dataBackupQueue);
+    // The restored rows are already identical to what's on Supabase, but the
+    // insert triggers from Task 2 fired anyway and queued them as dirty —
+    // clear that so restore doesn't cause an immediate, redundant push.
+    await db.delete(dataBackupQueue);
+  } finally {
+    // Set exactly once per install regardless of which path above was
+    // taken — already-had-local-data, remote-also-empty, or a full restore.
+    await AsyncStorage.setItem(RESTORE_CHECKED_KEY, "true");
+  }
 }
