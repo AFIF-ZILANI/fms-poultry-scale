@@ -11,8 +11,39 @@ import {
   measurementRows,
   rowEditHistory,
 } from "@/db/schema";
+import { chunked } from "./tables";
 
-const RESTORE_CHECKED_KEY = "backup-restore-checked";
+// Per user, not one global key: signing a second Clerk account into the same
+// device must not inherit the first account's "already resolved" answer.
+function restoreStateKey(userId: string): string {
+  return `backup-restore-checked:${userId}`;
+}
+
+// PostgREST reports a failed request in `error` and leaves `data` null — it
+// does not throw. Discarding the error would make "the network dropped"
+// indistinguishable from "this account has no rows", which is how a partial
+// restore used to look like a complete one.
+function unwrap<T>(res: { data: T; error: { message?: string } | null }, what: string): T {
+  if (res.error) throw new Error(`backup restore: ${what} failed: ${res.error.message ?? "unknown error"}`);
+  return res.data;
+}
+
+// PostgREST puts `.in()` lists in the request URL, so a user with a few
+// thousand measurement rows would build a URL past the server's limit.
+const IN_CHUNK = 200;
+
+async function selectIn(
+  supabase: SupabaseClient,
+  table: string,
+  column: string,
+  ids: string[],
+): Promise<any[]> {
+  const out: any[] = [];
+  for (const group of chunked(ids, IN_CHUNK)) {
+    out.push(...(unwrap(await supabase.from(table).select("*").in(column, group), table) ?? []));
+  }
+  return out;
+}
 
 function toDate(v: string | null): Date | null {
   return v === null || v === undefined ? null : new Date(v);
@@ -127,7 +158,7 @@ function fromRemoteEditHistory(r: any): typeof rowEditHistory.$inferInsert {
   };
 }
 
-// Gated by a persisted one-time flag, not a live "is sales empty" check: a
+// Gated by a persisted per-user flag, not a live "is sales empty" check: a
 // user can legitimately empty their local sales table through normal use
 // (deleting their last sale). If that delete's queue entry hasn't flushed
 // to Supabase yet, a bare emptiness check can't tell that apart from a
@@ -138,63 +169,88 @@ function fromRemoteEditHistory(r: any): typeof rowEditHistory.$inferInsert {
 // reinstall/new device has no AsyncStorage data either, so restore still
 // fires correctly there.
 //
+// The flag has three states, not two: "done" (resolved, never runs again)
+// and "restoring" (a restore started but threw partway). "restoring" matters
+// because a half-restored DB is no longer empty, so on the retry the
+// emptiness check would otherwise conclude "not a fresh install" and mark
+// the partial restore done forever. Every insert is onConflictDoNothing, so
+// re-running a partly applied restore just skips what already landed.
+//
+// Any Supabase error throws and leaves the flag unset (or at "restoring"),
+// so the next app launch retries instead of living with a silently partial
+// recovery. The caller (schedule.ts) catches it.
+//
 // Insert order is parent-first, same order the flush upserts use — a
 // child row's FK must already exist locally before the child is inserted.
 export async function restoreIfEmpty(userId: string, supabase: SupabaseClient): Promise<void> {
-  if (await AsyncStorage.getItem(RESTORE_CHECKED_KEY)) return; // already resolved for this install
+  const key = restoreStateKey(userId);
+  const state = await AsyncStorage.getItem(key);
+  if (state === "done") return; // already resolved for this install + account
 
-  try {
+  if (state !== "restoring") {
     const hasLocalData = await db.select().from(sales).limit(1).get();
-    if (hasLocalData) return; // not a fresh install/device — never overwrite live local data
-
-    const { data: remoteUser } = await supabase.from("users").select("*").eq("id", userId).maybeSingle();
-    if (!remoteUser) return; // genuinely new account, nothing to restore
-
-    await db.insert(users).values(fromRemoteUser(remoteUser)).onConflictDoNothing();
-
-    const { data: prefs } = await supabase.from("user_prefs").select("*").eq("user_id", userId);
-    if (prefs?.length) {
-      await db.insert(userPrefs).values(prefs.map(fromRemoteUserPrefs)).onConflictDoNothing();
+    if (hasLocalData) {
+      // not a fresh install/device — never overwrite live local data
+      await AsyncStorage.setItem(key, "done");
+      return;
     }
-
-    const { data: remoteBatches } = await supabase.from("batches").select("*").eq("user_id", userId);
-    if (remoteBatches?.length) {
-      await db.insert(batches).values(remoteBatches.map(fromRemoteBatch)).onConflictDoNothing();
-    }
-
-    const { data: remoteSales } = await supabase.from("sales").select("*").eq("user_id", userId);
-    if (remoteSales?.length) {
-      await db.insert(sales).values(remoteSales.map(fromRemoteSale)).onConflictDoNothing();
-    }
-
-    const saleIds: string[] = (remoteSales ?? []).map((s: any) => s.id);
-    if (saleIds.length) {
-      const { data: meta } = await supabase.from("sale_meta_data").select("*").in("sale_id", saleIds);
-      if (meta?.length) {
-        await db.insert(saleMetaData).values(meta.map(fromRemoteSaleMeta)).onConflictDoNothing();
-      }
-
-      const { data: rows } = await supabase.from("measurement_rows").select("*").in("sale_id", saleIds);
-      if (rows?.length) {
-        await db.insert(measurementRows).values(rows.map(fromRemoteMeasurementRow)).onConflictDoNothing();
-      }
-
-      const rowIds: string[] = (rows ?? []).map((r: any) => r.id);
-      if (rowIds.length) {
-        const { data: history } = await supabase.from("row_edit_history").select("*").in("row_id", rowIds);
-        if (history?.length) {
-          await db.insert(rowEditHistory).values(history.map(fromRemoteEditHistory)).onConflictDoNothing();
-        }
-      }
-    }
-
-    // The restored rows are already identical to what's on Supabase, but the
-    // insert triggers from Task 2 fired anyway and queued them as dirty —
-    // clear that so restore doesn't cause an immediate, redundant push.
-    await db.delete(dataBackupQueue);
-  } finally {
-    // Set exactly once per install regardless of which path above was
-    // taken — already-had-local-data, remote-also-empty, or a full restore.
-    await AsyncStorage.setItem(RESTORE_CHECKED_KEY, "true");
   }
+
+  const remoteUser = unwrap(
+    await supabase.from("users").select("*").eq("id", userId).maybeSingle(),
+    "users",
+  );
+  if (!remoteUser) {
+    await AsyncStorage.setItem(key, "done"); // genuinely new account, nothing to restore
+    return;
+  }
+
+  // Marked before the first local write, so a throw anywhere below leaves
+  // this recognisable as an interrupted restore rather than a fresh start.
+  await AsyncStorage.setItem(key, "restoring");
+
+  await db.insert(users).values(fromRemoteUser(remoteUser)).onConflictDoNothing();
+
+  const prefs = unwrap(await supabase.from("user_prefs").select("*").eq("user_id", userId), "user_prefs");
+  if (prefs?.length) {
+    await db.insert(userPrefs).values(prefs.map(fromRemoteUserPrefs)).onConflictDoNothing();
+  }
+
+  const remoteBatches = unwrap(await supabase.from("batches").select("*").eq("user_id", userId), "batches");
+  if (remoteBatches?.length) {
+    await db.insert(batches).values(remoteBatches.map(fromRemoteBatch)).onConflictDoNothing();
+  }
+
+  const remoteSales = unwrap(await supabase.from("sales").select("*").eq("user_id", userId), "sales");
+  if (remoteSales?.length) {
+    await db.insert(sales).values(remoteSales.map(fromRemoteSale)).onConflictDoNothing();
+  }
+
+  const saleIds: string[] = (remoteSales ?? []).map((s: any) => s.id);
+  if (saleIds.length) {
+    const meta = await selectIn(supabase, "sale_meta_data", "sale_id", saleIds);
+    if (meta.length) {
+      await db.insert(saleMetaData).values(meta.map(fromRemoteSaleMeta)).onConflictDoNothing();
+    }
+
+    const rows = await selectIn(supabase, "measurement_rows", "sale_id", saleIds);
+    if (rows.length) {
+      await db.insert(measurementRows).values(rows.map(fromRemoteMeasurementRow)).onConflictDoNothing();
+    }
+
+    const rowIds: string[] = rows.map((r: any) => r.id);
+    if (rowIds.length) {
+      const history = await selectIn(supabase, "row_edit_history", "row_id", rowIds);
+      if (history.length) {
+        await db.insert(rowEditHistory).values(history.map(fromRemoteEditHistory)).onConflictDoNothing();
+      }
+    }
+  }
+
+  // The restored rows are already identical to what's on Supabase, but the
+  // insert triggers from Task 2 fired anyway and queued them as dirty —
+  // clear that so restore doesn't cause an immediate, redundant push.
+  await db.delete(dataBackupQueue);
+
+  await AsyncStorage.setItem(key, "done");
 }

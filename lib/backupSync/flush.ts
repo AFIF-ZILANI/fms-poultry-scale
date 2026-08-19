@@ -11,7 +11,15 @@ import {
   measurementRows,
   rowEditHistory,
 } from "@/db/schema";
-import { SYNCED_TABLES, PK_COLUMN, type SyncedTable } from "./tables";
+import { SYNCED_TABLES, PK_COLUMN, chunked, type SyncedTable } from "./tables";
+
+type QueueRow = typeof dataBackupQueue.$inferSelect;
+
+// One request per table per flush is the point (see flushBackupQueue), but a
+// single request still shouldn't carry unbounded rows. This app's real sales
+// are far smaller than this; the cap is only there so a pathological one
+// can't build a request nothing will accept.
+const BATCH_SIZE = 500;
 
 // Reads the row's *current* local state, not a stored diff — that's what
 // lets repeated edits collapse into one push (see the queue's PK in
@@ -169,24 +177,78 @@ function toRemoteRow(table: SyncedTable, row: Record<string, unknown>): Record<s
   }
 }
 
-async function pushUpsert(supabase: SupabaseClient, table: SyncedTable, id: string): Promise<boolean> {
-  const row = await readCurrentRow(table, id);
-  if (!row) return true; // deleted locally before flush ran — nothing to push
-  const remoteRow = toRemoteRow(table, row);
-  const { error } = await supabase.from(table).upsert([remoteRow], { onConflict: PK_COLUMN[table] });
-  return !error;
+// Clears only the exact queue entries that were pushed. Matching on
+// queuedAt as well as (tableName, rowId) is what keeps an edit made *during*
+// the round trip: the trigger rewrites that row's entry with a fresh
+// queuedAt, so this delete no longer matches it and the newer edit survives
+// to the next flush.
+//
+// ponytail: the trigger's clock is whole seconds (strftime('%s','now')), so
+// an edit landing in the same second the push started still looks identical
+// and gets cleared. Move the triggers to a sub-second stamp if that ever
+// shows up in practice.
+async function clearQueueEntries(entries: QueueRow[]): Promise<void> {
+  for (const q of entries) {
+    await db.delete(dataBackupQueue).where(
+      and(
+        eq(dataBackupQueue.tableName, q.tableName),
+        eq(dataBackupQueue.rowId, q.rowId),
+        eq(dataBackupQueue.queuedAt, q.queuedAt),
+      ),
+    );
+  }
 }
 
-async function pushDelete(supabase: SupabaseClient, table: SyncedTable, id: string): Promise<boolean> {
-  const { error } = await supabase.from(table).delete().eq(PK_COLUMN[table], id);
-  return !error;
+// One upsert request per table (chunked), not one per row: a sale with a few
+// hundred measurement rows was previously a few hundred serial round trips.
+// A chunk's error is reported for the whole request, so a failed chunk is
+// retried whole — its queue entries stay put and the next flush repeats it.
+// Upserts are idempotent, so repeating a chunk that partly landed is safe.
+async function pushUpserts(supabase: SupabaseClient, table: SyncedTable, pending: QueueRow[]): Promise<void> {
+  const toPush: { entry: QueueRow; remote: Record<string, unknown> }[] = [];
+  const vanished: QueueRow[] = [];
+
+  for (const q of pending) {
+    // A missing row means it was deleted between reading the queue and now;
+    // its queue entry has since been rewritten as a delete with a new
+    // queuedAt, so clearing by the old queuedAt correctly matches nothing.
+    const row = await readCurrentRow(table, q.rowId);
+    if (row) toPush.push({ entry: q, remote: toRemoteRow(table, row) });
+    else vanished.push(q);
+  }
+  await clearQueueEntries(vanished);
+
+  for (const group of chunked(toPush, BATCH_SIZE)) {
+    const { error } = await supabase
+      .from(table)
+      .upsert(group.map((g) => g.remote), { onConflict: PK_COLUMN[table] });
+    if (error) {
+      console.warn(`[backupSync] upsert into ${table} failed (${group.length} rows)`, error);
+      continue; // leave the queue entries in place; the next flush retries
+    }
+    await clearQueueEntries(group.map((g) => g.entry));
+  }
+}
+
+async function pushDeletes(supabase: SupabaseClient, table: SyncedTable, pending: QueueRow[]): Promise<void> {
+  for (const group of chunked(pending, BATCH_SIZE)) {
+    const { error } = await supabase
+      .from(table)
+      .delete()
+      .in(PK_COLUMN[table], group.map((q) => q.rowId));
+    if (error) {
+      console.warn(`[backupSync] delete from ${table} failed (${group.length} rows)`, error);
+      continue; // leave the queue entries in place; the next flush retries
+    }
+    await clearQueueEntries(group);
+  }
 }
 
 export async function flushBackupQueue(supabase: SupabaseClient): Promise<void> {
   const queued = await db.select().from(dataBackupQueue);
   if (!queued.length) return;
 
-  const byTable = new Map<SyncedTable, typeof queued>();
+  const byTable = new Map<SyncedTable, QueueRow[]>();
   for (const row of queued) {
     const table = row.tableName as SyncedTable;
     const list = byTable.get(table) ?? [];
@@ -194,28 +256,14 @@ export async function flushBackupQueue(supabase: SupabaseClient): Promise<void> 
     byTable.set(table, list);
   }
 
-  const synced: { tableName: string; rowId: string }[] = [];
-
   // Upserts parent-first, deletes child-first — both respect the FK chain
   // the Supabase mirror shares with the local schema (see Task 3).
   for (const table of SYNCED_TABLES) {
-    for (const q of (byTable.get(table) ?? []).filter((q) => q.op === "upsert")) {
-      if (await pushUpsert(supabase, table, q.rowId)) {
-        synced.push({ tableName: q.tableName, rowId: q.rowId });
-      }
-    }
+    const pending = (byTable.get(table) ?? []).filter((q) => q.op === "upsert");
+    if (pending.length) await pushUpserts(supabase, table, pending);
   }
   for (const table of [...SYNCED_TABLES].reverse()) {
-    for (const q of (byTable.get(table) ?? []).filter((q) => q.op === "delete")) {
-      if (await pushDelete(supabase, table, q.rowId)) {
-        synced.push({ tableName: q.tableName, rowId: q.rowId });
-      }
-    }
-  }
-
-  for (const s of synced) {
-    await db
-      .delete(dataBackupQueue)
-      .where(and(eq(dataBackupQueue.tableName, s.tableName), eq(dataBackupQueue.rowId, s.rowId)));
+    const pending = (byTable.get(table) ?? []).filter((q) => q.op === "delete");
+    if (pending.length) await pushDeletes(supabase, table, pending);
   }
 }
