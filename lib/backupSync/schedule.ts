@@ -25,7 +25,12 @@ export function useBackupSync(userId: string | null | undefined): void {
     }, FLUSH_INTERVAL_MS);
 
     const subscription = AppState.addEventListener("change", (next: AppStateStatus) => {
-      if (appState.current === "active" && next === "background") {
+      // iOS transitions active -> inactive -> background as two separate
+      // events, not one direct active -> background jump — matching only
+      // the exact jump would mean this trigger never fires on iOS. Fire on
+      // the first transition away from "active" instead, which covers both
+      // platforms.
+      if (appState.current === "active" && /inactive|background/.test(next)) {
         flushBackupQueue(supabase);
       }
       appState.current = next;
