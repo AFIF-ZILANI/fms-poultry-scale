@@ -12,6 +12,7 @@ import m0007 from './0007_chunky_lake.sql';
 import m0008 from './0008_lowly_proudstar.sql';
 import m0009 from './0009_fantastic_anita_blake.sql';
 import m0010 from './0010_settled_at_sale_time.sql';
+import m0011 from './0011_awesome_dragon_man.sql';
 
   export default {
     journal,
@@ -26,7 +27,8 @@ m0006,
 m0007,
 m0008,
 m0009,
-m0010
+m0010,
+m0011
     }
   }
   
