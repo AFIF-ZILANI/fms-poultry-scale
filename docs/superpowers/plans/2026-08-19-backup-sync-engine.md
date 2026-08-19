@@ -951,10 +951,12 @@ EOF
 - Test: `__tests__/backupRestore.test.ts`
 
 **Interfaces:**
-- Consumes: `SYNCED_TABLES` order from `lib/backupSync/tables.ts`; all synced table exports from `db/schema.ts`.
+- Consumes: `SYNCED_TABLES` order from `lib/backupSync/tables.ts`; all synced table exports from `db/schema.ts`; the default export of `@react-native-async-storage/async-storage` (already a dependency — used elsewhere via `lib/supabase.ts` — not a new one) for a persisted one-time-restore flag.
 - Produces: `restoreIfEmpty(userId: string, supabase: SupabaseClient): Promise<void>` — exported for Task 7 to call once on app launch.
 
 Remote rows come back from Supabase with snake_case column names and ISO timestamp strings (Postgres defaults) — they don't match the camelCase, `Date`-typed shape drizzle's `.values()` expects locally, so each table gets an explicit mapper. This mirrors the existing `toSaleRecord`/`toMeasurementRow` pattern in `lib/storage.ts` rather than a generic key-case converter — `users.is_onboarded` keeps that exact (non-camelCase) name as its JS property in `db/schema.ts`, so a blanket snake→camel converter would silently produce the wrong key for that one field. Explicit, table-by-table mapping is the only version of this that can't get that wrong.
+
+**Restore must fire at most once per local install, not "whenever `sales` happens to be empty."** A live emptiness check has a real resurrection bug: `lib/storage.ts` lets a user delete their last sale locally. If that delete's queue entry hasn't flushed to Supabase yet (offline, app killed) and the app relaunches, a bare "is `sales` empty" check can't tell that apart from a fresh install — it would pull the not-yet-deleted row back down from Supabase and then clear the very queue entry that would have propagated the delete, permanently reviving data the user removed. The fix is a persisted flag: check `AsyncStorage` for a one-time-restore-checked key before doing anything else, and set it in a `finally` block so it's set exactly once regardless of which path `restoreIfEmpty` takes (already-had-local-data, remote-also-empty, or a full restore). A genuine reinstall or new device has no `AsyncStorage` data either, so restore still fires correctly there — the flag only prevents re-triggering on an install that has already resolved the question once.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -962,13 +964,17 @@ Create `__tests__/backupRestore.test.ts`:
 
 ```ts
 import { db } from "../db/client";
-import { users, sales, batches } from "../db/schema";
+import { users, sales, batches, dataBackupQueue } from "../db/schema";
 import { applyMigrations, resetDb } from "./helpers/db";
 import { restoreIfEmpty } from "../lib/backupSync/restore";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 beforeAll(() => applyMigrations());
-beforeEach(() => resetDb());
+beforeEach(() => {
+  resetDb();
+  (AsyncStorage as unknown as { __resetStore: () => void }).__resetStore();
+});
 
 function fakeSupabase(rows: Record<string, any[]>) {
   const client = {
@@ -1052,6 +1058,39 @@ describe("restoreIfEmpty", () => {
     const [restoredSale] = await db.select().from(sales);
     expect(restoredSale.id).toBe("s1");
     expect(restoredSale.createdAt).toBeInstanceOf(Date);
+    // The insert triggers (Task 2) fire on these restored rows too — the
+    // queue they land in must be cleared, or restore would immediately
+    // push back data that's already on Supabase.
+    expect(await db.select().from(dataBackupQueue)).toHaveLength(0);
+  });
+
+  it("does not re-restore once the one-time flag is set, even if sales is empty", async () => {
+    await AsyncStorage.setItem("backup-restore-checked", "true");
+    const supabase = fakeSupabase({
+      users: [{
+        id: "u1", name: "Remote Name", is_onboarded: true, role: "farmer",
+        subscription_plan: "community", created_at: "2026-01-01T00:00:00Z",
+      }],
+      batches: [{
+        id: "b1", user_id: "u1", name: "Shed 1", closed_at: null,
+        created_at: "2026-01-01T00:00:00Z", updated_at: "2026-01-01T00:00:00Z",
+      }],
+    });
+
+    await restoreIfEmpty("u1", supabase);
+
+    // This is the resurrection scenario: sales is empty (as it would be
+    // right after a locally-deleted, not-yet-flushed sale), but the flag
+    // being set means "already resolved for this install" — restore must
+    // not run again and pull anything back down.
+    expect(await db.select().from(sales)).toHaveLength(0);
+    expect(await db.select().from(batches)).toHaveLength(0);
+  });
+
+  it("sets the one-time flag after resolving, even when there was nothing to restore", async () => {
+    const supabase = fakeSupabase({ users: [] });
+    await restoreIfEmpty("u1", supabase);
+    expect(await AsyncStorage.getItem("backup-restore-checked")).toBe("true");
   });
 });
 ```
@@ -1067,6 +1106,7 @@ Create `lib/backupSync/restore.ts`:
 
 ```ts
 import type { SupabaseClient } from "@supabase/supabase-js";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { db } from "@/db/client";
 import {
   dataBackupQueue,
@@ -1078,6 +1118,8 @@ import {
   measurementRows,
   rowEditHistory,
 } from "@/db/schema";
+
+const RESTORE_CHECKED_KEY = "backup-restore-checked";
 
 function toDate(v: string | null): Date | null {
   return v === null || v === undefined ? null : new Date(v);
@@ -1192,64 +1234,83 @@ function fromRemoteEditHistory(r: any): typeof rowEditHistory.$inferInsert {
   };
 }
 
-// Parent-first, same order the flush upserts use — a child row's FK must
-// already exist locally before the child is inserted.
+// Gated by a persisted one-time flag, not a live "is sales empty" check: a
+// user can legitimately empty their local sales table through normal use
+// (deleting their last sale). If that delete's queue entry hasn't flushed
+// to Supabase yet, a bare emptiness check can't tell that apart from a
+// fresh install — it would pull the not-yet-deleted row back down and then
+// clear the very queue entry that would have propagated the delete,
+// permanently reviving data the user removed. The flag makes this run its
+// restore-or-not decision exactly once per local install; a genuine
+// reinstall/new device has no AsyncStorage data either, so restore still
+// fires correctly there.
+//
+// Insert order is parent-first, same order the flush upserts use — a
+// child row's FK must already exist locally before the child is inserted.
 export async function restoreIfEmpty(userId: string, supabase: SupabaseClient): Promise<void> {
-  const hasLocalData = await db.select().from(sales).limit(1).get();
-  if (hasLocalData) return; // not a fresh install/device — never overwrite live local data
+  if (await AsyncStorage.getItem(RESTORE_CHECKED_KEY)) return; // already resolved for this install
 
-  const { data: remoteUser } = await supabase.from("users").select("*").eq("id", userId).maybeSingle();
-  if (!remoteUser) return; // genuinely new account, nothing to restore
+  try {
+    const hasLocalData = await db.select().from(sales).limit(1).get();
+    if (hasLocalData) return; // not a fresh install/device — never overwrite live local data
 
-  await db.insert(users).values(fromRemoteUser(remoteUser)).onConflictDoNothing();
+    const { data: remoteUser } = await supabase.from("users").select("*").eq("id", userId).maybeSingle();
+    if (!remoteUser) return; // genuinely new account, nothing to restore
 
-  const { data: prefs } = await supabase.from("user_prefs").select("*").eq("user_id", userId);
-  if (prefs?.length) {
-    await db.insert(userPrefs).values(prefs.map(fromRemoteUserPrefs)).onConflictDoNothing();
-  }
+    await db.insert(users).values(fromRemoteUser(remoteUser)).onConflictDoNothing();
 
-  const { data: remoteBatches } = await supabase.from("batches").select("*").eq("user_id", userId);
-  if (remoteBatches?.length) {
-    await db.insert(batches).values(remoteBatches.map(fromRemoteBatch)).onConflictDoNothing();
-  }
-
-  const { data: remoteSales } = await supabase.from("sales").select("*").eq("user_id", userId);
-  if (remoteSales?.length) {
-    await db.insert(sales).values(remoteSales.map(fromRemoteSale)).onConflictDoNothing();
-  }
-
-  const saleIds: string[] = (remoteSales ?? []).map((s: any) => s.id);
-  if (saleIds.length) {
-    const { data: meta } = await supabase.from("sale_meta_data").select("*").in("sale_id", saleIds);
-    if (meta?.length) {
-      await db.insert(saleMetaData).values(meta.map(fromRemoteSaleMeta)).onConflictDoNothing();
+    const { data: prefs } = await supabase.from("user_prefs").select("*").eq("user_id", userId);
+    if (prefs?.length) {
+      await db.insert(userPrefs).values(prefs.map(fromRemoteUserPrefs)).onConflictDoNothing();
     }
 
-    const { data: rows } = await supabase.from("measurement_rows").select("*").in("sale_id", saleIds);
-    if (rows?.length) {
-      await db.insert(measurementRows).values(rows.map(fromRemoteMeasurementRow)).onConflictDoNothing();
+    const { data: remoteBatches } = await supabase.from("batches").select("*").eq("user_id", userId);
+    if (remoteBatches?.length) {
+      await db.insert(batches).values(remoteBatches.map(fromRemoteBatch)).onConflictDoNothing();
     }
 
-    const rowIds: string[] = (rows ?? []).map((r: any) => r.id);
-    if (rowIds.length) {
-      const { data: history } = await supabase.from("row_edit_history").select("*").in("row_id", rowIds);
-      if (history?.length) {
-        await db.insert(rowEditHistory).values(history.map(fromRemoteEditHistory)).onConflictDoNothing();
+    const { data: remoteSales } = await supabase.from("sales").select("*").eq("user_id", userId);
+    if (remoteSales?.length) {
+      await db.insert(sales).values(remoteSales.map(fromRemoteSale)).onConflictDoNothing();
+    }
+
+    const saleIds: string[] = (remoteSales ?? []).map((s: any) => s.id);
+    if (saleIds.length) {
+      const { data: meta } = await supabase.from("sale_meta_data").select("*").in("sale_id", saleIds);
+      if (meta?.length) {
+        await db.insert(saleMetaData).values(meta.map(fromRemoteSaleMeta)).onConflictDoNothing();
+      }
+
+      const { data: rows } = await supabase.from("measurement_rows").select("*").in("sale_id", saleIds);
+      if (rows?.length) {
+        await db.insert(measurementRows).values(rows.map(fromRemoteMeasurementRow)).onConflictDoNothing();
+      }
+
+      const rowIds: string[] = (rows ?? []).map((r: any) => r.id);
+      if (rowIds.length) {
+        const { data: history } = await supabase.from("row_edit_history").select("*").in("row_id", rowIds);
+        if (history?.length) {
+          await db.insert(rowEditHistory).values(history.map(fromRemoteEditHistory)).onConflictDoNothing();
+        }
       }
     }
-  }
 
-  // The restored rows are already identical to what's on Supabase, but the
-  // insert triggers from Task 2 fired anyway and queued them as dirty —
-  // clear that so restore doesn't cause an immediate, redundant push.
-  await db.delete(dataBackupQueue);
+    // The restored rows are already identical to what's on Supabase, but the
+    // insert triggers from Task 2 fired anyway and queued them as dirty —
+    // clear that so restore doesn't cause an immediate, redundant push.
+    await db.delete(dataBackupQueue);
+  } finally {
+    // Set exactly once per install regardless of which path above was
+    // taken — already-had-local-data, remote-also-empty, or a full restore.
+    await AsyncStorage.setItem(RESTORE_CHECKED_KEY, "true");
+  }
 }
 ```
 
 - [ ] **Step 4: Run the test and verify it passes**
 
 Run: `npx jest __tests__/backupRestore.test.ts -v`
-Expected: all 3 tests PASS.
+Expected: all 5 tests PASS.
 
 - [ ] **Step 5: Commit**
 
