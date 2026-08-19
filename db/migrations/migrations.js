@@ -12,6 +12,7 @@ import m0009 from './0009_fantastic_anita_blake.sql';
 import m0010 from './0010_settled_at_sale_time.sql';
 import m0011 from './0011_awesome_dragon_man.sql';
 import m0012 from './0012_backup_queue_triggers.sql';
+import m0013 from './0013_backup_queue_backfill.sql';
 
   export default {
     journal,
@@ -28,7 +29,8 @@ m0008,
 m0009,
 m0010,
 m0011,
-m0012
+m0012,
+m0013
     }
   }
   
