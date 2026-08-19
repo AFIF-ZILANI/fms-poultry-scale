@@ -558,6 +558,8 @@ EOF
 
 `SupabaseClient` here only needs `.from(table).upsert(rows, opts)` and `.from(table).delete().eq(col, id)`, both of which resolve to `{ error }`. Tests use a hand-rolled fake object structurally matching that surface, cast through `as unknown as SupabaseClient` — no real network client needed.
 
+Rows read via Drizzle's `.select()` come back keyed by the *local* camelCase schema property names (e.g. `farmName`, `subscriptionPlan`, `createdAt`), but the Supabase mirror tables from Task 3 use snake_case columns (`farm_name`, `subscription_plan`, `created_at`). Pushing a row verbatim would fail PostgREST's schema check for every multi-word field. Each table therefore needs an explicit `toRemoteXxx` mapper — the same explicit-per-table pattern Task 6 already uses for the pull direction (`fromRemoteXxx`), for the same reason: `users.is_onboarded` is the one field whose JS property name already matches its SQL name exactly (see `db/schema.ts`), so a generic camelCase→snake_case converter would get that one field wrong. `Date` values (e.g. `createdAt`) do not need explicit conversion — `JSON.stringify` (which `supabase-js` uses internally) serializes a `Date` via its `toJSON()`/`toISOString()`, which Postgres's `timestamptz` columns accept directly.
+
 - [ ] **Step 1: Write the failing test**
 
 Create `__tests__/backupFlush.test.ts`:
@@ -672,6 +674,21 @@ describe("flushBackupQueue", () => {
 
     expect(order.indexOf("users")).toBeLessThan(order.indexOf("batches"));
   });
+
+  it("maps camelCase local fields to snake_case remote columns", async () => {
+    await db.insert(users).values({ id: "u1" });
+    await db.insert(batches).values({
+      id: "b1", userId: "u1", name: "Shed 1",
+      createdAt: new Date(), updatedAt: new Date(),
+    });
+    const { client, upserts } = fakeSupabase();
+
+    await flushBackupQueue(client);
+
+    const batchUpsert = upserts.find((u) => u.table === "batches");
+    expect(batchUpsert?.rows[0]).toHaveProperty("user_id", "u1");
+    expect(batchUpsert?.rows[0]).not.toHaveProperty("userId");
+  });
 });
 ```
 
@@ -723,10 +740,144 @@ async function readCurrentRow(table: SyncedTable, id: string): Promise<Record<st
   }
 }
 
+// The remote mirror uses snake_case columns (see supabase/backup_mirror.sql);
+// Drizzle's .select() returns camelCase JS keys. Explicit per-table mapping,
+// not a generic key-case converter — users.is_onboarded is the one field
+// whose JS property name is already snake_case, so a blanket converter would
+// get that field wrong (mirrors Task 6's fromRemoteXxx for the same reason).
+function toRemoteUser(r: typeof users.$inferSelect) {
+  return {
+    id: r.id,
+    name: r.name,
+    phone: r.phone,
+    email: r.email,
+    location: r.location,
+    farm_name: r.farmName,
+    is_onboarded: r.is_onboarded,
+    business_name: r.businessName,
+    role: r.role,
+    subscription_plan: r.subscriptionPlan,
+    farm_capacity: r.farmCapacity,
+    buying_capacity: r.buyingCapacity,
+    breed: r.breed,
+    supply_regions: r.supplyRegions,
+    created_at: r.createdAt,
+  };
+}
+
+function toRemoteUserPrefs(r: typeof userPrefs.$inferSelect) {
+  return {
+    user_id: r.userId,
+    language: r.language,
+    theme: r.theme,
+    log_group_size: r.logGroupSize,
+    kg_per_crate: r.kgPerCrate,
+    deduction_wt_g: r.deductionWtG,
+    price_kg: r.priceKg,
+  };
+}
+
+function toRemoteBatch(r: typeof batches.$inferSelect) {
+  return {
+    id: r.id,
+    user_id: r.userId,
+    name: r.name,
+    closed_at: r.closedAt,
+    created_at: r.createdAt,
+    updated_at: r.updatedAt,
+  };
+}
+
+function toRemoteSale(r: typeof sales.$inferSelect) {
+  return {
+    id: r.id,
+    user_id: r.userId,
+    batch_id: r.batchId,
+    phase: r.phase,
+    is_pcs_tracked: r.isPcsTracked,
+    has_cull: r.hasCull,
+    is_finished: r.isFinished,
+    created_at: r.createdAt,
+    updated_at: r.updatedAt,
+  };
+}
+
+function toRemoteSaleMeta(r: typeof saleMetaData.$inferSelect) {
+  return {
+    sale_id: r.saleId,
+    main_weight_kg: r.mainWeightKg,
+    main_pcs: r.mainPcs,
+    buyer_name: r.buyerName,
+    kg_per_crate: r.kgPerCrate,
+    deduction_per_crate_g: r.deductionPerCrateG,
+    is_full_crates_only: r.isFullCratesOnly,
+    main_price: r.mainPrice,
+    main_amount: r.mainAmount,
+    cull_weight_kg: r.cullWeightKg,
+    is_cull_sold: r.isCullSold,
+    cull_sale_type: r.cullSaleType,
+    cull_price: r.cullPrice,
+    cull_pcs: r.cullPcs,
+    cull_amount: r.cullAmount,
+    final_amount: r.finalAmount,
+    received_amount: r.receivedAmount,
+    total_deduction_wt_kg: r.totalDeductionWtKg,
+    avg_wt_grams: r.avgWtGrams,
+    net_weight_kg: r.netWeightKg,
+    total_crates: r.totalCrates,
+    total_pcs: r.totalPcs,
+    created_at: r.createdAt,
+  };
+}
+
+function toRemoteMeasurementRow(r: typeof measurementRows.$inferSelect) {
+  return {
+    id: r.id,
+    sale_id: r.saleId,
+    type: r.type,
+    weight: r.weight,
+    pcs: r.pcs,
+    created_at: r.createdAt,
+  };
+}
+
+function toRemoteEditHistory(r: typeof rowEditHistory.$inferSelect) {
+  return {
+    id: r.id,
+    row_id: r.rowId,
+    previous_weight: r.previousWeight,
+    previous_pcs: r.previousPcs,
+    new_weight: r.newWeight,
+    new_pcs: r.newPcs,
+    reason: r.reason,
+    created_at: r.createdAt,
+  };
+}
+
+function toRemoteRow(table: SyncedTable, row: Record<string, unknown>): Record<string, unknown> {
+  switch (table) {
+    case "users":
+      return toRemoteUser(row as typeof users.$inferSelect);
+    case "user_prefs":
+      return toRemoteUserPrefs(row as typeof userPrefs.$inferSelect);
+    case "batches":
+      return toRemoteBatch(row as typeof batches.$inferSelect);
+    case "sales":
+      return toRemoteSale(row as typeof sales.$inferSelect);
+    case "sale_meta_data":
+      return toRemoteSaleMeta(row as typeof saleMetaData.$inferSelect);
+    case "measurement_rows":
+      return toRemoteMeasurementRow(row as typeof measurementRows.$inferSelect);
+    case "row_edit_history":
+      return toRemoteEditHistory(row as typeof rowEditHistory.$inferSelect);
+  }
+}
+
 async function pushUpsert(supabase: SupabaseClient, table: SyncedTable, id: string): Promise<boolean> {
   const row = await readCurrentRow(table, id);
   if (!row) return true; // deleted locally before flush ran — nothing to push
-  const { error } = await supabase.from(table).upsert([row], { onConflict: PK_COLUMN[table] });
+  const remoteRow = toRemoteRow(table, row);
+  const { error } = await supabase.from(table).upsert([remoteRow], { onConflict: PK_COLUMN[table] });
   return !error;
 }
 
@@ -777,7 +928,7 @@ export async function flushBackupQueue(supabase: SupabaseClient): Promise<void> 
 - [ ] **Step 4: Run the test and verify it passes**
 
 Run: `npx jest __tests__/backupFlush.test.ts -v`
-Expected: all 6 tests PASS.
+Expected: all 7 tests PASS.
 
 - [ ] **Step 5: Commit**
 
