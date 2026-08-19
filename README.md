@@ -59,7 +59,7 @@ If real payment tracking is ever added, this is the decision to revisit first.
 | Animation | Reanimated 4 |
 | Tests | Jest, against a real in-memory SQLite with real migrations |
 
-**Supabase** (`lib/supabase.ts`, `hooks/useSupabase.ts`) is scaffolded and configured but **not yet consumed by any screen**. The app is entirely local today.
+**Supabase** (`lib/supabase.ts`, `hooks/useSupabase.ts`) backs the **backup sync engine** (`lib/backupSync/`). Local SQLite stays the single source of truth and no screen reads from Supabase; it is a push-only mirror so a reinstall or a new device can restore. See *Backup sync* below — it needs a one-time manual setup step on the Supabase project.
 
 ---
 
@@ -88,6 +88,7 @@ db/
   client.ts               DB handle + useDbMigrations()
   migrations/             Generated SQL + journal — applied on app start
 lib/
+  backupSync/             Supabase mirror: queue flush, restore, scheduling
   storage.ts              Every read and write. Screens never touch the DB directly
   utils.ts                Pure domain logic: calcDeduction, formatters
   types.ts                SaleRecord, SaleMetaData, BatchSummary, MeasurementRow
@@ -160,8 +161,8 @@ Required environment variables:
 | Variable | Purpose |
 |---|---|
 | `EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY` | Clerk auth — the app will not get past sign-in without it |
-| `EXPO_PUBLIC_SUPABASE_URL` | Scaffolded, unused today |
-| `EXPO_PUBLIC_SUPABASE_KEY` | Scaffolded, unused today |
+| `EXPO_PUBLIC_SUPABASE_URL` | Backup sync target — without it nothing is backed up |
+| `EXPO_PUBLIC_SUPABASE_KEY` | Backup sync target — without it nothing is backed up |
 
 Native builds (`npm run android`) compile the NDK on first run — budget several GB of disk and a long first build.
 
@@ -175,9 +176,36 @@ The schema is Drizzle-first. Edit `db/schema.ts`, then:
 npx drizzle-kit generate
 ```
 
-Register the new file in `db/migrations/migrations.js` **and** `db/migrations/meta/_journal.json` — Expo needs the static import, and both are checked in. Migrations run at app start through `useDbMigrations()`; a failure renders `DbErrorScreen` instead of the app, because every screen assumes a working database.
+For a hand-written data migration (a backfill, not a schema change) use
+`npx drizzle-kit generate --custom --name=what_it_does`, which scaffolds an empty
+file for you to fill in. Either way the new file must end up registered in
+`db/migrations/migrations.js` **and** `db/migrations/meta/_journal.json` — Expo needs the static import, and both are checked in; drizzle-kit writes both, so don't hand-edit them. Migrations run at app start through `useDbMigrations()`; a failure renders `DbErrorScreen` instead of the app, because every screen assumes a working database.
 
 Tests apply the real migration files in journal order (`__tests__/helpers/db.ts`), so a broken migration fails the suite rather than surfacing on a user's phone.
+
+### Backup sync (Supabase) — one-time project setup
+
+`lib/backupSync/` keeps a per-user mirror of the local tables on Supabase so a
+reinstall or a new device can restore. SQLite triggers (`db/migrations/0012`,
+backfilled for pre-existing rows by `0013`) mark every write in
+`data_backup_queue`; a flush pushes them, batched per table, on a 10s tick and
+when the app leaves the foreground. Local SQLite is always the source of truth —
+nothing is ever pulled down except by `restoreIfEmpty` on a genuinely empty
+install.
+
+**The remote tables do not exist until someone creates them.** Run this once per
+Supabase project, before the feature can push anywhere:
+
+```bash
+supabase db execute -f supabase/backup_mirror.sql
+# or paste the file into the Supabase SQL editor and run it
+```
+
+It creates the mirror tables, the FK cascades that match `db/schema.ts`, and the
+RLS policies scoping every row to the Clerk user id. It is not applied by any
+migration and there is no auto-sync — if `db/schema.ts` gains a column, add it to
+`supabase/backup_mirror.sql` and to the `toRemoteXxx`/`fromRemoteXxx` mappers in
+`lib/backupSync/{flush,restore}.ts` by hand.
 
 ### The lockfile is npm-version sensitive — regenerate with npm 10
 
