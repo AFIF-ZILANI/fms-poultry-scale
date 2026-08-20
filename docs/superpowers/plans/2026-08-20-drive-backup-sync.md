@@ -23,26 +23,24 @@
 
 ---
 
-### Task 1: `expo-file-system` dependency + test mock
+### Task 1: `expo-file-system` dependency + test mock — DONE, confirmed API below
 
-**Files:**
-- Modify: `package.json` (add dependency)
-- Create: `__mocks__/expo-file-system.js`
+**Confirmed against the actually-installed package (expo-file-system v19.0.24, Expo SDK 54):** the top-level `expo-file-system` export is the newer class-based `File`/`Directory`/`Paths` API. The legacy free-function API this plan uses (`documentDirectory`, `readAsStringAsync`, `writeAsStringAsync`, `deleteAsync`, `getInfoAsync`, `downloadAsync`, `EncodingType`) lives at the **subpath** `expo-file-system/legacy` — always import from there, never bare `expo-file-system`, in Tasks 4 and 5.
+
+This has a second consequence beyond the import path: Jest resolves a manual mock by matching the exact module specifier requested. A mock at `__mocks__/expo-file-system.js` mocks `require("expo-file-system")` — it does **not** get picked up for `require("expo-file-system/legacy")`. Verified directly: with the mock at the top-level path, a test importing `expo-file-system/legacy` fell through to Jest trying to load and transform the *real* `expo-file-system/legacy.ts` (raw ESM `export * from './src/legacy'`, outside this project's `transformIgnorePatterns` allow-list) and failed with `SyntaxError: Unexpected token 'export'`. Moving the mock to `__mocks__/expo-file-system/legacy.js` (matching Jest's subpath-mock convention) fixed it — confirmed passing.
+
+**Files (as actually delivered):**
+- Modified: `package.json` (added dependency)
+- Created: `__mocks__/expo-file-system/legacy.js` (not `__mocks__/expo-file-system.js` — see above)
 
 **Interfaces:**
-- Produces: a Jest-automocked `expo-file-system` backed by Node's real `fs`/`os` modules, exposing whatever subset of the real API Tasks 4 and 5 need (confirmed in Step 1 below).
+- Produces: a Jest-automocked `expo-file-system/legacy`, backed by Node's real `fs`/`os` modules: `documentDirectory`, `EncodingType`, `readAsStringAsync`, `writeAsStringAsync`, `deleteAsync`, `getInfoAsync`, `downloadAsync` (throws unless spied per-test).
 
-This repo already has one precedent for this exact pattern: `__mocks__/expo-sqlite.js` wraps Node's real `node:sqlite` "to test the DB layer against a real engine... instead of a hand-written fake." Follow the same philosophy here — back the mock with Node's real `fs` module, not an in-memory fake, so file read/write/exists behavior in tests matches reality.
+This repo already has one precedent for this exact pattern: `__mocks__/expo-sqlite.js` wraps Node's real `node:sqlite` "to test the DB layer against a real engine... instead of a hand-written fake." The same philosophy applies here — the mock is backed by Node's real `fs` module, not an in-memory fake, so file read/write/exists behavior in tests matches reality.
 
-- [ ] **Step 1: Install the dependency and confirm its actual API**
+- [x] **Step 1: Install the dependency and confirm its actual API** — done; see the confirmed-API note above.
 
-Run: `npx expo install expo-file-system`
-
-Then read `node_modules/expo-file-system`'s type definitions or README to confirm the exact current API for this Expo SDK version (this project is on `expo: ~54.0.35` — check whether the installed version's primary API is the legacy `readAsStringAsync`/`writeAsStringAsync`/`documentDirectory`/`getInfoAsync`/`deleteAsync` free-function API, or Expo's newer `File`/`Directory`/`Paths` class-based API introduced in more recent SDKs, or both side by side under different import paths, e.g. `expo-file-system` vs `expo-file-system/legacy`). Tasks 4 and 5 need exactly three capabilities: (a) a writable directory path to build file paths in, (b) read an existing file's contents as a base64 string, (c) write a base64 or raw string to a new file. Confirm which functions provide these in the version actually installed, and use those exact names for Step 2 below and in Tasks 4/5 — do not guess if what's installed doesn't match the legacy names used as an example here.
-
-- [ ] **Step 2: Write the mock**
-
-Create `__mocks__/expo-file-system.js`, backed by Node's real `fs`. Adjust the exported function names/signatures to match whatever Step 1 confirmed the installed package actually exports — the body below assumes the legacy free-function API (`readAsStringAsync`, `writeAsStringAsync`, `deleteAsync`, `getInfoAsync`, `documentDirectory`, `EncodingType`) is what's installed; if it isn't, adapt the exports to match while keeping the same real-fs-backed behavior:
+- [x] **Step 2: Write the mock** — done, at `__mocks__/expo-file-system/legacy.js` (not the top-level path — see above). For reference, the delivered mock's shape:
 
 ```js
 // Jest automock for expo-file-system, backed by Node's real fs module —
@@ -87,7 +85,7 @@ module.exports = {
 - [ ] **Step 3: Commit**
 
 ```bash
-git add package.json package-lock.json __mocks__/expo-file-system.js
+git add package.json package-lock.json __mocks__/expo-file-system/legacy.js
 git commit -m "$(cat <<'EOF'
 chore(backup): add expo-file-system + its test mock
 
@@ -514,10 +512,10 @@ Expected: FAIL — `Cannot find module '../lib/driveSync/backup'`.
 
 - [ ] **Step 3: Write the implementation**
 
-Create `lib/driveSync/backup.ts`. Adjust the `FileSystem` calls (`documentDirectory`, `readAsStringAsync`, `deleteAsync`, `EncodingType`) to match whatever Task 1 Step 1 confirmed the installed `expo-file-system` version actually exports, if it differs from the legacy names used below:
+Create `lib/driveSync/backup.ts`. Import `FileSystem` from `expo-file-system/legacy` (confirmed in Task 1 — the bare `expo-file-system` import is a different, class-based API and does not have these functions):
 
 ```ts
-import * as FileSystem from "expo-file-system";
+import * as FileSystem from "expo-file-system/legacy";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { db } from "@/db/client";
 import { dataBackupQueue } from "@/db/schema";
@@ -614,7 +612,7 @@ import { users, batches, sales, dataBackupQueue } from "../db/schema";
 import { applyMigrations, resetDb } from "./helpers/db";
 import { checkForRestorableBackup, restoreFromDrive } from "../lib/driveSync/restore";
 import * as driveApi from "../lib/driveSync/driveApi";
-import * as FileSystem from "expo-file-system";
+import * as FileSystem from "expo-file-system/legacy";
 import fs from "fs";
 import path from "path";
 import os from "os";
@@ -719,10 +717,10 @@ Expected: FAIL — `Cannot find module '../lib/driveSync/restore'`.
 
 - [ ] **Step 3: Write the implementation**
 
-Create `lib/driveSync/restore.ts`. As in Task 4, adjust the `FileSystem` calls to match whatever Task 1 Step 1 confirmed if it differs from the legacy API used below:
+Create `lib/driveSync/restore.ts`. As in Task 4, import `FileSystem` from `expo-file-system/legacy` (see Task 1's note):
 
 ```ts
-import * as FileSystem from "expo-file-system";
+import * as FileSystem from "expo-file-system/legacy";
 import { db } from "@/db/client";
 import { dataBackupQueue, sales } from "@/db/schema";
 import { findBackupFile, driveDownloadUrl } from "./driveApi";
