@@ -1,3 +1,4 @@
+import { and, eq } from "drizzle-orm";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { db } from "@/db/client";
@@ -11,7 +12,7 @@ import {
   measurementRows,
   rowEditHistory,
 } from "@/db/schema";
-import { chunked } from "./tables";
+import { chunked, type SyncedTable } from "./tables";
 
 // Per user, not one global key: signing a second Clerk account into the same
 // device must not inherit the first account's "already resolved" answer.
@@ -209,16 +210,28 @@ export async function restoreIfEmpty(userId: string, supabase: SupabaseClient): 
   // this recognisable as an interrupted restore rather than a fresh start.
   await AsyncStorage.setItem(key, "restoring");
 
+  // The (table, row_id) pairs this restore pulls down, so the cleanup at the
+  // end can clear exactly their queue entries and nothing else. The id read
+  // off each remote row is that table's PK — the same column the queue
+  // triggers write into row_id (see PK_COLUMN in ./tables).
+  const restored: { table: SyncedTable; rowId: string }[] = [];
+  const track = (table: SyncedTable, ids: string[]) => {
+    for (const rowId of ids) restored.push({ table, rowId });
+  };
+
   await db.insert(users).values(fromRemoteUser(remoteUser)).onConflictDoNothing();
+  track("users", [remoteUser.id]);
 
   const prefs = unwrap(await supabase.from("user_prefs").select("*").eq("user_id", userId), "user_prefs");
   if (prefs?.length) {
     await db.insert(userPrefs).values(prefs.map(fromRemoteUserPrefs)).onConflictDoNothing();
+    track("user_prefs", prefs.map((p: any) => p.user_id));
   }
 
   const remoteBatches = unwrap(await supabase.from("batches").select("*").eq("user_id", userId), "batches");
   if (remoteBatches?.length) {
     await db.insert(batches).values(remoteBatches.map(fromRemoteBatch)).onConflictDoNothing();
+    track("batches", remoteBatches.map((b: any) => b.id));
   }
 
   const remoteSales = unwrap(await supabase.from("sales").select("*").eq("user_id", userId), "sales");
@@ -227,10 +240,12 @@ export async function restoreIfEmpty(userId: string, supabase: SupabaseClient): 
   }
 
   const saleIds: string[] = (remoteSales ?? []).map((s: any) => s.id);
+  track("sales", saleIds);
   if (saleIds.length) {
     const meta = await selectIn(supabase, "sale_meta_data", "sale_id", saleIds);
     if (meta.length) {
       await db.insert(saleMetaData).values(meta.map(fromRemoteSaleMeta)).onConflictDoNothing();
+      track("sale_meta_data", meta.map((m: any) => m.sale_id));
     }
 
     const rows = await selectIn(supabase, "measurement_rows", "sale_id", saleIds);
@@ -239,10 +254,12 @@ export async function restoreIfEmpty(userId: string, supabase: SupabaseClient): 
     }
 
     const rowIds: string[] = rows.map((r: any) => r.id);
+    track("measurement_rows", rowIds);
     if (rowIds.length) {
       const history = await selectIn(supabase, "row_edit_history", "row_id", rowIds);
       if (history.length) {
         await db.insert(rowEditHistory).values(history.map(fromRemoteEditHistory)).onConflictDoNothing();
+        track("row_edit_history", history.map((h: any) => h.id));
       }
     }
   }
@@ -250,7 +267,21 @@ export async function restoreIfEmpty(userId: string, supabase: SupabaseClient): 
   // The restored rows are already identical to what's on Supabase, but the
   // insert triggers from Task 2 fired anyway and queued them as dirty —
   // clear that so restore doesn't cause an immediate, redundant push.
-  await db.delete(dataBackupQueue);
+  //
+  // Only those rows, never the whole table: an interrupted restore can be
+  // retried launches later, and the user's own offline writes made in the
+  // meantime are sitting in the same queue. Wiping it would drop them
+  // silently (same precision fix as clearQueueEntries in ./flush).
+  //
+  // ponytail: a row this restore pulled down *and* the user edited between an
+  // interrupted attempt and this retry still loses that edit's queue entry —
+  // the pair alone can't tell the two apart. Match on queuedAt (as flush
+  // does) if that window ever shows up in practice.
+  for (const r of restored) {
+    await db.delete(dataBackupQueue).where(
+      and(eq(dataBackupQueue.tableName, r.table), eq(dataBackupQueue.rowId, r.rowId)),
+    );
+  }
 
   await AsyncStorage.setItem(key, "done");
 }

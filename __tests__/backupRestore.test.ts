@@ -216,6 +216,25 @@ describe("restoreIfEmpty", () => {
     expect(await db.select().from(dataBackupQueue)).toHaveLength(0);
   });
 
+  it("clears only its own queue entries, not local writes made before the retry", async () => {
+    // The window the three-state flag opens: an earlier attempt failed, the
+    // user kept working offline, and those writes are queued. This run's
+    // cleanup must take its own restored rows and leave the rest alone.
+    await AsyncStorage.setItem(KEY, "restoring");
+    await db.insert(dataBackupQueue).values({
+      tableName: "sales", rowId: "local-sale", op: "upsert", queuedAt: new Date(1000),
+    });
+
+    await restoreIfEmpty("u1", fakeClient({
+      users: [remoteUser], user_prefs: [], batches: [remoteBatch],
+      sales: [remoteSale], sale_meta_data: [], measurement_rows: [],
+      row_edit_history: [],
+    }));
+
+    const queue = await db.select().from(dataBackupQueue);
+    expect(queue.map((q) => [q.tableName, q.rowId])).toEqual([["sales", "local-sale"]]);
+  });
+
   // ─── Finding 5: `.in()` lists are chunked ───
 
   it("chunks the sale_id and row_id lookups instead of one giant .in()", async () => {
