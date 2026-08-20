@@ -12,6 +12,25 @@ const TABLES_IN_ORDER = [
   "sale_meta_data", "measurement_rows", "row_edit_history",
 ];
 
+function columnNames(schema: "main" | "backup", table: string): string[] {
+  const stmt = db.$client.prepareSync(`PRAGMA ${schema}.table_info(${table});`);
+  try {
+    return stmt.executeSync<{ name: string }>().getAllSync().map((c) => c.name);
+  } finally {
+    stmt.finalizeSync();
+  }
+}
+
+// `SELECT *` would tie every backup file to the exact schema version that
+// wrote it — the first migration adding a column to a synced table makes
+// every older backup on Drive unrestorable (column count mismatch). Copying
+// only the columns both schemas have degrades gracefully instead: new
+// columns take their defaults, columns the app has since dropped are ignored.
+function sharedColumns(table: string): string[] {
+  const inBackup = new Set(columnNames("backup", table));
+  return columnNames("main", table).filter((c) => inBackup.has(c));
+}
+
 export async function checkForRestorableBackup(
   getAccessToken: () => Promise<string>,
 ): Promise<{ fileId: string } | null> {
@@ -39,8 +58,34 @@ export async function restoreFromDrive(
 
   db.$client.execSync(`ATTACH DATABASE '${localPath}' AS backup;`);
   try {
-    for (const table of TABLES_IN_ORDER) {
-      db.$client.execSync(`INSERT INTO main.${table} SELECT * FROM backup.${table};`);
+    // All seven tables commit together or not at all. Without this, a
+    // failure on table 4 leaves the db permanently half-restored: the
+    // earlier tables are already committed, and `sales` being non-empty
+    // means checkForRestorableBackup never offers a retry.
+    db.$client.execSync("BEGIN IMMEDIATE;");
+    try {
+      for (const table of TABLES_IN_ORDER) {
+        // OR REPLACE, not plain INSERT: a local row with the same primary
+        // key (onboarding writes a `users` row before any sale exists, and
+        // checkForRestorableBackup only looks at `sales`) is exactly what a
+        // restore is supposed to overwrite — not a reason to fail.
+        const cols = sharedColumns(table).map((c) => `"${c}"`).join(", ");
+        if (!cols) continue; // table absent from an older backup file
+        db.$client.execSync(
+          `INSERT OR REPLACE INTO main.${table} (${cols}) SELECT ${cols} FROM backup.${table};`,
+        );
+      }
+      db.$client.execSync("COMMIT;");
+    } catch (err) {
+      // Must resolve the transaction before the finally below detaches —
+      // DETACH inside an open transaction is an error. The inner guard is
+      // only so a failing ROLLBACK can't mask the real error.
+      try {
+        db.$client.execSync("ROLLBACK;");
+      } catch {
+        console.warn("[driveSync] rollback after a failed restore also failed");
+      }
+      throw err;
     }
   } finally {
     // Both cleanup steps live in the same finally: if an INSERT throws
