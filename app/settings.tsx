@@ -48,7 +48,7 @@ export default function SettingsScreen() {
   const [farmNameValue, setFarmNameValue] = useState("");
   const [chunkSize, setChunkSizeLocal] = useState("10");
   const [backupState, setBackupState] = useState<
-    "idle" | "pending" | "success" | "error"
+    "idle" | "pending" | "success" | "skipped" | "error"
   >("idle");
 
   const webTopInset = Platform.OS === "web" ? 67 : 0;
@@ -120,9 +120,14 @@ export default function SettingsScreen() {
       // rethrows on failure (see lib/driveSync/schedule.ts) — this catch
       // is what lets a real failure show as an error state instead of a
       // false-positive success checkmark.
-      await backupNow();
-      setBackupState("success");
-      if (Platform.OS !== "web") {
+      //
+      // backupNow() also resolves `false` when it was skipped outright
+      // (another backup already running, or a restore pending) rather than
+      // actually uploading — that must not render the same success
+      // checkmark as a real upload.
+      const completed = await backupNow();
+      setBackupState(completed ? "success" : "skipped");
+      if (completed && Platform.OS !== "web") {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }
     } catch (err) {
@@ -401,6 +406,9 @@ export default function SettingsScreen() {
             )}
             {backupState === "success" && (
               <Ionicons name="checkmark-circle" size={20} color={theme.success} />
+            )}
+            {backupState === "skipped" && (
+              <Ionicons name="time-outline" size={20} color={theme.textTertiary} />
             )}
             {backupState === "error" && (
               <Ionicons name="alert-circle" size={20} color={theme.danger} />

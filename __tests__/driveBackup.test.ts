@@ -87,7 +87,7 @@ describe("runDriveBackup", () => {
     jest.spyOn(driveApi, "createBackupFile").mockResolvedValue("new-file-id");
 
     // Must not throw "destination already exists" from VACUUM INTO.
-    await expect(runDriveBackup(getAccessToken, USER)).resolves.toBeUndefined();
+    await expect(runDriveBackup(getAccessToken, USER)).resolves.toBe(true);
 
     expect(await db.select().from(dataBackupQueue)).toHaveLength(0);
   });
@@ -100,14 +100,17 @@ describe("runDriveBackup", () => {
     const createSpy = jest.spyOn(driveApi, "createBackupFile").mockResolvedValue("new-file-id");
 
     setRestorePending(true);
-    await runDriveBackup(getAccessToken, USER);
+    // Re-review finding: a skip must resolve `false`, distinct from a
+    // completed upload — the manual "Back up now" button uses this to
+    // avoid showing a false success checkmark for a backup that never ran.
+    await expect(runDriveBackup(getAccessToken, USER)).resolves.toBe(false);
 
     expect(findSpy).not.toHaveBeenCalled();
     expect(createSpy).not.toHaveBeenCalled();
     expect(await db.select().from(dataBackupQueue)).toHaveLength(1); // still pending
 
     setRestorePending(false);
-    await runDriveBackup(getAccessToken, USER);
+    await expect(runDriveBackup(getAccessToken, USER)).resolves.toBe(true);
     expect(createSpy).toHaveBeenCalledTimes(1); // resumes once answered
   });
 
@@ -127,9 +130,10 @@ describe("runDriveBackup", () => {
     await new Promise((r) => setImmediate(r)); // let the first run reach the upload
     expect(createSpy).toHaveBeenCalledTimes(1);
 
-    await runDriveBackup(getAccessToken, USER); // overlapping call, must no-op
+    // overlapping call, must no-op and report itself as skipped
+    await expect(runDriveBackup(getAccessToken, USER)).resolves.toBe(false);
     releaseUpload();
-    await first;
+    await expect(first).resolves.toBe(true);
 
     expect(createSpy).toHaveBeenCalledTimes(1);
   });

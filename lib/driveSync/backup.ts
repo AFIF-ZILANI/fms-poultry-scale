@@ -84,18 +84,24 @@ async function uploadToExistingFile(
 // are the last statements, after every fallible step, so an exception leaves
 // both untouched and the next run retries. Whether that exception is
 // swallowed or surfaced is the caller's call — see `backup` in schedule.ts.
+//
+// Returns whether an upload actually happened. `false` means the call was
+// skipped outright (another backup was already in flight, or a restore is
+// pending) — callers must not treat that the same as a completed backup
+// (see `backup`/`backupNow` in schedule.ts, and the manual button in
+// app/settings.tsx).
 export async function runDriveBackup(
   getAccessToken: () => Promise<string>,
   userId: string,
-): Promise<void> {
-  if (restorePending || inFlight) return;
+): Promise<boolean> {
+  if (restorePending || inFlight) return false;
   inFlight = true;
   try {
     // Captured before the snapshot: a write landing during the upload gets
     // queued by the triggers but is *not* in the file being uploaded, so
     // only these exact rows may be cleared afterwards.
     const queued = await db.select().from(dataBackupQueue);
-    if (!queued.length) return;
+    if (!queued.length) return true; // nothing pending — already backed up
 
     const accessToken = await getAccessToken();
     const base64 = await snapshotAsBase64();
@@ -125,6 +131,7 @@ export async function runDriveBackup(
       );
     }
     await AsyncStorage.setItem(lastBackupAtKey(userId), new Date().toISOString());
+    return true;
   } finally {
     inFlight = false;
   }

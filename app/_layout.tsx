@@ -79,6 +79,12 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
           },
         },
       ],
+      // Android only: blocks the back button / tap-outside dismissal that
+      // would otherwise leave restorePending stuck true (and automatic
+      // backups silently disabled) until the app is relaunched, with no
+      // explicit choice ever made. iOS alerts aren't dismissable that way,
+      // so this option is a no-op there.
+      { cancelable: false },
     );
   }, [driveSync.restorable]);
 

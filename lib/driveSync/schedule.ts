@@ -41,14 +41,20 @@ export function useDriveSync(userId: string | null | undefined) {
   // rethrow=true (via the backupNow wrapper below) makes a real failure
   // surface as a rejection the caller can catch — without changing
   // anything about the silent automatic path.
-  const backup = useCallback(async (rethrow = false) => {
-    if (!userId) return;
+  // Returns whether an upload actually happened (see runDriveBackup) —
+  // false means this call was skipped (already in flight, or a restore is
+  // pending), not that it failed. backupNow (rethrow=true) propagates this
+  // so the manual "Back up now" button can tell a real success from a skip.
+  const backup = useCallback(async (rethrow = false): Promise<boolean> => {
+    if (!userId) return false;
     try {
-      await runDriveBackup(getAccessToken, userId);
+      const completed = await runDriveBackup(getAccessToken, userId);
       setLastBackupAt(await getLastBackupAt(userId));
+      return completed;
     } catch (err) {
       console.warn("[driveSync] backup failed", err);
       if (rethrow) throw err;
+      return false;
     }
   }, [getAccessToken, userId]);
 
@@ -74,7 +80,7 @@ export function useDriveSync(userId: string | null | undefined) {
       setRestorePending(true);
       try {
         const found = await checkForRestorableBackup(getAccessToken);
-        setRestorePending(!!found);
+        if (!cancelled) setRestorePending(!!found);
         if (!cancelled) setRestorable(found);
         setLastBackupAt(await getLastBackupAt(userId));
       } catch (err) {
