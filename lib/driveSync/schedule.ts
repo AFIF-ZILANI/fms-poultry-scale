@@ -27,12 +27,23 @@ export function useDriveSync(userId: string | null | undefined) {
     return data.accessToken;
   }, []);
 
-  const backup = useCallback(async () => {
+  // Automatic triggers (the interval, AppState) call this with no argument:
+  // failures are swallowed and logged, since nothing awaits or .catch()s a
+  // fire-and-forget interval/listener callback — letting it throw there
+  // would just reintroduce an unhandled-rejection crash risk.
+  //
+  // The manual "back up now" button needs the opposite: real success/
+  // failure feedback, not a silent swallow that always resolves. Passing
+  // rethrow=true (via the backupNow wrapper below) makes a real failure
+  // surface as a rejection the caller can catch — without changing
+  // anything about the silent automatic path.
+  const backup = useCallback(async (rethrow = false) => {
     try {
       await runDriveBackup(getAccessToken);
       setLastBackupAt(await getLastBackupAt());
     } catch (err) {
       console.warn("[driveSync] backup failed", err);
+      if (rethrow) throw err;
     }
   }, [getAccessToken]);
 
@@ -81,5 +92,11 @@ export function useDriveSync(userId: string | null | undefined) {
 
   const declineRestore = useCallback(() => setRestorable(null), []);
 
-  return { restorable, confirmRestore, declineRestore, backupNow: backup, lastBackupAt };
+  return {
+    restorable,
+    confirmRestore,
+    declineRestore,
+    backupNow: () => backup(true), // rethrows on failure — see the comment above `backup`
+    lastBackupAt,
+  };
 }

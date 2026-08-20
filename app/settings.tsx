@@ -116,9 +116,10 @@ export default function SettingsScreen() {
     if (backupState === "pending") return;
     setBackupState("pending");
     try {
-      // backupNow (useDriveSync's `backup`) already swallows its own
-      // errors internally, so this catch is defensive — it keeps the UI
-      // correct even if that changes later, without relying on it.
+      // Unlike the automatic interval/AppState triggers, backupNow()
+      // rethrows on failure (see lib/driveSync/schedule.ts) — this catch
+      // is what lets a real failure show as an error state instead of a
+      // false-positive success checkmark.
       await backupNow();
       setBackupState("success");
       if (Platform.OS !== "web") {
