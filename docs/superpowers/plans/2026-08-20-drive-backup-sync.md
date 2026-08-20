@@ -846,7 +846,7 @@ EOF
 
 **Interfaces:**
 - Consumes: `runDriveBackup` (Task 4), `checkForRestorableBackup`/`restoreFromDrive` (Task 5); `useSupabase` (existing, `hooks/useSupabase.ts`).
-- Produces: `useDriveSync(userId: string | null | undefined)` — a hook returning `{ restorable: { fileId: string } | null, confirmRestore: () => Promise<void>, declineRestore: () => void, backupNow: () => Promise<void>, lastBackupAt: Date | null }`, mounted once in `AuthGuard`. Task 7's UI consumes this hook's return value directly — it does not call `lib/driveSync/*` functions itself.
+- Produces: `useDriveSync(userId: string | null | undefined)` — a hook returning `{ restorable: { fileId: string } | null, confirmRestore: () => Promise<void>, declineRestore: () => void, backupNow: () => Promise<void>, lastBackupAt: Date | null }`, mounted once in `AuthGuard`. Task 7's UI consumes this hook's return value directly — it does not call `lib/driveSync/*` functions itself. **`backupNow` rejects on failure** (unlike the automatic interval/AppState triggers, which swallow and log) — its whole purpose is letting the manual "back up now" button show genuine success/failure feedback rather than a false-positive success state.
 
 Same trigger pattern already proven in the removed `lib/backupSync/schedule.ts`: periodic tick + `AppState` background transition (using the corrected `/inactive|background/` match, not the naive exact-string check) — plus this task adds the manual-trigger and restore-confirmation surface Task 7's UI needs. No automated test — same reasoning as before (RN lifecycle glue, no component test harness in this repo). Verify via the manual steps in Step 3.
 
@@ -884,12 +884,23 @@ export function useDriveSync(userId: string | null | undefined) {
     return data.accessToken;
   }, []);
 
-  const backup = useCallback(async () => {
+  // Automatic triggers (the interval, AppState) call this with no argument:
+  // failures are swallowed and logged, since nothing awaits or .catch()s a
+  // fire-and-forget interval/listener callback — letting it throw there
+  // would just reintroduce an unhandled-rejection crash risk.
+  //
+  // The manual "back up now" button needs the opposite: real success/
+  // failure feedback, not a silent swallow that always resolves. Passing
+  // rethrow=true (via the backupNow wrapper below) makes a real failure
+  // surface as a rejection the caller can catch — without changing
+  // anything about the silent automatic path.
+  const backup = useCallback(async (rethrow = false) => {
     try {
       await runDriveBackup(getAccessToken);
       setLastBackupAt(await getLastBackupAt());
     } catch (err) {
       console.warn("[driveSync] backup failed", err);
+      if (rethrow) throw err;
     }
   }, [getAccessToken]);
 
@@ -938,7 +949,13 @@ export function useDriveSync(userId: string | null | undefined) {
 
   const declineRestore = useCallback(() => setRestorable(null), []);
 
-  return { restorable, confirmRestore, declineRestore, backupNow: backup, lastBackupAt };
+  return {
+    restorable,
+    confirmRestore,
+    declineRestore,
+    backupNow: () => backup(true), // rethrows on failure — see the comment above `backup`
+    lastBackupAt,
+  };
 }
 ```
 
