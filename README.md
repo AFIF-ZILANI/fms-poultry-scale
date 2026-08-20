@@ -161,6 +161,8 @@ Required environment variables:
 | Variable | Purpose |
 |---|---|
 | `EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY` | Clerk auth — the app will not get past sign-in without it |
+| `EXPO_PUBLIC_SUPABASE_URL` | Supabase backend — required for the `drive-token` Edge Function that powers Google Drive backup |
+| `EXPO_PUBLIC_SUPABASE_KEY` | Supabase backend — required for the `drive-token` Edge Function that powers Google Drive backup |
 
 Native builds (`npm run android`) compile the NDK on first run — budget several GB of disk and a long first build.
 
