@@ -26,7 +26,7 @@ import { Image } from "react-native";
 import SplashImage from "@/assets/images/splash-icon.png";
 import { useDbMigrations } from "@/db/client";
 import { DbErrorScreen } from "@/components/DBErrorScreen";
-import { useBackupSync } from "@/lib/backupSync/schedule";
+import { useDriveSync } from "@/lib/driveSync/schedule";
 
 if (Platform.OS !== "web") {
   SplashScreen.preventAutoHideAsync().catch(() => {});
@@ -51,7 +51,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   // Track which userId we already checked so we re-run when the account switches
   const handledUserId = useRef<string | null>(null);
-  useBackupSync(isSignedIn ? user?.id : null);
+  const driveSync = useDriveSync(isSignedIn ? user?.id : null);
 
   useEffect(() => {
     if (!isLoaded) return;
