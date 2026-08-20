@@ -98,4 +98,17 @@ describe("restoreFromDrive", () => {
     const info = await FileSystem.getInfoAsync(`${FileSystem.documentDirectory}drive-restore-temp.db`);
     expect(info.exists).toBe(false);
   });
+
+  it("cleans up the temp download file and detaches even if an insert fails partway through", async () => {
+    // Pre-existing local row collides with the backup's own "u1" row,
+    // forcing the very first INSERT (users, first in TABLES_IN_ORDER) to
+    // violate the primary key constraint.
+    await db.insert(users).values({ id: "u1" });
+    mockDownloadAsCopyOf(buildFakeBackupFile());
+
+    await expect(restoreFromDrive(getAccessToken, "backup-file-id")).rejects.toThrow();
+
+    const info = await FileSystem.getInfoAsync(`${FileSystem.documentDirectory}drive-restore-temp.db`);
+    expect(info.exists).toBe(false);
+  });
 });

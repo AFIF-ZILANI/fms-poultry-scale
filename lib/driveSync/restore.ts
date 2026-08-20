@@ -43,9 +43,15 @@ export async function restoreFromDrive(
       db.$client.execSync(`INSERT INTO main.${table} SELECT * FROM backup.${table};`);
     }
   } finally {
+    // Both cleanup steps live in the same finally: if an INSERT throws
+    // partway through (a malformed or FK-violating backup file), the temp
+    // download — a full copy of the user's data — must not be orphaned on
+    // device storage just because the restore itself failed.
     db.$client.execSync("DETACH DATABASE backup;");
+    await FileSystem.deleteAsync(RESTORE_TEMP_PATH, { idempotent: true });
   }
 
-  await FileSystem.deleteAsync(RESTORE_TEMP_PATH, { idempotent: true });
+  // Only reached on full success — a partial/failed restore must not mark
+  // the queue clear, since real dirty data may still need to sync later.
   await db.delete(dataBackupQueue);
 }
