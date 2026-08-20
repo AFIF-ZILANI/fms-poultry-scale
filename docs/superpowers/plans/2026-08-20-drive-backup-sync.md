@@ -381,7 +381,9 @@ Deno.serve(async (req: Request) => {
 
 - [ ] **Step 2: Deploy and configure secrets**
 
-Run: `supabase functions deploy drive-token --project-ref <project-ref>`
+Run: `supabase functions deploy drive-token --no-verify-jwt --project-ref <project-ref>`
+
+`--no-verify-jwt` matters here: Supabase Edge Functions default to a platform-level JWT gate that rejects a request before your handler code runs at all. There's a documented compatibility issue between that gate and Clerk's RS256-signed tokens (Supabase's own third-party-auth integration has an open report of this exact failure). This function doesn't need the platform gate anyway — it does its own equivalent check inside the handler (the `fetch` to `/auth/v1/user`, the same call `supabase-js`'s `auth.getUser()` makes under the hood), so disabling the platform gate here doesn't weaken security, it just avoids a known false-rejection failure mode for the auth path this function actually relies on. If, after deploying, every request gets rejected even with a valid signed-in session, this flag is the first thing to check.
 
 Set the `CLERK_SECRET_KEY` secret (from the Clerk dashboard — API Keys — never the same as `EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY`, which is a different, public key):
 
@@ -1022,4 +1024,4 @@ EOF
 
 ## Manual step outside this plan
 
-Before this feature does anything real: (1) the Clerk dashboard needs the `drive.appdata` scope added to the Google connection (Task 3, Step 3), (2) the `drive-token` Edge Function needs to be deployed with `CLERK_SECRET_KEY` set (Task 3, Step 2), and (3) any account that connected Google *before* the scope was added needs to disconnect/reconnect (sign out, sign back in with Google) for the new scope to actually apply.
+Before this feature does anything real: (1) the Clerk dashboard needs the `drive.appdata` scope added to the Google connection (Task 3, Step 3), (2) the `drive-token` Edge Function needs to be deployed with `--no-verify-jwt` and `CLERK_SECRET_KEY` set (Task 3, Step 2 — the flag matters: Supabase's platform-level JWT gate has a documented issue with Clerk's RS256 tokens, and this function does its own equivalent check internally anyway), and (3) any account that connected Google *before* the scope was added needs to disconnect/reconnect (sign out, sign back in with Google) for the new scope to actually apply.
