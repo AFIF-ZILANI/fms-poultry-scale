@@ -1,4 +1,4 @@
-import { sqliteTable, text, real, integer, index } from "drizzle-orm/sqlite-core";
+import { sqliteTable, text, real, integer, index, primaryKey } from "drizzle-orm/sqlite-core";
 import { relations } from "drizzle-orm";
 
 // ─── Users ───
@@ -156,6 +156,19 @@ export const userPrefs = sqliteTable("user_prefs", {
   deductionWtG: real("deduction_wt_g").notNull().default(0),
   priceKg: real("price_kg").notNull().default(0),
 });
+
+// ─── Data Backup Queue ───
+// Populated entirely by triggers (see migration 0012) — never written to
+// directly from app code. PK on (table_name, row_id) means N edits to one
+// row before the next flush collapse into a single queued operation.
+export const dataBackupQueue = sqliteTable("data_backup_queue", {
+  tableName: text("table_name").notNull(),
+  rowId: text("row_id").notNull(),
+  op: text("op", { enum: ["upsert", "delete"] }).notNull(),
+  queuedAt: integer("queued_at", { mode: "timestamp" }).notNull(),
+}, (table) => ({
+  pk: primaryKey({ columns: [table.tableName, table.rowId] }),
+}));
 
 // ─── Relations ───
 export const usersRelations = relations(users, ({ many, one }) => ({
