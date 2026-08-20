@@ -4,6 +4,7 @@ import { applyMigrations, resetDb } from "./helpers/db";
 import { runDriveBackup, getLastBackupAt } from "../lib/driveSync/backup";
 import * as driveApi from "../lib/driveSync/driveApi";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as FileSystem from "expo-file-system/legacy";
 
 beforeAll(() => applyMigrations());
 beforeEach(() => {
@@ -67,5 +68,18 @@ describe("runDriveBackup", () => {
 
     expect(await db.select().from(dataBackupQueue)).toHaveLength(1);
     expect(await getLastBackupAt()).toBeNull();
+  });
+
+  it("succeeds even when a stale snapshot file was left behind by a previous failed backup", async () => {
+    await db.insert(users).values({ id: "u1" });
+    const staleSnapshotPath = `${FileSystem.documentDirectory}drive-backup-snapshot.db`;
+    await FileSystem.writeAsStringAsync(staleSnapshotPath, "leftover from a crashed attempt");
+    jest.spyOn(driveApi, "findBackupFile").mockResolvedValue(null);
+    jest.spyOn(driveApi, "createBackupFile").mockResolvedValue("new-file-id");
+
+    // Must not throw "destination already exists" from VACUUM INTO.
+    await expect(runDriveBackup(getAccessToken)).resolves.toBeUndefined();
+
+    expect(await db.select().from(dataBackupQueue)).toHaveLength(0);
   });
 });
