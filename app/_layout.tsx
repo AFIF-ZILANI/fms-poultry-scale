@@ -2,7 +2,7 @@ import { ClerkProvider, ClerkLoaded, useAuth, useUser } from "@clerk/expo";
 import { Stack, useRouter } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect, useRef, useState } from "react";
-import { Platform, View, Text } from "react-native";
+import { Alert, Platform, View, Text } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
@@ -27,6 +27,7 @@ import SplashImage from "@/assets/images/splash-icon.png";
 import { useDbMigrations } from "@/db/client";
 import { DbErrorScreen } from "@/components/DBErrorScreen";
 import { useDriveSync } from "@/lib/driveSync/schedule";
+import { DriveSyncProvider } from "@/lib/DriveSyncContext";
 
 if (Platform.OS !== "web") {
   SplashScreen.preventAutoHideAsync().catch(() => {});
@@ -52,6 +53,34 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   // Track which userId we already checked so we re-run when the account switches
   const handledUserId = useRef<string | null>(null);
   const driveSync = useDriveSync(isSignedIn ? user?.id : null);
+
+  // Fires once when a restorable backup is found on mount — restorable only
+  // ever transitions non-null -> null (via confirm/decline), never back.
+  useEffect(() => {
+    if (!driveSync.restorable) return;
+    Alert.alert(
+      "Backup found",
+      "We found a backup of your data. Restore it now?",
+      [
+        { text: "Not now", style: "cancel", onPress: () => driveSync.declineRestore() },
+        {
+          text: "Restore",
+          onPress: () => {
+            // confirmRestore doesn't catch its own errors — a failed
+            // restoreFromDrive would otherwise become an unhandled
+            // rejection from this button press.
+            driveSync.confirmRestore().catch((err) => {
+              console.warn("[driveSync] restore failed", err);
+              Alert.alert(
+                "Restore failed",
+                "Could not restore your backup. Please try again later.",
+              );
+            });
+          },
+        },
+      ],
+    );
+  }, [driveSync.restorable]);
 
   useEffect(() => {
     if (!isLoaded) return;
@@ -79,7 +108,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
     return <View style={{ flex: 1, backgroundColor: "#0C0C0F" }} />;
   }
 
-  return <>{children}</>;
+  return <DriveSyncProvider value={driveSync}>{children}</DriveSyncProvider>;
 }
 
 function AppLayout() {

@@ -7,6 +7,7 @@ import {
   Pressable,
   Platform,
   TextInput,
+  ActivityIndicator,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router } from "expo-router";
@@ -16,6 +17,8 @@ import * as Haptics from "expo-haptics";
 import { useUser } from "@clerk/expo";
 import { useTheme } from "@/lib/useTheme";
 import { useSettings, type ThemePreference } from "@/lib/SettingsContext";
+import { useDriveSyncContext } from "@/lib/DriveSyncContext";
+import { getRelativeTime } from "@/lib/utils";
 import type { Language } from "@/lib/i18n";
 import {
   loadLastPricePerKg,
@@ -37,12 +40,16 @@ export default function SettingsScreen() {
   const userId = user?.id ?? "";
   const { language, setLanguage, themePreference, setThemePreference, t } =
     useSettings();
+  const { backupNow, lastBackupAt } = useDriveSyncContext();
 
   const [defaultPrice, setDefaultPrice] = useState("");
   const [defaultKgPerCrate, setDefaultKgPerCrate] = useState("");
   const [defaultDeductionG, setDefaultDeductionG] = useState("");
   const [farmNameValue, setFarmNameValue] = useState("");
   const [chunkSize, setChunkSizeLocal] = useState("10");
+  const [backupState, setBackupState] = useState<
+    "idle" | "pending" | "success" | "error"
+  >("idle");
 
   const webTopInset = Platform.OS === "web" ? 67 : 0;
   const webBottomInset = Platform.OS === "web" ? 34 : 0;
@@ -102,6 +109,29 @@ export default function SettingsScreen() {
 
     if (Platform.OS !== "web") {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    }
+  };
+
+  const handleBackupNow = async () => {
+    if (backupState === "pending") return;
+    setBackupState("pending");
+    try {
+      // backupNow (useDriveSync's `backup`) already swallows its own
+      // errors internally, so this catch is defensive — it keeps the UI
+      // correct even if that changes later, without relying on it.
+      await backupNow();
+      setBackupState("success");
+      if (Platform.OS !== "web") {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
+    } catch (err) {
+      console.warn("[settings] back up now failed", err);
+      setBackupState("error");
+      if (Platform.OS !== "web") {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      }
+    } finally {
+      setTimeout(() => setBackupState("idle"), 2000);
     }
   };
 
@@ -311,6 +341,70 @@ export default function SettingsScreen() {
               ]}
             />
           </View>
+        </View>
+
+        <Text
+          style={[
+            styles.sectionLabel,
+            {
+              color: theme.textTertiary,
+              fontFamily: "Outfit_600SemiBold",
+              marginTop: 12,
+            },
+          ]}
+        >
+          BACKUP
+        </Text>
+        <View style={styles.chipGroup}>
+          <Pressable
+            onPress={handleBackupNow}
+            disabled={backupState === "pending"}
+            style={({ pressed }) => [
+              styles.chipRow,
+              {
+                backgroundColor: theme.surface,
+                borderColor: theme.borderLight,
+                opacity: pressed ? 0.7 : 1,
+              },
+            ]}
+          >
+            <View
+              style={[styles.optionIcon, { backgroundColor: theme.accentLight }]}
+            >
+              <Feather name="upload-cloud" size={18} color={theme.accent} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text
+                style={[
+                  styles.optionLabel,
+                  { color: theme.text, fontFamily: "Outfit_500Medium" },
+                ]}
+              >
+                Back up now
+              </Text>
+              <Text
+                style={{
+                  fontSize: 12,
+                  color: theme.textTertiary,
+                  marginTop: 2,
+                  fontFamily: "Outfit_400Regular",
+                }}
+              >
+                {lastBackupAt
+                  ? `Last backed up ${getRelativeTime(lastBackupAt.getTime(), t)}`
+                  : "Never backed up yet"}
+              </Text>
+            </View>
+            {backupState === "pending" && (
+              <ActivityIndicator size="small" color={theme.accent} />
+            )}
+            {backupState === "success" && (
+              <Ionicons name="checkmark-circle" size={20} color={theme.success} />
+            )}
+            {backupState === "error" && (
+              <Ionicons name="alert-circle" size={20} color={theme.danger} />
+            )}
+          </Pressable>
         </View>
 
         <Pressable
