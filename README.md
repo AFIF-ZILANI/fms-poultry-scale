@@ -59,7 +59,7 @@ If real payment tracking is ever added, this is the decision to revisit first.
 | Animation | Reanimated 4 |
 | Tests | Jest, against a real in-memory SQLite with real migrations |
 
-**Supabase** (`lib/supabase.ts`, `hooks/useSupabase.ts`) backs the **backup sync engine** (`lib/backupSync/`). Local SQLite stays the single source of truth and no screen reads from Supabase; it is a push-only mirror so a reinstall or a new device can restore. See *Backup sync* below — it needs a one-time manual setup step on the Supabase project.
+**Google Drive** backs the **backup engine** (`lib/driveSync/`). Local SQLite stays the single source of truth and no screen reads from Drive; backups are stored in each user's hidden Drive `appDataFolder` so a reinstall or a new device can restore. See *Backup (Google Drive)* below — it needs a one-time manual setup step on the Clerk dashboard.
 
 ---
 
@@ -88,7 +88,7 @@ db/
   client.ts               DB handle + useDbMigrations()
   migrations/             Generated SQL + journal — applied on app start
 lib/
-  backupSync/             Supabase mirror: queue flush, restore, scheduling
+  driveSync/              Google Drive backup: queue flush, restore, scheduling
   storage.ts              Every read and write. Screens never touch the DB directly
   utils.ts                Pure domain logic: calcDeduction, formatters
   types.ts                SaleRecord, SaleMetaData, BatchSummary, MeasurementRow
@@ -161,8 +161,6 @@ Required environment variables:
 | Variable | Purpose |
 |---|---|
 | `EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY` | Clerk auth — the app will not get past sign-in without it |
-| `EXPO_PUBLIC_SUPABASE_URL` | Backup sync target — without it nothing is backed up |
-| `EXPO_PUBLIC_SUPABASE_KEY` | Backup sync target — without it nothing is backed up |
 
 Native builds (`npm run android`) compile the NDK on first run — budget several GB of disk and a long first build.
 
@@ -183,29 +181,31 @@ file for you to fill in. Either way the new file must end up registered in
 
 Tests apply the real migration files in journal order (`__tests__/helpers/db.ts`), so a broken migration fails the suite rather than surfacing on a user's phone.
 
-### Backup sync (Supabase) — one-time project setup
+### Backup (Google Drive) — one-time project setup
 
-`lib/backupSync/` keeps a per-user mirror of the local tables on Supabase so a
-reinstall or a new device can restore. SQLite triggers (`db/migrations/0012`,
-backfilled for pre-existing rows by `0013`) mark every write in
-`data_backup_queue`; a flush pushes them, batched per table, on a 10s tick and
-when the app leaves the foreground. Local SQLite is always the source of truth —
-nothing is ever pulled down except by `restoreIfEmpty` on a genuinely empty
-install.
+`lib/driveSync/` syncs the local SQLite tables to Google Drive so a reinstall or
+a new device can restore. SQLite triggers (`db/migrations/0012`, backfilled for
+pre-existing rows by `0013`) mark every write in `data_backup_queue`; a flush
+pushes them, batched per table, to the user's Drive `appDataFolder` on a 10s tick
+and when the app leaves the foreground. Local SQLite is always the source of
+truth — nothing is ever pulled down except by `restoreIfEmpty` on a genuinely
+empty install. Because backups live in each user's private Drive folder, there
+is no shared database of personal data anymore.
 
-**The remote tables do not exist until someone creates them.** Run this once per
-Supabase project, before the feature can push anywhere:
+Before the feature can work, two one-time setup steps are needed:
 
-```bash
-supabase db execute -f supabase/backup_mirror.sql
-# or paste the file into the Supabase SQL editor and run it
-```
+1. **Clerk dashboard:** Add the `drive.appdata` scope to the Google OAuth
+   connection. This scope allows the app to access the user's Drive `appDataFolder`
+   without seeing their public Drive files.
 
-It creates the mirror tables, the FK cascades that match `db/schema.ts`, and the
-RLS policies scoping every row to the Clerk user id. It is not applied by any
-migration and there is no auto-sync — if `db/schema.ts` gains a column, add it to
-`supabase/backup_mirror.sql` and to the `toRemoteXxx`/`fromRemoteXxx` mappers in
-`lib/backupSync/{flush,restore}.ts` by hand.
+2. **Deploy the `drive-token` Edge Function:** This Supabase Edge Function
+   exchanges a Clerk token for a Google access token. Deploy it with
+   `--no-verify-jwt` and set the `CLERK_SECRET_KEY` environment variable
+   (from Supabase Secrets).
+
+After these steps, any account that connected Google *before* the scope was added
+must disconnect/reconnect (sign out, sign back in with Google) for the new scope
+to apply.
 
 ### The lockfile is npm-version sensitive — regenerate with npm 10
 
