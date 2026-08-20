@@ -440,6 +440,7 @@ import { applyMigrations, resetDb } from "./helpers/db";
 import { runDriveBackup, getLastBackupAt } from "../lib/driveSync/backup";
 import * as driveApi from "../lib/driveSync/driveApi";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as FileSystem from "expo-file-system/legacy";
 
 beforeAll(() => applyMigrations());
 beforeEach(() => {
@@ -504,6 +505,19 @@ describe("runDriveBackup", () => {
     expect(await db.select().from(dataBackupQueue)).toHaveLength(1);
     expect(await getLastBackupAt()).toBeNull();
   });
+
+  it("succeeds even when a stale snapshot file was left behind by a previous failed backup", async () => {
+    await db.insert(users).values({ id: "u1" });
+    const staleSnapshotPath = `${FileSystem.documentDirectory}drive-backup-snapshot.db`;
+    await FileSystem.writeAsStringAsync(staleSnapshotPath, "leftover from a crashed attempt");
+    jest.spyOn(driveApi, "findBackupFile").mockResolvedValue(null);
+    jest.spyOn(driveApi, "createBackupFile").mockResolvedValue("new-file-id");
+
+    // Must not throw "destination already exists" from VACUUM INTO.
+    await expect(runDriveBackup(getAccessToken)).resolves.toBeUndefined();
+
+    expect(await db.select().from(dataBackupQueue)).toHaveLength(0);
+  });
 });
 ```
 
@@ -537,14 +551,24 @@ export async function getLastBackupAt(): Promise<Date | null> {
 
 // A clean, consistent single-file snapshot as of this moment — safer than
 // copying the live db file directly, which may have an open WAL alongside it.
+//
+// Cleanup is finally-guarded, and any stale file from a prior failed
+// attempt is cleared before VACUUM INTO runs: SQLite's VACUUM INTO fails
+// if the destination already exists, so an un-guarded delete here would
+// let one interrupted backup (e.g. a read failing after a successful
+// VACUUM INTO) permanently wedge every subsequent retry on the same
+// "destination already exists" error.
 async function snapshotAsBase64(): Promise<string> {
   const snapshotPath = `${FileSystem.documentDirectory}drive-backup-snapshot.db`;
-  db.$client.execSync(`VACUUM INTO '${snapshotPath.replace("file://", "")}'`);
-  const base64 = await FileSystem.readAsStringAsync(snapshotPath, {
-    encoding: FileSystem.EncodingType.Base64,
-  });
   await FileSystem.deleteAsync(snapshotPath, { idempotent: true });
-  return base64;
+  db.$client.execSync(`VACUUM INTO '${snapshotPath.replace("file://", "")}'`);
+  try {
+    return await FileSystem.readAsStringAsync(snapshotPath, {
+      encoding: FileSystem.EncodingType.Base64,
+    });
+  } finally {
+    await FileSystem.deleteAsync(snapshotPath, { idempotent: true });
+  }
 }
 
 export async function runDriveBackup(getAccessToken: () => Promise<string>): Promise<void> {
@@ -574,7 +598,7 @@ export async function runDriveBackup(getAccessToken: () => Promise<string>): Pro
 - [ ] **Step 4: Run the tests and verify they pass**
 
 Run: `npx jest __tests__/driveBackup.test.ts -v`
-Expected: all 5 tests PASS.
+Expected: all 6 tests PASS.
 
 - [ ] **Step 5: Commit**
 
