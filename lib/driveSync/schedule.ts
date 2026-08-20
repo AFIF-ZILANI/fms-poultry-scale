@@ -27,8 +27,19 @@ export function useDriveSync(userId: string | null | undefined) {
       "drive-token",
     );
     if (error || !data?.accessToken) {
-      console.warn("[driveSync] drive-token Edge Function failed", error);
-      throw new Error(`Could not get a Drive access token: ${error?.message ?? "no token returned"}`);
+      // supabase-js's error.message is a generic "non-2xx status code" —
+      // the function's actual error body (the thing worth reading) is on
+      // error.context, the raw fetch Response. Read it so the real reason
+      // ("Invalid session", "No Google account connected...", a Clerk API
+      // failure, etc.) shows up here instead of only in the Supabase
+      // dashboard's function logs.
+      let detail = error?.message ?? "no token returned";
+      const context = (error as { context?: Response } | undefined)?.context;
+      if (context && typeof context.text === "function") {
+        detail = await context.text().catch(() => detail);
+      }
+      console.warn(`[driveSync] drive-token Edge Function failed: ${detail}`);
+      throw new Error(`Could not get a Drive access token: ${detail}`);
     }
     console.log("[driveSync] drive-token Edge Function succeeded");
     return data.accessToken;
