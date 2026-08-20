@@ -42,13 +42,18 @@ export function useDriveSync(userId: string | null | undefined) {
     let cancelled = false;
 
     (async () => {
+      // Both steps share one try/catch — a fire-and-forget async IIFE has
+      // nothing to .catch() it, so an unguarded await here (this exact
+      // failure mode was a documented crash cause in the engine this
+      // replaces) becomes an unhandled rejection, which RN escalates to a
+      // crash in release builds.
       try {
         const found = await checkForRestorableBackup(getAccessToken);
         if (!cancelled) setRestorable(found);
+        setLastBackupAt(await getLastBackupAt());
       } catch (err) {
-        console.warn("[driveSync] restore check failed", err);
+        console.warn("[driveSync] mount check failed", err);
       }
-      setLastBackupAt(await getLastBackupAt());
       if (!cancelled) await backup();
     })();
 
