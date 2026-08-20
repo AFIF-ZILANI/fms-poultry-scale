@@ -44,3 +44,6 @@ yarn-error.*
 graphify-out/
 .superpowers/
 /kickbacks.vsix
+
+# Supabase CLI local state
+supabase/.temp/

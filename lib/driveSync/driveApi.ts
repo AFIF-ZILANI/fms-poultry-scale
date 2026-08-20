@@ -5,18 +5,22 @@ const DRIVE_UPLOAD_URL = "https://www.googleapis.com/upload/drive/v3/files";
 const MULTIPART_BOUNDARY = "poultry-scale-backup-boundary";
 
 async function driveFetch(url: string, accessToken: string, init: RequestInit = {}) {
+  const method = init.method ?? "GET";
+  console.log(`[driveSync] ${method} ${url}`);
   const res = await fetch(url, {
     ...init,
     headers: { ...init.headers, Authorization: `Bearer ${accessToken}` },
   });
   if (!res.ok) {
     const body = await res.text().catch(() => "");
+    console.warn(`[driveSync] ${method} ${url} -> ${res.status}`, body);
     // The status rides along on the error so callers can tell a 404 (the
     // cached file id is stale — re-search) from anything else (retry later).
     throw Object.assign(new Error(`Drive API request failed: ${res.status} ${body}`), {
       status: res.status,
     });
   }
+  console.log(`[driveSync] ${method} ${url} -> ${res.status}`);
   return res;
 }
 

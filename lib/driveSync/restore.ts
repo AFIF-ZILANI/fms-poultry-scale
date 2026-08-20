@@ -35,10 +35,14 @@ export async function checkForRestorableBackup(
   getAccessToken: () => Promise<string>,
 ): Promise<{ fileId: string } | null> {
   const hasLocalData = await db.select().from(sales).limit(1).get();
-  if (hasLocalData) return null;
+  if (hasLocalData) {
+    console.log("[driveSync] restore check skipped: local data already exists");
+    return null;
+  }
 
   const accessToken = await getAccessToken();
   const fileId = await findBackupFile(accessToken);
+  console.log(fileId ? `[driveSync] restorable backup found: ${fileId}` : "[driveSync] no restorable backup on Drive");
   return fileId ? { fileId } : null;
 }
 
@@ -49,12 +53,14 @@ export async function restoreFromDrive(
   getAccessToken: () => Promise<string>,
   fileId: string,
 ): Promise<void> {
+  console.log(`[driveSync] restore starting: downloading ${fileId}`);
   const accessToken = await getAccessToken();
 
   const { uri } = await FileSystem.downloadAsync(driveDownloadUrl(fileId), RESTORE_TEMP_PATH, {
     headers: { Authorization: `Bearer ${accessToken}` },
   });
   const localPath = uri.startsWith("file://") ? uri.slice("file://".length) : uri;
+  console.log(`[driveSync] downloaded to ${localPath}`);
 
   db.$client.execSync(`ATTACH DATABASE '${localPath}' AS backup;`);
   try {
@@ -70,12 +76,17 @@ export async function restoreFromDrive(
         // checkForRestorableBackup only looks at `sales`) is exactly what a
         // restore is supposed to overwrite — not a reason to fail.
         const cols = sharedColumns(table).map((c) => `"${c}"`).join(", ");
-        if (!cols) continue; // table absent from an older backup file
+        if (!cols) {
+          console.log(`[driveSync] restore: ${table} absent from backup, skipping`);
+          continue; // table absent from an older backup file
+        }
         db.$client.execSync(
           `INSERT OR REPLACE INTO main.${table} (${cols}) SELECT ${cols} FROM backup.${table};`,
         );
+        console.log(`[driveSync] restore: ${table} copied`);
       }
       db.$client.execSync("COMMIT;");
+      console.log("[driveSync] restore: transaction committed");
     } catch (err) {
       // Must resolve the transaction before the finally below detaches —
       // DETACH inside an open transaction is an error. The inner guard is
@@ -85,6 +96,7 @@ export async function restoreFromDrive(
       } catch {
         console.warn("[driveSync] rollback after a failed restore also failed");
       }
+      console.warn("[driveSync] restore failed, rolled back", err);
       throw err;
     }
   } finally {
@@ -99,4 +111,5 @@ export async function restoreFromDrive(
   // Only reached on full success — a partial/failed restore must not mark
   // the queue clear, since real dirty data may still need to sync later.
   await db.delete(dataBackupQueue);
+  console.log("[driveSync] restore complete");
 }

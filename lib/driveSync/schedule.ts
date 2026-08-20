@@ -22,12 +22,15 @@ export function useDriveSync(userId: string | null | undefined) {
   }, [supabase]);
 
   const getAccessToken = useCallback(async () => {
+    console.log("[driveSync] invoking drive-token Edge Function");
     const { data, error } = await supabaseRef.current.functions.invoke<{ accessToken: string }>(
       "drive-token",
     );
     if (error || !data?.accessToken) {
+      console.warn("[driveSync] drive-token Edge Function failed", error);
       throw new Error(`Could not get a Drive access token: ${error?.message ?? "no token returned"}`);
     }
+    console.log("[driveSync] drive-token Edge Function succeeded");
     return data.accessToken;
   }, []);
 
@@ -77,6 +80,7 @@ export function useDriveSync(userId: string | null | undefined) {
       // worst while the check is still in flight; clear it if the check
       // fails or finds nothing (which also clears a stale block left by a
       // previous account).
+      console.log(`[driveSync] mounted for user ${userId}, checking for a restorable backup`);
       setRestorePending(true);
       try {
         const found = await checkForRestorableBackup(getAccessToken);
@@ -87,13 +91,20 @@ export function useDriveSync(userId: string | null | undefined) {
         setRestorePending(false);
         console.warn("[driveSync] mount check failed", err);
       }
-      if (!cancelled) await backup();
+      if (!cancelled) {
+        console.log("[driveSync] trigger: mount");
+        await backup();
+      }
     })();
 
-    const interval = setInterval(backup, FLUSH_INTERVAL_MS);
+    const interval = setInterval(() => {
+      console.log("[driveSync] trigger: interval");
+      backup();
+    }, FLUSH_INTERVAL_MS);
 
     const subscription = AppState.addEventListener("change", (next: AppStateStatus) => {
       if (appState.current === "active" && /inactive|background/.test(next)) {
+        console.log("[driveSync] trigger: app backgrounded");
         backup();
       }
       appState.current = next;
@@ -108,6 +119,7 @@ export function useDriveSync(userId: string | null | undefined) {
 
   const confirmRestore = useCallback(async () => {
     if (!restorable) return;
+    console.log("[driveSync] user confirmed restore");
     // Unblocked only on success: a failed restore leaves the Drive file as
     // the only copy of this user's data, so backups stay blocked rather
     // than overwrite it. The next launch re-runs the check and unblocks.
@@ -117,6 +129,7 @@ export function useDriveSync(userId: string | null | undefined) {
   }, [restorable, getAccessToken]);
 
   const declineRestore = useCallback(() => {
+    console.log("[driveSync] user declined restore");
     setRestorePending(false);
     setRestorable(null);
   }, []);
@@ -125,7 +138,10 @@ export function useDriveSync(userId: string | null | undefined) {
     restorable,
     confirmRestore,
     declineRestore,
-    backupNow: () => backup(true), // rethrows on failure — see the comment above `backup`
+    backupNow: () => {
+      console.log("[driveSync] trigger: manual back up now");
+      return backup(true); // rethrows on failure — see the comment above `backup`
+    },
     lastBackupAt,
   };
 }

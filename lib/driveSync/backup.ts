@@ -94,27 +94,46 @@ export async function runDriveBackup(
   getAccessToken: () => Promise<string>,
   userId: string,
 ): Promise<boolean> {
-  if (restorePending || inFlight) return false;
+  if (restorePending) {
+    console.log("[driveSync] backup skipped: a restore is pending");
+    return false;
+  }
+  if (inFlight) {
+    console.log("[driveSync] backup skipped: another backup is already in flight");
+    return false;
+  }
   inFlight = true;
   try {
     // Captured before the snapshot: a write landing during the upload gets
     // queued by the triggers but is *not* in the file being uploaded, so
     // only these exact rows may be cleared afterwards.
     const queued = await db.select().from(dataBackupQueue);
-    if (!queued.length) return true; // nothing pending — already backed up
+    if (!queued.length) {
+      console.log("[driveSync] backup skipped: queue is empty, already backed up");
+      return true; // nothing pending — already backed up
+    }
+    console.log(`[driveSync] backup starting: ${queued.length} queued row(s)`);
 
     const accessToken = await getAccessToken();
+    console.log("[driveSync] got Drive access token");
+
     const base64 = await snapshotAsBase64();
+    console.log(`[driveSync] snapshot taken: ${base64.length} base64 chars`);
 
     let fileId = await AsyncStorage.getItem(cachedFileIdKey(userId));
-    if (!fileId) {
+    if (fileId) {
+      console.log(`[driveSync] using cached Drive file id: ${fileId}`);
+    } else {
       fileId = await findBackupFile(accessToken);
+      console.log(fileId ? `[driveSync] found existing Drive file: ${fileId}` : "[driveSync] no existing Drive file found");
     }
 
     if (fileId) {
       fileId = await uploadToExistingFile(accessToken, userId, fileId, base64);
+      console.log(`[driveSync] updated Drive file: ${fileId}`);
     } else {
       fileId = await createBackupFile(accessToken, base64);
+      console.log(`[driveSync] created new Drive file: ${fileId}`);
     }
 
     await AsyncStorage.setItem(cachedFileIdKey(userId), fileId);
@@ -131,6 +150,7 @@ export async function runDriveBackup(
       );
     }
     await AsyncStorage.setItem(lastBackupAtKey(userId), new Date().toISOString());
+    console.log(`[driveSync] backup complete: cleared ${queued.length} queued row(s)`);
     return true;
   } finally {
     inFlight = false;
