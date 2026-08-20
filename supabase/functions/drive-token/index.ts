@@ -1,0 +1,57 @@
+// Mints a short-lived Google Drive access token for the calling user.
+// Runs server-side only — this is the one place CLERK_SECRET_KEY is used.
+// The client never sees it.
+
+Deno.serve(async (req: Request) => {
+  const authHeader = req.headers.get("Authorization");
+  if (!authHeader) {
+    return new Response(JSON.stringify({ error: "Missing Authorization header" }), {
+      status: 401,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
+  // Verify the caller via the existing Clerk<->Supabase third-party auth
+  // integration: forward the caller's JWT to Supabase's own auth endpoint
+  // and let it tell us who's making this request. This avoids re-verifying
+  // the JWT signature by hand — Supabase already knows how to do this
+  // because of the existing Clerk integration.
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+  const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+  const userRes = await fetch(`${supabaseUrl}/auth/v1/user`, {
+    headers: { Authorization: authHeader, apikey: anonKey },
+  });
+  if (!userRes.ok) {
+    return new Response(JSON.stringify({ error: "Invalid session" }), {
+      status: 401,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+  const { id: clerkUserId } = (await userRes.json()) as { id: string };
+
+  const clerkSecretKey = Deno.env.get("CLERK_SECRET_KEY")!;
+  const tokenRes = await fetch(
+    `https://api.clerk.com/v1/users/${clerkUserId}/oauth_access_tokens/google`,
+    { headers: { Authorization: `Bearer ${clerkSecretKey}` } },
+  );
+  if (!tokenRes.ok) {
+    const body = await tokenRes.text().catch(() => "");
+    return new Response(
+      JSON.stringify({ error: `Clerk token request failed: ${tokenRes.status} ${body}` }),
+      { status: 502, headers: { "Content-Type": "application/json" } },
+    );
+  }
+  const tokens = (await tokenRes.json()) as { token: string }[];
+  const accessToken = tokens[0]?.token;
+  if (!accessToken) {
+    return new Response(
+      JSON.stringify({ error: "No Google account connected, or it lacks the drive.appdata scope" }),
+      { status: 404, headers: { "Content-Type": "application/json" } },
+    );
+  }
+
+  return new Response(JSON.stringify({ accessToken }), {
+    status: 200,
+    headers: { "Content-Type": "application/json" },
+  });
+});
