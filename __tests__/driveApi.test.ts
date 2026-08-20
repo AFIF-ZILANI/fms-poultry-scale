@@ -41,6 +41,17 @@ describe("findBackupFile", () => {
   });
 });
 
+describe("error shape", () => {
+  // The 404 path is load-bearing: it's how backup.ts knows a cached file id
+  // is dead and a fresh search is worth trying, versus a transient failure.
+  it("carries the HTTP status on the thrown error", async () => {
+    mockFetchOnce(404, { error: { message: "File not found" } });
+    await expect(updateBackupFile("token", "dead-id", "base64")).rejects.toMatchObject({
+      status: 404,
+    });
+  });
+});
+
 describe("createBackupFile", () => {
   it("posts a multipart request and returns the new file id", async () => {
     mockFetchOnce(200, { id: "new-file-id" });

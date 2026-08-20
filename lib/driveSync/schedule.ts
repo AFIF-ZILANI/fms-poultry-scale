@@ -1,10 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AppState, type AppStateStatus } from "react-native";
 import { useSupabase } from "@/hooks/useSupabase";
-import { runDriveBackup, getLastBackupAt } from "./backup";
+import { runDriveBackup, getLastBackupAt, setRestorePending } from "./backup";
 import { checkForRestorableBackup, restoreFromDrive } from "./restore";
 
-const FLUSH_INTERVAL_MS = 10_000;
+// ponytail: 60s balances freshness against not hammering a full-db
+// VACUUM + base64 + upload every tick; tune if real usage shows it's too
+// slow/fast. Backgrounding the app and the manual button stay immediate,
+// so this only sets how often an idle, foregrounded app re-checks.
+const FLUSH_INTERVAL_MS = 60_000;
 
 export function useDriveSync(userId: string | null | undefined) {
   const supabase = useSupabase();
@@ -38,14 +42,15 @@ export function useDriveSync(userId: string | null | undefined) {
   // surface as a rejection the caller can catch — without changing
   // anything about the silent automatic path.
   const backup = useCallback(async (rethrow = false) => {
+    if (!userId) return;
     try {
-      await runDriveBackup(getAccessToken);
-      setLastBackupAt(await getLastBackupAt());
+      await runDriveBackup(getAccessToken, userId);
+      setLastBackupAt(await getLastBackupAt(userId));
     } catch (err) {
       console.warn("[driveSync] backup failed", err);
       if (rethrow) throw err;
     }
-  }, [getAccessToken]);
+  }, [getAccessToken, userId]);
 
   useEffect(() => {
     if (!userId) return;
@@ -58,11 +63,22 @@ export function useDriveSync(userId: string | null | undefined) {
       // failure mode was a documented crash cause in the engine this
       // replaces) becomes an unhandled rejection, which RN escalates to a
       // crash in release builds.
+      // Blocks every automatic backup — this effect's own call below, the
+      // interval, the AppState listener — until we know whether there is a
+      // backup to restore and, if so, until the user answers the prompt.
+      // Otherwise the near-empty local db gets uploaded over the very file
+      // they're about to restore from, which is unrecoverable. Assume the
+      // worst while the check is still in flight; clear it if the check
+      // fails or finds nothing (which also clears a stale block left by a
+      // previous account).
+      setRestorePending(true);
       try {
         const found = await checkForRestorableBackup(getAccessToken);
+        setRestorePending(!!found);
         if (!cancelled) setRestorable(found);
-        setLastBackupAt(await getLastBackupAt());
+        setLastBackupAt(await getLastBackupAt(userId));
       } catch (err) {
+        setRestorePending(false);
         console.warn("[driveSync] mount check failed", err);
       }
       if (!cancelled) await backup();
@@ -86,11 +102,18 @@ export function useDriveSync(userId: string | null | undefined) {
 
   const confirmRestore = useCallback(async () => {
     if (!restorable) return;
+    // Unblocked only on success: a failed restore leaves the Drive file as
+    // the only copy of this user's data, so backups stay blocked rather
+    // than overwrite it. The next launch re-runs the check and unblocks.
     await restoreFromDrive(getAccessToken, restorable.fileId);
+    setRestorePending(false);
     setRestorable(null);
   }, [restorable, getAccessToken]);
 
-  const declineRestore = useCallback(() => setRestorable(null), []);
+  const declineRestore = useCallback(() => {
+    setRestorePending(false);
+    setRestorable(null);
+  }, []);
 
   return {
     restorable,

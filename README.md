@@ -187,11 +187,12 @@ Tests apply the real migration files in journal order (`__tests__/helpers/db.ts`
 
 `lib/driveSync/` syncs the local SQLite tables to Google Drive so a reinstall or
 a new device can restore. SQLite triggers (`db/migrations/0012`, backfilled for
-pre-existing rows by `0013`) mark every write in `data_backup_queue`; a flush
-pushes them, batched per table, to the user's Drive `appDataFolder` on a 10s tick
-and when the app leaves the foreground. Local SQLite is always the source of
-truth — nothing is ever pulled down except by `restoreIfEmpty` on a genuinely
-empty install. Because backups live in each user's private Drive folder, there
+pre-existing rows by `0013`) mark every write in `data_backup_queue`; when that
+queue is non-empty, a flush uploads a whole-database snapshot to the user's Drive
+`appDataFolder` on a 60s tick and when the app leaves the foreground. Local
+SQLite is always the source of truth — nothing is ever pulled down except by
+`checkForRestorableBackup`/`restoreFromDrive`, offered once on a genuinely empty
+install and only with the user's confirmation. Because backups live in each user's private Drive folder, there
 is no shared database of personal data anymore.
 
 Before the feature can work, two one-time setup steps are needed:

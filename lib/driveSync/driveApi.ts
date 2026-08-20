@@ -11,7 +11,11 @@ async function driveFetch(url: string, accessToken: string, init: RequestInit = 
   });
   if (!res.ok) {
     const body = await res.text().catch(() => "");
-    throw new Error(`Drive API request failed: ${res.status} ${body}`);
+    // The status rides along on the error so callers can tell a 404 (the
+    // cached file id is stale — re-search) from anything else (retry later).
+    throw Object.assign(new Error(`Drive API request failed: ${res.status} ${body}`), {
+      status: res.status,
+    });
   }
   return res;
 }

@@ -1,5 +1,6 @@
 import * as FileSystem from "expo-file-system/legacy";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { and, eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { dataBackupQueue } from "@/db/schema";
 import {
@@ -8,12 +9,31 @@ import {
   updateBackupFile,
 } from "./driveApi";
 
-export const LAST_BACKUP_AT_KEY = "drive-backup-last-at";
-const CACHED_FILE_ID_KEY = "drive-backup-file-id";
+// Both keys are per-user: two Clerk accounts on one device must not share a
+// Drive file id (account B would overwrite account A's backup) or a
+// "last backed up" timestamp.
+const cachedFileIdKey = (userId: string) => `drive-backup-file-id:${userId}`;
+const lastBackupAtKey = (userId: string) => `drive-backup-last-at:${userId}`;
 
-export async function getLastBackupAt(): Promise<Date | null> {
-  const v = await AsyncStorage.getItem(LAST_BACKUP_AT_KEY);
+export async function getLastBackupAt(userId: string): Promise<Date | null> {
+  const v = await AsyncStorage.getItem(lastBackupAtKey(userId));
   return v ? new Date(v) : null;
+}
+
+// Only one backup runs at a time. The interval, the AppState listener, the
+// mount check and the manual button all land here, and they can overlap —
+// a full-db VACUUM INTO + upload easily outlives one interval tick. Two
+// overlapping runs would fight over the single snapshot temp path below.
+let inFlight = false;
+
+// Set while a restorable backup is waiting on the user's yes/no. Uploading
+// during that window overwrites the very file they are about to restore
+// from, with a local db that is empty by definition. Every caller routes
+// through runDriveBackup, so the guard lives here rather than in each one.
+let restorePending = false;
+
+export function setRestorePending(pending: boolean) {
+  restorePending = pending;
 }
 
 // A clean, consistent single-file snapshot as of this moment — safer than
@@ -38,29 +58,74 @@ async function snapshotAsBase64(): Promise<string> {
   }
 }
 
-export async function runDriveBackup(getAccessToken: () => Promise<string>): Promise<void> {
-  const queued = await db.select().from(dataBackupQueue).limit(1);
-  if (!queued.length) return;
-
+// A cached file id can outlive the file itself — the user can delete it from
+// Drive by hand. Drive answers 404 to the PATCH; without this the cache is
+// never invalidated and every future backup fails on the same dead id.
+async function uploadToExistingFile(
+  accessToken: string,
+  userId: string,
+  fileId: string,
+  base64: string,
+): Promise<string> {
   try {
+    await updateBackupFile(accessToken, fileId, base64);
+    return fileId;
+  } catch (err) {
+    if ((err as { status?: number }).status !== 404) throw err;
+    await AsyncStorage.removeItem(cachedFileIdKey(userId));
+    const found = await findBackupFile(accessToken);
+    if (!found) return createBackupFile(accessToken, base64);
+    await updateBackupFile(accessToken, found, base64);
+    return found;
+  }
+}
+
+// Throws on any failure. Deliberately: the queue-delete and timestamp-write
+// are the last statements, after every fallible step, so an exception leaves
+// both untouched and the next run retries. Whether that exception is
+// swallowed or surfaced is the caller's call — see `backup` in schedule.ts.
+export async function runDriveBackup(
+  getAccessToken: () => Promise<string>,
+  userId: string,
+): Promise<void> {
+  if (restorePending || inFlight) return;
+  inFlight = true;
+  try {
+    // Captured before the snapshot: a write landing during the upload gets
+    // queued by the triggers but is *not* in the file being uploaded, so
+    // only these exact rows may be cleared afterwards.
+    const queued = await db.select().from(dataBackupQueue);
+    if (!queued.length) return;
+
     const accessToken = await getAccessToken();
     const base64 = await snapshotAsBase64();
 
-    let fileId = await AsyncStorage.getItem(CACHED_FILE_ID_KEY);
+    let fileId = await AsyncStorage.getItem(cachedFileIdKey(userId));
     if (!fileId) {
       fileId = await findBackupFile(accessToken);
     }
 
     if (fileId) {
-      await updateBackupFile(accessToken, fileId, base64);
+      fileId = await uploadToExistingFile(accessToken, userId, fileId, base64);
     } else {
       fileId = await createBackupFile(accessToken, base64);
     }
 
-    await AsyncStorage.setItem(CACHED_FILE_ID_KEY, fileId);
-    await db.delete(dataBackupQueue);
-    await AsyncStorage.setItem(LAST_BACKUP_AT_KEY, new Date().toISOString());
-  } catch {
-    // If upload fails, leave the queue and timestamp untouched for retry
+    await AsyncStorage.setItem(cachedFileIdKey(userId), fileId);
+    // ponytail: queued_at is unix *seconds* (migration 0012), so a re-write
+    // landing in the same second as the original enqueue still gets cleared
+    // here. Upgrade path if that ever matters: millisecond queued_at.
+    for (const q of queued) {
+      await db.delete(dataBackupQueue).where(
+        and(
+          eq(dataBackupQueue.tableName, q.tableName),
+          eq(dataBackupQueue.rowId, q.rowId),
+          eq(dataBackupQueue.queuedAt, q.queuedAt),
+        ),
+      );
+    }
+    await AsyncStorage.setItem(lastBackupAtKey(userId), new Date().toISOString());
+  } finally {
+    inFlight = false;
   }
 }
