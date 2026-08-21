@@ -645,6 +645,12 @@ export default function BatchDetailScreen() {
             >
               {t.renameBatch}
             </Text>
+            <ScrollView
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+              style={styles.modalScroll}
+              contentContainerStyle={{ gap: 10 }}
+            >
             <TextInput
               value={name}
               onChangeText={setName}
@@ -776,6 +782,7 @@ export default function BatchDetailScreen() {
                 },
               ]}
             />
+            </ScrollView>
             <View style={styles.modalActions}>
               <Pressable
                 onPress={() => setRenaming(false)}
@@ -949,6 +956,7 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   modalTitle: { fontSize: 18 },
+  modalScroll: { maxHeight: "60%" },
   fieldLabel: { fontSize: 13, marginBottom: -2 },
   chipRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   chip: {
