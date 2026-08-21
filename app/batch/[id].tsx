@@ -951,12 +951,13 @@ const styles = StyleSheet.create({
   modalCard: {
     width: "100%",
     maxWidth: 420,
+    maxHeight: "80%",
     borderRadius: 20,
     padding: 20,
     gap: 10,
   },
   modalTitle: { fontSize: 18 },
-  modalScroll: { maxHeight: "60%" },
+  modalScroll: { flex: 1 },
   fieldLabel: { fontSize: 13, marginBottom: -2 },
   chipRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   chip: {
