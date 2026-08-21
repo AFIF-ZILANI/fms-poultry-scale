@@ -11,6 +11,8 @@ export interface OnboardingData {
   phone: string;
   email: string;
   location: string;
+  districtId: string;
+  upazilaId: string;
   farmName?: string;
   businessName?: string;
   subscriptionPlan: SubscriptionPlan;
@@ -50,6 +52,8 @@ export async function getUserProfile(
         name: users.name,
         phone: users.phone,
         location: users.location,
+        districtId: users.districtId,
+        upazilaId: users.upazilaId,
         email: users.email,
         farmName: users.farmName,
         businessName: users.businessName,
@@ -71,6 +75,8 @@ export async function getUserProfile(
       phone: user.phone ?? "",
       email: user.email ?? "",
       location: user.location ?? "",
+      districtId: user.districtId ?? "",
+      upazilaId: user.upazilaId ?? "",
       farmName: user.farmName ?? undefined,
       businessName: user.businessName ?? undefined,
       subscriptionPlan: user.subscriptionPlan,
@@ -96,6 +102,8 @@ export async function saveUserProfile(
       email: data.email,
       phone: data.phone,
       location: data.location,
+      districtId: data.districtId,
+      upazilaId: data.upazilaId,
       farmName: data.farmName,
       businessName: data.businessName,
       subscriptionPlan: data.subscriptionPlan ?? "community",
@@ -112,6 +120,8 @@ export async function saveUserProfile(
         name: data.name,
         phone: data.phone,
         location: data.location,
+        districtId: data.districtId,
+        upazilaId: data.upazilaId,
         farmName: data.farmName,
         businessName: data.businessName,
         subscriptionPlan: data.subscriptionPlan ?? "community",
@@ -134,6 +144,8 @@ export async function saveOnboardingDraft(
       is_onboarded: false,
       role: data.role ?? "farmer",
       location: data.location ?? "",
+      districtId: data.districtId ?? null,
+      upazilaId: data.upazilaId ?? null,
       email: data.email ?? "",
       name: data.name ?? null,
       phone: data.phone ?? null,
@@ -150,6 +162,8 @@ export async function saveOnboardingDraft(
       set: {
         role: data.role ?? "farmer",
         location: data.location ?? "",
+        districtId: data.districtId ?? null,
+        upazilaId: data.upazilaId ?? null,
         email: data.email ?? "",
         name: data.name ?? null,
         phone: data.phone ?? null,
@@ -177,6 +191,8 @@ export async function loadOnboardingDraft(
       name: user.name ?? undefined,
       phone: user.phone ?? undefined,
       location: user.location ?? undefined,
+      districtId: user.districtId ?? undefined,
+      upazilaId: user.upazilaId ?? undefined,
       farmName: user.farmName ?? undefined,
       businessName: user.businessName ?? undefined,
       subscriptionPlan: user.subscriptionPlan ?? undefined,
