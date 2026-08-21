@@ -2,7 +2,7 @@ import { ClerkProvider, ClerkLoaded, useAuth, useUser } from "@clerk/expo";
 import { Stack, useRouter } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect, useRef, useState } from "react";
-import { Alert, Platform, View, Text } from "react-native";
+import { Platform, View, Text } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
@@ -54,40 +54,6 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   const handledUserId = useRef<string | null>(null);
   const driveSync = useDriveSync(isSignedIn ? user?.id : null);
 
-  // Fires once when a restorable backup is found on mount — restorable only
-  // ever transitions non-null -> null (via confirm/decline), never back.
-  useEffect(() => {
-    if (!driveSync.restorable) return;
-    Alert.alert(
-      "Backup found",
-      "We found a backup of your data. Restore it now?",
-      [
-        { text: "Not now", style: "cancel", onPress: () => driveSync.declineRestore() },
-        {
-          text: "Restore",
-          onPress: () => {
-            // confirmRestore doesn't catch its own errors — a failed
-            // restoreFromDrive would otherwise become an unhandled
-            // rejection from this button press.
-            driveSync.confirmRestore().catch((err) => {
-              console.warn("[driveSync] restore failed", err);
-              Alert.alert(
-                "Restore failed",
-                "Could not restore your backup. Please try again later.",
-              );
-            });
-          },
-        },
-      ],
-      // Android only: blocks the back button / tap-outside dismissal that
-      // would otherwise leave restorePending stuck true (and automatic
-      // backups silently disabled) until the app is relaunched, with no
-      // explicit choice ever made. iOS alerts aren't dismissable that way,
-      // so this option is a no-op there.
-      { cancelable: false },
-    );
-  }, [driveSync.restorable]);
-
   useEffect(() => {
     if (!isLoaded) return;
 
@@ -100,6 +66,11 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
       if (!user?.id) return;
       // Already ran the check for this exact user — skip
       if (handledUserId.current === user.id) return;
+      // Wait for the silent Drive-restore check (and any restore it
+      // triggers) to finish before deciding on onboarding, so a reinstalled
+      // app restores its data in the background instead of routing through
+      // onboarding first.
+      if (!driveSync.restoreCheckDone) return;
       handledUserId.current = user.id;
 
       const done = await isOnboardingComplete(user.id);
@@ -107,10 +78,11 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
         router.replace("/onboarding");
       }
     })();
-  }, [isLoaded, isSignedIn, user?.id, router]);
+  }, [isLoaded, isSignedIn, user?.id, router, driveSync.restoreCheckDone]);
 
-  if (!isLoaded) {
-    // Keep splash visible until auth resolves
+  if (!isLoaded || !driveSync.restoreCheckDone) {
+    // Keep splash visible until auth resolves and any pending silent
+    // restore-from-Drive check finishes
     return <View style={{ flex: 1, backgroundColor: "#0C0C0F" }} />;
   }
 

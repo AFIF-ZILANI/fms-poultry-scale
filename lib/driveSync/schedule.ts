@@ -14,7 +14,9 @@ export function useDriveSync(userId: string | null | undefined) {
   const supabase = useSupabase();
   const supabaseRef = useRef(supabase);
   const appState = useRef(AppState.currentState);
-  const [restorable, setRestorable] = useState<{ fileId: string } | null>(null);
+  // Starts true (nothing to wait on) so a signed-out user isn't blocked;
+  // flips false the moment a userId shows up and a check starts.
+  const [restoreCheckDone, setRestoreCheckDone] = useState(true);
   const [lastBackupAt, setLastBackupAt] = useState<Date | null>(null);
 
   useEffect(() => {
@@ -76,6 +78,7 @@ export function useDriveSync(userId: string | null | undefined) {
     if (!userId) return;
 
     let cancelled = false;
+    setRestoreCheckDone(false);
 
     (async () => {
       // Both steps share one try/catch — a fire-and-forget async IIFE has
@@ -84,23 +87,30 @@ export function useDriveSync(userId: string | null | undefined) {
       // replaces) becomes an unhandled rejection, which RN escalates to a
       // crash in release builds.
       // Blocks every automatic backup — this effect's own call below, the
-      // interval, the AppState listener — until we know whether there is a
-      // backup to restore and, if so, until the user answers the prompt.
-      // Otherwise the near-empty local db gets uploaded over the very file
-      // they're about to restore from, which is unrecoverable. Assume the
-      // worst while the check is still in flight; clear it if the check
-      // fails or finds nothing (which also clears a stale block left by a
+      // interval, the AppState listener — until the restore check (and any
+      // restore it triggers) is done. Otherwise the near-empty local db
+      // gets uploaded over the very file it's about to restore from, which
+      // is unrecoverable. Assume the worst while in flight; clear it once
+      // the check settles (which also clears a stale block left by a
       // previous account).
       console.log(`[driveSync] mounted for user ${userId}, checking for a restorable backup`);
       setRestorePending(true);
       try {
         const found = await checkForRestorableBackup(getAccessToken);
-        if (!cancelled) setRestorePending(!!found);
-        if (!cancelled) setRestorable(found);
+        if (found && !cancelled) {
+          // No prompt: a fresh install/reinstall has nothing local to lose,
+          // so pulling the backup down automatically is strictly better UX
+          // than routing the user through onboarding first and asking
+          // "restore?" only after they've started re-entering their data.
+          console.log(`[driveSync] restorable backup found, restoring silently: ${found.fileId}`);
+          await restoreFromDrive(getAccessToken, found.fileId);
+        }
         setLastBackupAt(await getLastBackupAt(userId));
       } catch (err) {
+        console.warn("[driveSync] mount check/restore failed", err);
+      } finally {
         setRestorePending(false);
-        console.warn("[driveSync] mount check failed", err);
+        if (!cancelled) setRestoreCheckDone(true);
       }
       if (!cancelled) {
         console.log("[driveSync] trigger: mount");
@@ -128,27 +138,8 @@ export function useDriveSync(userId: string | null | undefined) {
     };
   }, [userId, getAccessToken, backup]);
 
-  const confirmRestore = useCallback(async () => {
-    if (!restorable) return;
-    console.log("[driveSync] user confirmed restore");
-    // Unblocked only on success: a failed restore leaves the Drive file as
-    // the only copy of this user's data, so backups stay blocked rather
-    // than overwrite it. The next launch re-runs the check and unblocks.
-    await restoreFromDrive(getAccessToken, restorable.fileId);
-    setRestorePending(false);
-    setRestorable(null);
-  }, [restorable, getAccessToken]);
-
-  const declineRestore = useCallback(() => {
-    console.log("[driveSync] user declined restore");
-    setRestorePending(false);
-    setRestorable(null);
-  }, []);
-
   return {
-    restorable,
-    confirmRestore,
-    declineRestore,
+    restoreCheckDone,
     backupNow: () => {
       console.log("[driveSync] trigger: manual back up now");
       return backup(true); // rethrows on failure — see the comment above `backup`
