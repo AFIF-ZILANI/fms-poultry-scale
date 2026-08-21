@@ -120,7 +120,10 @@ Deno.serve(async (req: Request) => {
     }
     clerkUserId = payload.sub;
   } catch (err) {
-    console.warn("[push-community-sale] rejected: Clerk JWT verification failed", err);
+    console.warn(
+      "[push-community-sale] rejected: Clerk JWT verification failed",
+      err instanceof Error ? err.message : err,
+    );
     return jsonResponse({ error: "Invalid session" }, 401);
   }
 
@@ -136,7 +139,11 @@ Deno.serve(async (req: Request) => {
     return jsonResponse({ error: "Missing required fields" }, 400);
   }
 
-  const pushSecret = Deno.env.get("PUSH_SECRET")!;
+  const pushSecret = Deno.env.get("PUSH_SECRET");
+  if (!pushSecret) {
+    console.error("[push-community-sale] PUSH_SECRET not set");
+    return jsonResponse({ error: "Server misconfigured" }, 500);
+  }
   const farmerId = await hmacFarmerId(clerkUserId, pushSecret);
   console.log("[push-community-sale] verified caller, farmer_id computed");
 
