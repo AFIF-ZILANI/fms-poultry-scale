@@ -8,6 +8,7 @@ import {
   Easing,
   Keyboard,
   KeyboardAvoidingView,
+  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -29,6 +30,7 @@ import {
   saveUserProfile,
 } from "@/lib/onboarding";
 import { savePlan, type Plan } from "@/lib/subscription";
+import { listDistricts, listUpazilas, getDistrictName, getUpazilaName } from "@/lib/regions";
 
 const { width: SCREEN_W } = Dimensions.get("window");
 const TOTAL_STEPS = 4;
@@ -48,6 +50,8 @@ export default function OnboardingScreen() {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [location, setLocation] = useState("");
+  const [districtId, setDistrictId] = useState<string | null>(null);
+  const [upazilaId, setUpazilaId] = useState<string | null>(null);
   const [farmName, setFarmName] = useState("");
   const [businessName, setBusinessName] = useState("");
 
@@ -59,6 +63,8 @@ export default function OnboardingScreen() {
       if (draft.name) setName(draft.name);
       if ((draft as any).phone) setPhone((draft as any).phone);
       if (draft.location) setLocation(draft.location ?? "");
+      if (draft.districtId) setDistrictId(draft.districtId);
+      if (draft.upazilaId) setUpazilaId(draft.upazilaId);
       if (draft.farmName) setFarmName(draft.farmName ?? "");
       if (draft.businessName) setBusinessName(draft.businessName ?? "");
     });
@@ -71,11 +77,13 @@ export default function OnboardingScreen() {
       ...(name && { name }),
       ...(phone && { phone }),
       ...(location && { location }),
+      ...(districtId && { districtId }),
+      ...(upazilaId && { upazilaId }),
       ...(farmName && { farmName }),
       ...(businessName && { businessName }),
     };
     saveOnboardingDraft(user.id, draft);
-  }, [user, role, name, phone, location, farmName, businessName]);
+  }, [user, role, name, phone, location, districtId, upazilaId, farmName, businessName]);
 
   useEffect(() => {
     persistDraft();
@@ -104,6 +112,11 @@ export default function OnboardingScreen() {
 
   const handleRoleSelect = (r: UserRole) => setRole(r);
 
+  const handleDistrictSelect = (id: string) => {
+    if (id !== districtId) setUpazilaId(null);
+    setDistrictId(id);
+  };
+
   const handleFinish = async (plan: Plan) => {
     if (!user) return;
     setSaving(true);
@@ -114,6 +127,8 @@ export default function OnboardingScreen() {
         phone: phone.trim(),
         email: user.emailAddresses[0]?.emailAddress ?? "",
         location: location.trim(),
+        districtId: districtId!,
+        upazilaId: upazilaId!,
         subscriptionPlan: plan,
         ...(farmName.trim() && { farmName: farmName.trim() }),
         ...(businessName.trim() && { businessName: businessName.trim() }),
@@ -128,7 +143,11 @@ export default function OnboardingScreen() {
     }
   };
 
-  const step2CanProceed = name.trim().length > 0 && phone.trim().length >= 10;
+  const step2CanProceed =
+    name.trim().length > 0 &&
+    phone.trim().length >= 10 &&
+    !!districtId &&
+    !!upazilaId;
   // Step 3 (farm/business details) is optional, so it is always passable.
   const canProceed =
     step === 0 ? role !== null : step === 1 ? step2CanProceed : true;
@@ -217,11 +236,16 @@ export default function OnboardingScreen() {
               name={name}
               phone={phone}
               location={location}
+              districtId={districtId}
+              upazilaId={upazilaId}
               onName={setName}
               onPhone={setPhone}
               onLocation={setLocation}
+              onDistrictSelect={handleDistrictSelect}
+              onUpazilaSelect={setUpazilaId}
               theme={theme}
               t={t}
+              language={language}
               canProceed={step2CanProceed}
               onNext={goNext}
             />
@@ -446,14 +470,27 @@ function BasicInfoStep({
   name,
   phone,
   location,
+  districtId,
+  upazilaId,
   onName,
   onPhone,
   onLocation,
+  onDistrictSelect,
+  onUpazilaSelect,
   theme,
   t,
+  language,
   canProceed,
   onNext,
 }: any) {
+  const [districtModalOpen, setDistrictModalOpen] = useState(false);
+  const [upazilaModalOpen, setUpazilaModalOpen] = useState(false);
+
+  const districts = listDistricts();
+  const upazilas = districtId ? listUpazilas(districtId) : [];
+  const selectedDistrictName = getDistrictName(districtId, language);
+  const selectedUpazilaName = getUpazilaName(upazilaId, language);
+
   return (
     <ScrollView
       contentContainerStyle={styles.stepContainer}
@@ -496,18 +533,202 @@ function BasicInfoStep({
           theme={theme}
           returnKeyType="next"
         />
+
+        <View style={styles.fieldGroup}>
+          <Text
+            style={[
+              styles.fieldLabel,
+              { color: theme.textSecondary, fontFamily: "Outfit_500Medium" },
+            ]}
+          >
+            {`${t.district} *`}
+          </Text>
+          <Pressable
+            style={[
+              styles.inputRow,
+              { backgroundColor: theme.surface, borderColor: theme.border },
+            ]}
+            onPress={() => setDistrictModalOpen(true)}
+          >
+            <MaterialCommunityIcons
+              name="map-outline"
+              size={20}
+              color={theme.textTertiary}
+              style={styles.inputIcon}
+            />
+            <Text
+              style={[
+                styles.input,
+                {
+                  color: selectedDistrictName ? theme.text : theme.textTertiary,
+                  fontFamily: "Outfit_400Regular",
+                },
+              ]}
+            >
+              {selectedDistrictName ?? t.selectDistrict}
+            </Text>
+          </Pressable>
+        </View>
+
+        <View style={styles.fieldGroup}>
+          <Text
+            style={[
+              styles.fieldLabel,
+              { color: theme.textSecondary, fontFamily: "Outfit_500Medium" },
+            ]}
+          >
+            {`${t.upazila} *`}
+          </Text>
+          <Pressable
+            style={[
+              styles.inputRow,
+              { backgroundColor: theme.surface, borderColor: theme.border },
+              !districtId && { opacity: 0.5 },
+            ]}
+            onPress={() => districtId && setUpazilaModalOpen(true)}
+            disabled={!districtId}
+          >
+            <MaterialCommunityIcons
+              name="map-marker-radius-outline"
+              size={20}
+              color={theme.textTertiary}
+              style={styles.inputIcon}
+            />
+            <Text
+              style={[
+                styles.input,
+                {
+                  color: selectedUpazilaName ? theme.text : theme.textTertiary,
+                  fontFamily: "Outfit_400Regular",
+                },
+              ]}
+            >
+              {selectedUpazilaName ?? t.selectUpazila}
+            </Text>
+          </Pressable>
+        </View>
+
         <InfoField
           icon="map-marker-outline"
-          label={`${t.address} (${t.optional})`}
+          label={`${t.villageArea} (${t.optional})`}
           value={location}
           onChange={onLocation}
-          placeholder={t.addressPlaceholder}
+          placeholder={t.villageAreaPlaceholder}
           theme={theme}
           returnKeyType="done"
           onSubmitEditing={canProceed ? onNext : undefined}
         />
       </View>
+
+      <RegionPickerModal
+        visible={districtModalOpen}
+        title={t.selectDistrict}
+        searchPlaceholder={t.searchDistrictPlaceholder}
+        items={districts}
+        onSelect={onDistrictSelect}
+        onClose={() => setDistrictModalOpen(false)}
+        language={language}
+        theme={theme}
+      />
+      <RegionPickerModal
+        visible={upazilaModalOpen}
+        title={t.selectUpazila}
+        searchPlaceholder={t.searchUpazilaPlaceholder}
+        items={upazilas}
+        onSelect={onUpazilaSelect}
+        onClose={() => setUpazilaModalOpen(false)}
+        language={language}
+        theme={theme}
+      />
     </ScrollView>
+  );
+}
+
+// ─── Region picker (District, then Upazila) ─────────────────────────────────
+
+function RegionPickerModal({
+  visible,
+  title,
+  searchPlaceholder,
+  items,
+  onSelect,
+  onClose,
+  language,
+  theme,
+}: {
+  visible: boolean;
+  title: string;
+  searchPlaceholder: string;
+  items: { id: string; nameEn: string; nameBn: string }[];
+  onSelect: (id: string) => void;
+  onClose: () => void;
+  language: "en" | "bn";
+  theme: any;
+}) {
+  const [query, setQuery] = useState("");
+
+  const filtered = items.filter((item) =>
+    (language === "bn" ? item.nameBn : item.nameEn)
+      .toLowerCase()
+      .includes(query.toLowerCase()),
+  );
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <Pressable style={styles.modalOverlay} onPress={onClose}>
+        <Pressable
+          style={[styles.modalSheet, { backgroundColor: theme.surface }]}
+          onPress={(e) => e.stopPropagation()}
+        >
+          <View style={[styles.sheetHandle, { backgroundColor: theme.border }]} />
+          <Text
+            style={[
+              styles.modalTitle,
+              { color: theme.text, fontFamily: "Outfit_700Bold" },
+            ]}
+          >
+            {title}
+          </Text>
+          <TextInput
+            style={[
+              styles.modalSearch,
+              {
+                color: theme.text,
+                borderColor: theme.border,
+                backgroundColor: theme.background,
+              },
+            ]}
+            value={query}
+            onChangeText={setQuery}
+            placeholder={searchPlaceholder}
+            placeholderTextColor={theme.textTertiary}
+            autoCapitalize="none"
+          />
+          <ScrollView style={styles.modalList} keyboardShouldPersistTaps="handled">
+            {filtered.map((item) => (
+              <Pressable
+                key={item.id}
+                style={styles.modalRow}
+                onPress={() => {
+                  onSelect(item.id);
+                  setQuery("");
+                  onClose();
+                }}
+              >
+                <Text
+                  style={[
+                    styles.modalRowText,
+                    { color: theme.text, fontFamily: "Outfit_400Regular" },
+                  ]}
+                >
+                  {language === "bn" ? item.nameBn : item.nameEn}
+                </Text>
+              </Pressable>
+            ))}
+          </ScrollView>
+        </Pressable>
+      </Pressable>
+    </Modal>
   );
 }
 
@@ -977,4 +1198,44 @@ const styles = StyleSheet.create({
   finishBtns: { gap: 4 },
   skipBtn: { alignItems: "center", paddingVertical: 14 },
   skipText: { fontSize: 15 },
+
+  // Region picker modal
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    justifyContent: "flex-end",
+  },
+  modalSheet: {
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    overflow: "hidden",
+    paddingBottom: 36,
+    maxHeight: "75%",
+  },
+  sheetHandle: {
+    width: 38,
+    height: 4,
+    borderRadius: 2,
+    alignSelf: "center",
+    marginTop: 14,
+    marginBottom: 0,
+  },
+  modalTitle: {
+    fontSize: 18,
+    textAlign: "center",
+    paddingTop: 16,
+    paddingBottom: 8,
+  },
+  modalSearch: {
+    marginHorizontal: 20,
+    marginBottom: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    fontSize: 15,
+  },
+  modalList: { paddingHorizontal: 20 },
+  modalRow: { paddingVertical: 14, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: "rgba(0,0,0,0.08)" },
+  modalRowText: { fontSize: 16 },
 });
