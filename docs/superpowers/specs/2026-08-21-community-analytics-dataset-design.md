@@ -177,8 +177,8 @@ CREATE TABLE sale_event (
   phase                  sale_phase_enum NOT NULL,
   buyer_type             buyer_type_enum,
 
-  birds_sold             INTEGER NOT NULL CHECK (birds_sold > 0),
-  avg_weight_kg          NUMERIC NOT NULL,
+  birds_sold             INTEGER CHECK (birds_sold IS NULL OR birds_sold > 0), -- NULL for a weight-only (non-pcs-tracked) sale
+  avg_weight_kg          NUMERIC, -- NULL for a weight-only (non-pcs-tracked) sale
   total_weight_kg        NUMERIC NOT NULL,
   price_per_kg           NUMERIC NOT NULL,
   total_amount           NUMERIC NOT NULL,
@@ -198,6 +198,11 @@ CREATE TABLE sale_event (
 
   created_at             TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+COMMENT ON COLUMN sale_event.birds_sold IS
+  'NULL for a weight-only sale (is_pcs_tracked = false) — the local app never records a bird count for those.';
+COMMENT ON COLUMN sale_event.avg_weight_kg IS
+  'NULL for a weight-only sale (is_pcs_tracked = false) — same reason as birds_sold.';
 
 CREATE INDEX sale_event_upazila_date_idx ON sale_event(upazila_id, sale_date);
 CREATE INDEX sale_event_breed_date_idx   ON sale_event(breed, sale_date);
