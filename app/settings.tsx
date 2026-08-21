@@ -113,6 +113,7 @@ export default function SettingsScreen() {
   };
 
   const handleBackupNow = async () => {
+    console.log("[settings] back up now pressed");
     if (backupState === "pending") return;
     setBackupState("pending");
     try {
@@ -126,6 +127,7 @@ export default function SettingsScreen() {
       // actually uploading — that must not render the same success
       // checkmark as a real upload.
       const completed = await backupNow();
+      console.log("[settings] back up now completed", completed);
       setBackupState(completed ? "success" : "skipped");
       if (completed && Platform.OS !== "web") {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);

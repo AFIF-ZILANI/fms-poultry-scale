@@ -2,37 +2,61 @@
 // Runs server-side only — this is the one place CLERK_SECRET_KEY is used.
 // The client never sees it.
 
+import { createRemoteJWKSet, jwtVerify } from "npm:jose@5";
+
+// The caller's session JWT is verified directly against Clerk's own public
+// keys — NOT via Supabase's /auth/v1/user. That endpoint looks up a row in
+// Supabase's own auth.users table, which Clerk-authenticated users never
+// have under third-party auth, and independently, Supabase's platform-level
+// JWT handling has a documented incompatibility with Clerk's RS256 tokens
+// ("signing method RS256 is invalid"). Verifying against Clerk's JWKS
+// sidesteps both: it only depends on Clerk, which issued the token.
+//
+// Clerk's JWKS lives at https://<frontend-api-domain>/.well-known/jwks.json.
+// The publishable key encodes that domain (base64 after the pk_test_/
+// pk_live_ prefix, trailing "$" stripped) — it is not a secret, the same
+// value already ships in the client bundle as
+// EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY. Keep this constant in sync with that
+// value if the Clerk instance ever changes.
+const CLERK_PUBLISHABLE_KEY = "pk_test_dW5pcXVlLW1hcm1vc2V0LTEwLmNsZXJrLmFjY291bnRzLmRldiQ";
+
+function clerkJwksUrl(publishableKey: string): string {
+  const encoded = publishableKey.replace(/^pk_(test|live)_/, "");
+  const domain = atob(encoded).replace(/\$$/, "");
+  return `https://${domain}/.well-known/jwks.json`;
+}
+
+// Created once per warm instance — createRemoteJWKSet caches the fetched
+// keys internally, so this does not refetch on every request.
+const clerkJwks = createRemoteJWKSet(new URL(clerkJwksUrl(CLERK_PUBLISHABLE_KEY)));
+
 Deno.serve(async (req: Request) => {
   console.log("[drive-token] request received");
 
   const authHeader = req.headers.get("Authorization");
-  if (!authHeader) {
-    console.warn("[drive-token] rejected: missing Authorization header");
+  if (!authHeader?.startsWith("Bearer ")) {
+    console.warn("[drive-token] rejected: missing or malformed Authorization header");
     return new Response(JSON.stringify({ error: "Missing Authorization header" }), {
       status: 401,
       headers: { "Content-Type": "application/json" },
     });
   }
+  const sessionToken = authHeader.slice("Bearer ".length);
 
-  // Verify the caller via the existing Clerk<->Supabase third-party auth
-  // integration: forward the caller's JWT to Supabase's own auth endpoint
-  // and let it tell us who's making this request. This avoids re-verifying
-  // the JWT signature by hand — Supabase already knows how to do this
-  // because of the existing Clerk integration.
-  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-  const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
-  const userRes = await fetch(`${supabaseUrl}/auth/v1/user`, {
-    headers: { Authorization: authHeader, apikey: anonKey },
-  });
-  if (!userRes.ok) {
-    const body = await userRes.text().catch(() => "");
-    console.warn(`[drive-token] rejected: /auth/v1/user returned ${userRes.status}`, body);
+  let clerkUserId: string;
+  try {
+    const { payload } = await jwtVerify(sessionToken, clerkJwks);
+    if (typeof payload.sub !== "string") {
+      throw new Error("token has no sub claim");
+    }
+    clerkUserId = payload.sub;
+  } catch (err) {
+    console.warn("[drive-token] rejected: Clerk JWT verification failed", err);
     return new Response(JSON.stringify({ error: "Invalid session" }), {
       status: 401,
       headers: { "Content-Type": "application/json" },
     });
   }
-  const { id: clerkUserId } = (await userRes.json()) as { id: string };
   console.log(`[drive-token] verified caller: ${clerkUserId}`);
 
   const clerkSecretKey = Deno.env.get("CLERK_SECRET_KEY")!;
