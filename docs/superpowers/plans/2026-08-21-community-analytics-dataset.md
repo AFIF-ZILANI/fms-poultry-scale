@@ -1402,8 +1402,16 @@ on:
 2. `supabase db push` (without `--dry-run`) — applies all migrations from
    Tasks 1-3, in order: drops the legacy tables, creates the new schema,
    seeds the reference tables.
-3. `supabase functions deploy push-community-sale` — deploys Task 4's
-   function.
+3. `supabase functions deploy push-community-sale --no-verify-jwt` —
+   deploys Task 4's function. The `--no-verify-jwt` flag is required, not
+   optional: without it, Supabase's own platform-level JWT gate rejects
+   Clerk's RS256 session tokens before this function's handler ever
+   runs (the exact issue `drive-token` hit and was deployed with this
+   same flag to avoid — see
+   `docs/superpowers/plans/2026-08-20-drive-backup-sync.md`'s deploy
+   step). This function does its own JWT verification against Clerk's
+   JWKS internally (§6/Task 4), so skipping Supabase's redundant and
+   incompatible gate is correct, not a security gap.
 4. Verify with a real finished sale on a community-plan test account: the
    sale should appear in `community_push_queue` immediately (checkable
    via a local DB inspector), then disappear within `FLUSH_INTERVAL_MS`
