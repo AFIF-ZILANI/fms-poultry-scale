@@ -285,11 +285,22 @@ export default function SaleDetailScreen() {
               >
                 {formatDateTime(sale.createdAt)}
               </Text>
-              {meta?.buyerName ? (
+              {meta?.buyerName || meta?.buyerType ? (
                 <Text
                   style={[styles.heroBuyer, { fontFamily: "Outfit_500Medium" }]}
                 >
-                  {meta.buyerName}
+                  {[
+                    meta?.buyerName,
+                    meta?.buyerType
+                      ? {
+                          wholesaler: t.buyerTypeWholesaler,
+                          retail: t.buyerTypeRetail,
+                          direct: t.buyerTypeDirect,
+                        }[meta.buyerType]
+                      : null,
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")}
                 </Text>
               ) : null}
             </View>
