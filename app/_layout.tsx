@@ -2,9 +2,10 @@ import { ClerkProvider, ClerkLoaded, useAuth, useUser } from "@clerk/expo";
 import { Stack, useRouter } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect, useRef, useState } from "react";
-import { Platform, View, Text } from "react-native";
+import { ActivityIndicator, Platform, View, Text } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
+import Animated, { FadeIn } from "react-native-reanimated";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { SettingsProvider } from "@/lib/SettingsContext";
 import { isOnboardingComplete } from "@/lib/onboarding";
@@ -45,6 +46,37 @@ const tokenCache = {
   },
 };
 
+// Shown while AuthGuard is deciding where to route — auth resolving, or a
+// silent restore-from-Drive check (and any restore it triggers) in flight.
+// key={message} restarts the fade whenever the message changes (e.g.
+// "Loading..." → "Restoring your data...") instead of it just snapping.
+function AuthLoadingScreen({ message }: { message: string }) {
+  return (
+    <View
+      style={{
+        flex: 1,
+        backgroundColor: "#0C0C0F",
+        justifyContent: "center",
+        alignItems: "center",
+      }}
+    >
+      <Image
+        source={SplashImage}
+        style={{ width: 120, height: 120, borderRadius: 25, marginBottom: 28 }}
+        resizeMode="contain"
+      />
+      <ActivityIndicator size="small" color="#ffffff" />
+      <Animated.Text
+        key={message}
+        entering={FadeIn.duration(300)}
+        style={{ color: "#9a9a9a", fontSize: 13, marginTop: 16, letterSpacing: 0.3 }}
+      >
+        {message}
+      </Animated.Text>
+    </View>
+  );
+}
+
 // Handles routing after Clerk loads: unauthed → sign-in, no onboarding → onboarding
 function AuthGuard({ children }: { children: React.ReactNode }) {
   const { isLoaded, isSignedIn } = useAuth();
@@ -80,10 +112,11 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
     })();
   }, [isLoaded, isSignedIn, user?.id, router, driveSync.restoreCheckDone]);
 
-  if (!isLoaded || !driveSync.restoreCheckDone) {
-    // Keep splash visible until auth resolves and any pending silent
-    // restore-from-Drive check finishes
-    return <View style={{ flex: 1, backgroundColor: "#0C0C0F" }} />;
+  if (!isLoaded) {
+    return <AuthLoadingScreen message="Loading..." />;
+  }
+  if (!driveSync.restoreCheckDone) {
+    return <AuthLoadingScreen message="Restoring your data..." />;
   }
 
   return <DriveSyncProvider value={driveSync}>{children}</DriveSyncProvider>;
