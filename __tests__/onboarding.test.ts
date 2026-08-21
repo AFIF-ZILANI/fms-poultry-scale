@@ -19,6 +19,8 @@ function makeProfile(o: Partial<OnboardingData> = {}): OnboardingData {
     phone: "01700000000",
     email: "afif@example.com",
     location: "Dhaka",
+    districtId: "1",
+    upazilaId: "1",
     farmName: "Green Farm",
     subscriptionPlan: "community",
     ...o,
@@ -85,6 +87,14 @@ describe("profile round-trip", () => {
     expect(profile?.name).toBe("Afif Zilani");
     expect(await isOnboardingComplete("user-1")).toBe(true);
   });
+
+  it("saves and reads back districtId and upazilaId", async () => {
+    await saveUserProfile("user-1", makeProfile({ districtId: "5", upazilaId: "42" }));
+
+    const profile = await getUserProfile("user-1");
+    expect(profile?.districtId).toBe("5");
+    expect(profile?.upazilaId).toBe("42");
+  });
 });
 
 describe("onboarding draft", () => {
@@ -117,5 +127,13 @@ describe("onboarding draft", () => {
   it("defaults role to farmer when the draft has not chosen one", async () => {
     await saveOnboardingDraft("user-1", { name: "Afif" });
     expect((await loadOnboardingDraft("user-1"))?.role).toBe("farmer");
+  });
+
+  it("saves and reloads a partial draft with only districtId set", async () => {
+    await saveOnboardingDraft("user-1", { name: "Afif", districtId: "5" });
+
+    const draft = await loadOnboardingDraft("user-1");
+    expect(draft).toMatchObject({ name: "Afif", districtId: "5" });
+    expect(draft?.upazilaId).toBeUndefined();
   });
 });

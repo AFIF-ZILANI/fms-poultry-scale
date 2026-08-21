@@ -20,6 +20,7 @@ import { useSettings } from "@/lib/SettingsContext";
 import { getUserProfile, type OnboardingData } from "@/lib/onboarding";
 import { loadPlan, savePlan, type Plan } from "@/lib/subscription";
 import { getSaleStats } from "@/lib/storage";
+import { getDistrictName, getUpazilaName } from "@/lib/regions";
 
 // ─── Upgrade Modal ────────────────────────────────────────────────────────────
 
@@ -104,7 +105,7 @@ export default function ProfileScreen() {
   const { signOut } = useAuth();
   const insets = useSafeAreaInsets();
   const theme = useTheme();
-  const { t } = useSettings();
+  const { t, language } = useSettings();
 
   const [profile, setProfile] = useState<OnboardingData | null>(null);
   const [plan, setPlanState] = useState<Plan>("community");
@@ -175,8 +176,13 @@ export default function ProfileScreen() {
     ? `৳${(totalRevenue / 1_000).toFixed(0)}K`
     : `৳${totalRevenue.toFixed(0)}`;
 
+  const districtName = getDistrictName(profile?.districtId, language);
+  const upazilaName = getUpazilaName(profile?.upazilaId, language);
+  const regionValue = upazilaName && districtName ? `${upazilaName}, ${districtName}` : null;
+
   const infoRows = [
     profile?.phone ? { icon: "phone-outline", label: t.phoneLabel, value: profile.phone } : null,
+    regionValue ? { icon: "map-outline", label: t.regionLabel, value: regionValue } : null,
     profile?.location ? { icon: "map-marker-outline", label: t.locationLabel, value: profile.location } : null,
     isFarmer && profile?.farmName ? { icon: "barn", label: t.farmLabel, value: profile.farmName } : null,
     !isFarmer && profile?.businessName ? { icon: "store-outline", label: t.businessLabel, value: profile.businessName } : null,

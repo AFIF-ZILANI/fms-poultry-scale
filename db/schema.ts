@@ -8,6 +8,8 @@ export const users = sqliteTable("users", {
   phone: text("phone"),
   email: text("email"),
   location: text("location"),
+  districtId: text("district_id"),
+  upazilaId: text("upazila_id"),
   farmName: text("farm_name"),
   is_onboarded: integer("is_onboarded", { mode: "boolean" })
     .notNull()
