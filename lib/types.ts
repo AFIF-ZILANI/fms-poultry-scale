@@ -23,6 +23,7 @@ export interface SaleMetaData {
   mainPcs?: number;
   avgWtGrams?: number;
   buyerName?: string;
+  buyerType?: "wholesaler" | "retail" | "direct";
   kgPerCrate: number;
   deductionPerCrateG: number;
   isFullCratesOnly: boolean;

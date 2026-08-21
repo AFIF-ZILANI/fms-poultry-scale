@@ -9,6 +9,7 @@ import {
   loadBatch,
   createBatch,
   renameBatch,
+  updateBatchDetails,
   setBatchClosed,
   deleteBatch,
   assignSaleToBatch,
@@ -157,6 +158,21 @@ describe("saveSale + loadSales", () => {
     await saveSale("user-1", makeSale());
     await saveSale("user-1", makeSale({ meta: undefined }));
     expect((await loadSale("sale-1"))?.meta).toBeUndefined();
+  });
+
+  it("saves and reads back buyerType", async () => {
+    await saveSale(
+      "user-1",
+      makeSale({ meta: makeMeta({ buyerType: "wholesaler" }) }),
+    );
+    const [sale] = await loadSales("user-1");
+    expect(sale.meta?.buyerType).toBe("wholesaler");
+  });
+
+  it("leaves buyerType undefined when not provided", async () => {
+    await saveSale("user-1", makeSale());
+    const [sale] = await loadSales("user-1");
+    expect(sale.meta?.buyerType).toBeUndefined();
   });
 });
 
@@ -630,6 +646,37 @@ describe("batches", () => {
     await createBatch("user-1", id, "Typo");
     await renameBatch(id, "  Shed 2  ");
     expect((await loadBatches("user-1"))[0].name).toBe("Shed 2");
+  });
+
+  it("saves and updates breed, placement date, and bird count", async () => {
+    const id = "b-id";
+    await createBatch("user-1", id, "Shed 1");
+    await updateBatchDetails(id, {
+      breed: "cobb_500",
+      placementDate: 5_000,
+      initialBirdCount: 500,
+    });
+
+    const loaded = await loadBatch(id);
+    expect(loaded?.batch.breed).toBe("cobb_500");
+    expect(loaded?.batch.placementDate?.getTime()).toBe(5_000);
+    expect(loaded?.batch.initialBirdCount).toBe(500);
+  });
+
+  it("clears breed, placement date, and bird count when omitted", async () => {
+    const id = "b-id";
+    await createBatch("user-1", id, "Shed 1");
+    await updateBatchDetails(id, {
+      breed: "cobb_500",
+      placementDate: 5_000,
+      initialBirdCount: 500,
+    });
+    await updateBatchDetails(id, {});
+
+    const loaded = await loadBatch(id);
+    expect(loaded?.batch.breed).toBeNull();
+    expect(loaded?.batch.placementDate).toBeNull();
+    expect(loaded?.batch.initialBirdCount).toBeNull();
   });
 
   describe("loadBatch", () => {

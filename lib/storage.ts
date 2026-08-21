@@ -98,6 +98,7 @@ function toSaleRecord(row: SaleWithRelations): SaleRecord {
           mainWeightKg: m.mainWeightKg,
           mainPcs: m.mainPcs ?? undefined,
           buyerName: m.buyerName ?? undefined,
+          buyerType: m.buyerType ?? undefined,
           kgPerCrate: m.kgPerCrate,
           deductionPerCrateG: m.deductionPerCrateG,
           isFullCratesOnly: m.isFullCratesOnly,
@@ -298,6 +299,7 @@ export async function saveSale(
         mainWeightKg: m.mainWeightKg,
         mainPcs: m.mainPcs,
         buyerName: m.buyerName,
+        buyerType: m.buyerType,
         kgPerCrate: m.kgPerCrate,
         deductionPerCrateG: m.deductionPerCrateG,
         isFullCratesOnly: m.isFullCratesOnly,
@@ -427,6 +429,30 @@ export async function renameBatch(
   await db
     .update(batches)
     .set({ name: name.trim(), updatedAt: new Date() })
+    .where(eq(batches.id, batchId));
+}
+
+export type BatchDetails = {
+  breed?: Batch["breed"] | null;
+  placementDate?: number | null;
+  initialBirdCount?: number | null;
+};
+
+export async function updateBatchDetails(
+  batchId: string,
+  details: BatchDetails,
+): Promise<void> {
+  await db
+    .update(batches)
+    .set({
+      breed: details.breed ?? null,
+      placementDate:
+        details.placementDate != null
+          ? new Date(details.placementDate)
+          : null,
+      initialBirdCount: details.initialBirdCount ?? null,
+      updatedAt: new Date(),
+    })
     .where(eq(batches.id, batchId));
 }
 
