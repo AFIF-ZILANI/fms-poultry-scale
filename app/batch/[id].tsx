@@ -643,7 +643,7 @@ export default function BatchDetailScreen() {
                 { color: theme.text, fontFamily: "Outfit_700Bold" },
               ]}
             >
-              {t.renameBatch}
+              {t.editBatch}
             </Text>
             <ScrollView
               keyboardShouldPersistTaps="handled"
