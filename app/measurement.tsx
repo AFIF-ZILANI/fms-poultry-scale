@@ -685,6 +685,9 @@ function TradeDeductionModal({
   const [fullCratesOnly, setFullCratesOnly] = useState(true);
   const [receivedAmount, setReceivedAmount] = useState("");
   const [buyerName, setBuyerName] = useState("");
+  const [buyerType, setBuyerType] = useState<
+    "wholesaler" | "retail" | "direct" | null
+  >(null);
   const [cullSold, setCullSold] = useState(false);
   const [cullPricingMode, setCullPricingMode] = useState<
     "per_kg" | "per_piece"
@@ -701,6 +704,7 @@ function TradeDeductionModal({
     if (visible) {
       setReceivedAmount("");
       setBuyerName("");
+      setBuyerType(null);
       setCullSold(false);
       setCullPrice("");
       Promise.all([
@@ -801,6 +805,7 @@ function TradeDeductionModal({
             ? Math.round((subtotalGross / totalPcs) * 1000)
             : undefined,
         buyerName: buyerName.trim() || undefined,
+        buyerType: buyerType ?? undefined,
         kgPerCrate: kgPerCrateNum,
         deductionPerCrateG: deductionGNum,
         isFullCratesOnly: fullCratesOnly,
@@ -1017,6 +1022,56 @@ function TradeDeductionModal({
                   },
                 ]}
               />
+              <Text
+                style={[
+                  styles.buyerNameLabel,
+                  {
+                    color: theme.text,
+                    fontFamily: "Outfit_600SemiBold",
+                    marginTop: 10,
+                  },
+                ]}
+              >
+                {t.buyerType}
+              </Text>
+              <View style={{ flexDirection: "row", gap: 8, marginTop: 6 }}>
+                {(
+                  [
+                    ["wholesaler", t.buyerTypeWholesaler],
+                    ["retail", t.buyerTypeRetail],
+                    ["direct", t.buyerTypeDirect],
+                  ] as const
+                ).map(([key, label]) => {
+                  const selected = buyerType === key;
+                  return (
+                    <Pressable
+                      key={key}
+                      onPress={() => setBuyerType(selected ? null : key)}
+                      style={{
+                        flex: 1,
+                        alignItems: "center",
+                        paddingVertical: 8,
+                        borderRadius: 12,
+                        borderWidth: 1.5,
+                        backgroundColor: selected
+                          ? theme.accentLight
+                          : theme.background,
+                        borderColor: selected ? theme.accent : theme.border,
+                      }}
+                    >
+                      <Text
+                        style={{
+                          fontSize: 13,
+                          color: selected ? theme.accent : theme.text,
+                          fontFamily: "Outfit_500Medium",
+                        }}
+                      >
+                        {label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
             </View>
           </View>
 
