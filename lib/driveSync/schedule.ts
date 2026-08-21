@@ -14,10 +14,25 @@ export function useDriveSync(userId: string | null | undefined) {
   const supabase = useSupabase();
   const supabaseRef = useRef(supabase);
   const appState = useRef(AppState.currentState);
-  // Starts true (nothing to wait on) so a signed-out user isn't blocked;
-  // flips false the moment a userId shows up and a check starts.
-  const [restoreCheckDone, setRestoreCheckDone] = useState(true);
+  // Starts false only when there's already a userId to check; true (nothing
+  // to wait on) otherwise, so a signed-out user isn't blocked.
+  const [restoreCheckDone, setRestoreCheckDone] = useState(() => !userId);
   const [lastBackupAt, setLastBackupAt] = useState<Date | null>(null);
+
+  // Adjust restoreCheckDone synchronously when userId changes, during render
+  // rather than in an effect — React re-renders immediately off the back of
+  // this before committing, so callers (AuthGuard's splash gate and its
+  // onboarding-redirect effect) never observe a stale "done" value for a
+  // userId whose check hasn't started yet. A one-effect-later update was
+  // exactly that: it let a Stack mount on the stale value, an effect fire a
+  // router.replace against it, and the delayed flip to false unmount the
+  // Stack a tick later — the replace lands on a navigator that's already
+  // gone ("action was not handled by any navigator").
+  const lastUserIdRef = useRef(userId);
+  if (userId !== lastUserIdRef.current) {
+    lastUserIdRef.current = userId;
+    setRestoreCheckDone(!userId);
+  }
 
   useEffect(() => {
     supabaseRef.current = supabase;
@@ -78,7 +93,6 @@ export function useDriveSync(userId: string | null | undefined) {
     if (!userId) return;
 
     let cancelled = false;
-    setRestoreCheckDone(false);
 
     (async () => {
       // Both steps share one try/catch — a fire-and-forget async IIFE has
