@@ -559,6 +559,7 @@ function BasicInfoStep({
             <Text
               style={[
                 styles.input,
+                { height: undefined },
                 {
                   color: selectedDistrictName ? theme.text : theme.textTertiary,
                   fontFamily: "Outfit_400Regular",
@@ -597,6 +598,7 @@ function BasicInfoStep({
             <Text
               style={[
                 styles.input,
+                { height: undefined },
                 {
                   color: selectedUpazilaName ? theme.text : theme.textTertiary,
                   fontFamily: "Outfit_400Regular",
@@ -667,11 +669,17 @@ function RegionPickerModal({
 }) {
   const [query, setQuery] = useState("");
 
-  const filtered = items.filter((item) =>
-    (language === "bn" ? item.nameBn : item.nameEn)
-      .toLowerCase()
-      .includes(query.toLowerCase()),
-  );
+  const filtered = items
+    .filter((item) =>
+      (language === "bn" ? item.nameBn : item.nameEn)
+        .toLowerCase()
+        .includes(query.toLowerCase()),
+    )
+    .sort((a, b) => {
+      const an = language === "bn" ? a.nameBn : a.nameEn;
+      const bn = language === "bn" ? b.nameBn : b.nameEn;
+      return an.localeCompare(bn);
+    });
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
