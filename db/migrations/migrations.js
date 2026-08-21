@@ -16,6 +16,7 @@ import m0011 from './0011_awesome_dragon_man.sql';
 import m0012 from './0012_backup_queue_triggers.sql';
 import m0013 from './0013_backup_queue_backfill.sql';
 import m0014 from './0014_cultured_pandemic.sql';
+import m0015 from './0015_reflective_agent_zero.sql';
 
   export default {
     journal,
@@ -34,7 +35,8 @@ m0010,
 m0011,
 m0012,
 m0013,
-m0014
+m0014,
+m0015
     }
   }
   
