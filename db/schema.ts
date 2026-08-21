@@ -39,6 +39,11 @@ export const batches = sqliteTable("batches", {
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
+  breed: text("breed", {
+    enum: ["cobb_500", "ross_308", "hubbard", "sonali", "deshi", "other"],
+  }),
+  placementDate: integer("placement_date", { mode: "timestamp" }),
+  initialBirdCount: integer("initial_bird_count"),
   // null = still active. One column instead of a status enum to keep in sync.
   closedAt: integer("closed_at", { mode: "timestamp" }),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
@@ -85,6 +90,9 @@ export const saleMetaData = sqliteTable("sale_meta_data", {
   mainPcs: integer("main_pcs"),
 
   buyerName: text("buyer_name"),
+  buyerType: text("buyer_type", {
+    enum: ["wholesaler", "retail", "direct"],
+  }),
 
   kgPerCrate: real("kg_per_crate").notNull(),
   deductionPerCrateG: real("deduction_per_crate_g").notNull(),

@@ -21,12 +21,14 @@ import { useSettings } from "@/lib/SettingsContext";
 import {
   loadBatch,
   renameBatch,
+  updateBatchDetails,
   setBatchClosed,
   deleteBatch,
   type Batch,
 } from "@/lib/storage";
-import { formatWeight, formatTk, formatDateTime } from "@/lib/utils";
+import { formatWeight, formatTk, formatDateTime, formatDate } from "@/lib/utils";
 import type { SaleRecord } from "@/lib/types";
+import DateTimePicker from "@react-native-community/datetimepicker";
 
 function SessionRow({
   sale,
@@ -178,6 +180,10 @@ export default function BatchDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [renaming, setRenaming] = useState(false);
   const [name, setName] = useState("");
+  const [breed, setBreed] = useState<Batch["breed"]>(null);
+  const [placementDate, setPlacementDate] = useState<number | null>(null);
+  const [initialBirdCount, setInitialBirdCount] = useState("");
+  const [showDatePicker, setShowDatePicker] = useState(false);
 
   const webTopInset = Platform.OS === "web" ? 67 : 0;
   const webBottomInset = Platform.OS === "web" ? 34 : 0;
@@ -220,7 +226,16 @@ export default function BatchDetailScreen() {
   const handleRename = async () => {
     const trimmed = name.trim();
     if (!trimmed || !id) return;
-    await renameBatch(id, trimmed);
+    const count = parseInt(initialBirdCount, 10);
+    await Promise.all([
+      renameBatch(id, trimmed),
+      updateBatchDetails(id, {
+        breed,
+        placementDate,
+        initialBirdCount:
+          Number.isFinite(count) && count > 0 ? count : null,
+      }),
+    ]);
     setRenaming(false);
     refresh();
   };
@@ -300,10 +315,43 @@ export default function BatchDetailScreen() {
             {t.batchSessions(sales.length)}
             {range ? ` · ${range}` : ""}
           </Text>
+          {(batch?.breed || batch?.placementDate || batch?.initialBirdCount) && (
+            <Text
+              style={[
+                styles.headerSub,
+                { color: theme.textTertiary, fontFamily: "Outfit_400Regular" },
+              ]}
+              numberOfLines={1}
+            >
+              {[
+                batch?.breed
+                  ? {
+                      cobb_500: t.batchBreedCobb500,
+                      ross_308: t.batchBreedRoss308,
+                      hubbard: t.batchBreedHubbard,
+                      sonali: t.batchBreedSonali,
+                      deshi: t.batchBreedDeshi,
+                      other: t.batchBreedOther,
+                    }[batch.breed]
+                  : null,
+                batch?.placementDate ? formatDate(batch.placementDate.getTime()) : null,
+                batch?.initialBirdCount ? `${batch.initialBirdCount} ${t.birds}` : null,
+              ]
+                .filter(Boolean)
+                .join(" · ")}
+            </Text>
+          )}
         </View>
         <Pressable
           onPress={() => {
             setName(batch?.name ?? "");
+            setBreed(batch?.breed ?? null);
+            setPlacementDate(batch?.placementDate?.getTime() ?? null);
+            setInitialBirdCount(
+              batch?.initialBirdCount != null
+                ? String(batch.initialBirdCount)
+                : "",
+            );
             setRenaming(true);
           }}
           hitSlop={16}
@@ -595,8 +643,14 @@ export default function BatchDetailScreen() {
                 { color: theme.text, fontFamily: "Outfit_700Bold" },
               ]}
             >
-              {t.renameBatch}
+              {t.editBatch}
             </Text>
+            <ScrollView
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+              style={styles.modalScroll}
+              contentContainerStyle={{ gap: 10 }}
+            >
             <TextInput
               value={name}
               onChangeText={setName}
@@ -615,6 +669,120 @@ export default function BatchDetailScreen() {
                 },
               ]}
             />
+            <Text
+              style={[
+                styles.fieldLabel,
+                { color: theme.textSecondary, fontFamily: "Outfit_500Medium" },
+              ]}
+            >
+              {t.batchBreed}
+            </Text>
+            <View style={styles.chipRow}>
+              {(
+                [
+                  ["cobb_500", t.batchBreedCobb500],
+                  ["ross_308", t.batchBreedRoss308],
+                  ["hubbard", t.batchBreedHubbard],
+                  ["sonali", t.batchBreedSonali],
+                  ["deshi", t.batchBreedDeshi],
+                  ["other", t.batchBreedOther],
+                ] as const
+              ).map(([key, label]) => {
+                const selected = breed === key;
+                return (
+                  <Pressable
+                    key={key}
+                    onPress={() => setBreed(selected ? null : key)}
+                    style={[
+                      styles.chip,
+                      {
+                        backgroundColor: selected
+                          ? theme.accentLight
+                          : theme.background,
+                        borderColor: selected ? theme.accent : theme.border,
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.chipText,
+                        {
+                          color: selected ? theme.accent : theme.text,
+                          fontFamily: "Outfit_500Medium",
+                        },
+                      ]}
+                    >
+                      {label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            <Text
+              style={[
+                styles.fieldLabel,
+                { color: theme.textSecondary, fontFamily: "Outfit_500Medium" },
+              ]}
+            >
+              {t.batchPlacementDate}
+            </Text>
+            <Pressable
+              onPress={() => setShowDatePicker(true)}
+              style={[
+                styles.modalInput,
+                { borderColor: theme.border, backgroundColor: theme.background },
+              ]}
+            >
+              <Text
+                style={{
+                  color: placementDate ? theme.text : theme.textTertiary,
+                  fontFamily: "Outfit_500Medium",
+                  fontSize: 15,
+                }}
+              >
+                {placementDate
+                  ? formatDate(placementDate)
+                  : t.batchPlacementDateNotSet}
+              </Text>
+            </Pressable>
+            {showDatePicker && (
+              <DateTimePicker
+                value={placementDate ? new Date(placementDate) : new Date()}
+                mode="date"
+                display={Platform.OS === "ios" ? "spinner" : "default"}
+                onChange={(_event, date) => {
+                  setShowDatePicker(Platform.OS === "ios");
+                  if (date) setPlacementDate(date.getTime());
+                }}
+              />
+            )}
+
+            <Text
+              style={[
+                styles.fieldLabel,
+                { color: theme.textSecondary, fontFamily: "Outfit_500Medium" },
+              ]}
+            >
+              {t.batchInitialBirdCount}
+            </Text>
+            <TextInput
+              value={initialBirdCount}
+              onChangeText={setInitialBirdCount}
+              placeholder={t.batchInitialBirdCountPlaceholder}
+              placeholderTextColor={theme.textTertiary}
+              keyboardType="number-pad"
+              style={[
+                styles.modalInput,
+                {
+                  color: theme.text,
+                  backgroundColor: theme.background,
+                  borderColor: theme.border,
+                  fontFamily: "Outfit_500Medium",
+                },
+              ]}
+            />
+            </ScrollView>
             <View style={styles.modalActions}>
               <Pressable
                 onPress={() => setRenaming(false)}
@@ -783,11 +951,22 @@ const styles = StyleSheet.create({
   modalCard: {
     width: "100%",
     maxWidth: 420,
+    maxHeight: "80%",
     borderRadius: 20,
     padding: 20,
     gap: 10,
   },
   modalTitle: { fontSize: 18 },
+  modalScroll: { flex: 1 },
+  fieldLabel: { fontSize: 13, marginBottom: -2 },
+  chipRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  chip: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1.5,
+  },
+  chipText: { fontSize: 13 },
   modalInput: {
     borderWidth: 1,
     borderRadius: 12,
