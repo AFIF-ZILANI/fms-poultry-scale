@@ -180,6 +180,18 @@ export const dataBackupQueue = sqliteTable("data_backup_queue", {
   pk: primaryKey({ columns: [table.tableName, table.rowId] }),
 }));
 
+// ─── Community Push Queue ───
+// Populated entirely by triggers (see migration below) — never written
+// to directly from app code, matching data_backup_queue's own pattern.
+// One row per finished community-plan sale not yet pushed to the
+// analytics dataset.
+export const communityPushQueue = sqliteTable("community_push_queue", {
+  saleId: text("sale_id")
+    .primaryKey()
+    .references(() => sales.id, { onDelete: "cascade" }),
+  queuedAt: integer("queued_at", { mode: "timestamp" }).notNull(),
+});
+
 // ─── Relations ───
 export const usersRelations = relations(users, ({ many, one }) => ({
   sales: many(sales),
