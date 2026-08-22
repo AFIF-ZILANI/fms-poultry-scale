@@ -1399,19 +1399,26 @@ on:
 1. `supabase secrets set PUSH_SECRET=$(openssl rand -hex 32)` — generates
    and sets the HMAC secret Task 4's function needs. Run once; note it
    nowhere else, it never needs to be read back (the HMAC is one-way).
-2. `supabase db push` (without `--dry-run`) — applies all migrations from
-   Tasks 1-3, in order: drops the legacy tables, creates the new schema,
-   seeds the reference tables.
-3. `supabase functions deploy push-community-sale --no-verify-jwt` —
-   deploys Task 4's function. The `--no-verify-jwt` flag is required, not
-   optional: without it, Supabase's own platform-level JWT gate rejects
-   Clerk's RS256 session tokens before this function's handler ever
-   runs (the exact issue `drive-token` hit and was deployed with this
-   same flag to avoid — see
-   `docs/superpowers/plans/2026-08-20-drive-backup-sync.md`'s deploy
-   step). This function does its own JWT verification against Clerk's
-   JWKS internally (§6/Task 4), so skipping Supabase's redundant and
-   incompatible gate is correct, not a security gap.
+2. Before pushing: re-confirm in the Supabase dashboard that the seven
+   legacy tables Task 1's migration drops (`users`, `batches`, `sales`,
+   `sale_meta_data`, `measurement_rows`, `row_edit_history`,
+   `user_prefs`) are still empty. Task 1's dry-run verified this at
+   authoring time, but this checklist may run weeks later, and
+   `DROP TABLE` is not undoable — the one-time cost of looking is worth
+   it. Then run `supabase db push` (without `--dry-run`) to apply all
+   migrations from Tasks 1-3, in order: drops the legacy tables, creates
+   the new schema, seeds the reference tables.
+3. `supabase functions deploy push-community-sale` — deploys Task 4's
+   function. `supabase/config.toml` now declares `verify_jwt = false` for
+   this function (and for `drive-token`, which has the same requirement),
+   so the CLI reads it automatically — no `--no-verify-jwt` flag needed on
+   the command itself anymore. (Background: without this setting,
+   Supabase's own platform-level JWT gate rejects Clerk's RS256 session
+   tokens before the function's handler ever runs — the exact issue
+   `drive-token` hit before it was fixed the same way. Both functions do
+   their own JWT verification against Clerk's JWKS internally, so
+   disabling Supabase's redundant and incompatible gate is correct, not a
+   security gap.)
 4. Verify with a real finished sale on a community-plan test account: the
    sale should appear in `community_push_queue` immediately (checkable
    via a local DB inspector), then disappear within `FLUSH_INTERVAL_MS`
