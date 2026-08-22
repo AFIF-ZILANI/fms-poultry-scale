@@ -35,9 +35,9 @@ export function useCommunityPush(userId: string | null | undefined): void {
     }
   }, []);
 
-  const flush = useCallback(async () => {
+  const flush = useCallback(async (uid: string) => {
     try {
-      await flushCommunityPushQueue(invoke);
+      await flushCommunityPushQueue(invoke, uid);
     } catch (err) {
       console.warn("[communityPush] flush failed", err);
     }
@@ -46,18 +46,19 @@ export function useCommunityPush(userId: string | null | undefined): void {
   useEffect(() => {
     if (!userId) return;
 
-    console.log(`[communityPush] mounted for user ${userId}`);
-    flush();
+    const uid = userId;
+    console.log(`[communityPush] mounted for user ${uid}`);
+    flush(uid);
 
     const interval = setInterval(() => {
       console.log("[communityPush] trigger: interval");
-      flush();
+      flush(uid);
     }, FLUSH_INTERVAL_MS);
 
     const subscription = AppState.addEventListener("change", (next: AppStateStatus) => {
       if (appState.current === "active" && /inactive|background/.test(next)) {
         console.log("[communityPush] trigger: app backgrounded");
-        flush();
+        flush(uid);
       }
       appState.current = next;
     });

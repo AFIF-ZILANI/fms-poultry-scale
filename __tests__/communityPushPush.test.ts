@@ -132,7 +132,7 @@ describe("flushCommunityPushQueue", () => {
     await saveSale("community-user", makeSale());
     expect(await db.select().from(communityPushQueue)).toHaveLength(1);
 
-    await flushCommunityPushQueue(async () => true);
+    await flushCommunityPushQueue(async () => true, "community-user");
 
     expect(await db.select().from(communityPushQueue)).toHaveLength(0);
   });
@@ -140,7 +140,7 @@ describe("flushCommunityPushQueue", () => {
   it("leaves the queue row in place on a failed push", async () => {
     await saveSale("community-user", makeSale());
 
-    await flushCommunityPushQueue(async () => false);
+    await flushCommunityPushQueue(async () => false, "community-user");
 
     expect(await db.select().from(communityPushQueue)).toHaveLength(1);
   });
@@ -150,7 +150,7 @@ describe("flushCommunityPushQueue", () => {
     await saveSale("community-user", makeSale({ id: "sale-2" }));
 
     const results: Record<string, boolean> = { "sale-1": false, "sale-2": true };
-    await flushCommunityPushQueue(async (payload) => results[payload.saleId]);
+    await flushCommunityPushQueue(async (payload) => results[payload.saleId], "community-user");
 
     const remaining = (await db.select().from(communityPushQueue)).map((r) => r.saleId);
     expect(remaining).toEqual(["sale-1"]);
@@ -163,9 +163,59 @@ describe("flushCommunityPushQueue", () => {
     await flushCommunityPushQueue(async (payload) => {
       if (payload.saleId === "sale-1") throw new Error("network exception");
       return true;
-    });
+    }, "community-user");
 
     const remaining = (await db.select().from(communityPushQueue)).map((r) => r.saleId);
     expect(remaining).toEqual(["sale-1"]);
+  });
+
+  // Finding 3: signing out doesn't wipe local SQLite, so a row left behind
+  // by a previous user (offline, or app killed before the flush ran) must
+  // not get pushed under the next user who signs in on the same device —
+  // that would pseudonymize user A's sales under user B's identity.
+  it("only processes the given user's queued sales, leaving another user's row untouched", async () => {
+    await db.insert(users).values({
+      id: "other-user",
+      subscriptionPlan: "community",
+      districtId: "20",
+      upazilaId: "200",
+    });
+    await saveSale("community-user", makeSale({ id: "sale-mine" }));
+    await saveSale("other-user", makeSale({ id: "sale-other", userId: "other-user" }));
+    expect(await db.select().from(communityPushQueue)).toHaveLength(2);
+
+    const invoked: string[] = [];
+    await flushCommunityPushQueue(async (payload) => {
+      invoked.push(payload.saleId);
+      return true;
+    }, "community-user");
+
+    expect(invoked).toEqual(["sale-mine"]);
+    const remaining = (await db.select().from(communityPushQueue)).map((r) => r.saleId);
+    expect(remaining).toEqual(["sale-other"]);
+  });
+});
+
+describe("toDateOnly (via assembleCommunityPushPayload)", () => {
+  // Finding 2: sale_date must use the device's local calendar day, not
+  // UTC. Bangladesh is UTC+6, so a dawn weigh-in (normal in this trade)
+  // between local midnight and 5:59am falls on the *previous* UTC day.
+  // TZ is scoped to just this test (set/restored around the assertion)
+  // so it can't leak into other tests in this file.
+  it("stamps saleDate using local time, not UTC, for an early-morning sale", async () => {
+    const originalTz = process.env.TZ;
+    process.env.TZ = "Asia/Dhaka"; // UTC+6
+    try {
+      // 2am local on Jan 15 2026 == 20:00 UTC on Jan 14 2026 — exactly the
+      // window the old `toISOString().slice(0, 10)` implementation got wrong.
+      const createdAt = new Date(2026, 0, 15, 2, 0, 0).getTime();
+      await saveSale("community-user", makeSale({ createdAt }));
+
+      const payload = await assembleCommunityPushPayload("sale-1");
+
+      expect(payload?.saleDate).toBe("2026-01-15");
+    } finally {
+      process.env.TZ = originalTz;
+    }
   });
 });

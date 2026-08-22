@@ -32,7 +32,7 @@ export interface CommunityPushPayload {
 }
 
 function toDateOnly(d: Date): string {
-  return d.toISOString().slice(0, 10);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
 // Reads everything a single queued sale needs, joined from the sale, its
@@ -83,15 +83,27 @@ export async function assembleCommunityPushPayload(
   };
 }
 
-// Drains the whole queue. `invoke` does the actual network call (injected
-// so this stays testable without mocking fetch/supabase here — the real
-// invoke lives in schedule.ts) and returns whether the push succeeded.
-// Each queued sale is processed independently: one failure leaves that
-// row for the next flush without blocking the rest of the queue.
+// Drains the queue for one signed-in user only. `invoke` does the actual
+// network call (injected so this stays testable without mocking
+// fetch/supabase here — the real invoke lives in schedule.ts) and returns
+// whether the push succeeded. Each queued sale is processed independently:
+// one failure leaves that row for the next flush without blocking the rest.
+//
+// Scoped to `userId` because signing out does not wipe local SQLite: a row
+// left behind by a previous user (offline, or the app killed before the
+// flush ran) must not get pushed under a different user who signs in next
+// — that would pseudonymize one farmer's sales under another farmer's
+// identity. Rows belonging to other users are left queued untouched; they
+// get processed correctly once that user signs back in.
 export async function flushCommunityPushQueue(
   invoke: (payload: CommunityPushPayload) => Promise<boolean>,
+  userId: string,
 ): Promise<void> {
-  const queued = await db.select().from(communityPushQueue);
+  const queued = await db
+    .select({ saleId: communityPushQueue.saleId })
+    .from(communityPushQueue)
+    .innerJoin(sales, eq(communityPushQueue.saleId, sales.id))
+    .where(eq(sales.userId, userId));
   for (const row of queued) {
     const payload = await assembleCommunityPushPayload(row.saleId);
     if (!payload) {

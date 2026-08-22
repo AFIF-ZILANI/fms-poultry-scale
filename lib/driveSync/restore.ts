@@ -1,6 +1,6 @@
 import * as FileSystem from "expo-file-system/legacy";
 import { db } from "@/db/client";
-import { dataBackupQueue, sales } from "@/db/schema";
+import { dataBackupQueue, communityPushQueue, sales } from "@/db/schema";
 import { findBackupFile, driveDownloadUrl } from "./driveApi";
 
 const RESTORE_TEMP_PATH = `${FileSystem.documentDirectory}drive-restore-temp.db`;
@@ -111,5 +111,13 @@ export async function restoreFromDrive(
   // Only reached on full success — a partial/failed restore must not mark
   // the queue clear, since real dirty data may still need to sync later.
   await db.delete(dataBackupQueue);
+  // Same reasoning as dataBackupQueue above: restoring sale_meta_data
+  // re-fires community_push_enqueue_insert for every finished sale
+  // belonging to a currently-community-plan user, which would silently
+  // backfill the user's entire (possibly premium-era) sale history into
+  // the push queue. checkForRestorableBackup only runs when `sales` is
+  // already empty, so this queue is necessarily empty pre-restore — this
+  // is just cleanup of what the restore's own writes just re-enqueued.
+  await db.delete(communityPushQueue);
   console.log("[driveSync] restore complete");
 }
