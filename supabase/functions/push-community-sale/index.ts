@@ -2,26 +2,15 @@
 // Runs server-side only — PUSH_SECRET (for pseudonymization) and the
 // Postgres service role key never reach the client.
 //
-// The Clerk-JWT-verification block below is deliberately duplicated from
-// supabase/functions/drive-token/index.ts rather than factored into a
-// shared module: each Edge Function deploys and cold-starts
-// independently, this is the only other place that needs it, and the two
-// call sites' verification logic is unlikely to diverge — see that
-// file's own comments for the full rationale behind verifying against
-// Clerk's JWKS directly instead of Supabase's /auth/v1/user.
+// The caller only needs a valid Clerk session — sign-up is free, self-serve
+// Google OAuth — so this function cannot trust the request body just
+// because the JWT checks out. It additionally: rejects implausible values
+// (validatePayload), rate-limits pushes per farmer (checkRateLimit), and
+// refuses to let one farmer's batch_id/sale_id overwrite another farmer's
+// row (checkOwnership).
 
-import { createRemoteJWKSet, jwtVerify } from "npm:jose@5";
 import { createClient } from "jsr:@supabase/supabase-js@2";
-
-const CLERK_PUBLISHABLE_KEY = "pk_test_dW5pcXVlLW1hcm1vc2V0LTEwLmNsZXJrLmFjY291bnRzLmRldiQ";
-
-function clerkJwksUrl(publishableKey: string): string {
-  const encoded = publishableKey.replace(/^pk_(test|live)_/, "");
-  const domain = atob(encoded).replace(/\$$/, "");
-  return `https://${domain}/.well-known/jwks.json`;
-}
-
-const clerkJwks = createRemoteJWKSet(new URL(clerkJwksUrl(CLERK_PUBLISHABLE_KEY)));
+import { verifyClerkRequest } from "../_shared/clerkAuth.ts";
 
 // SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are provided automatically
 // to every Edge Function by the platform — no manual secret needed for
@@ -65,6 +54,11 @@ interface PushPayload {
   farmCapacity: number | null;
 }
 
+// A farm doing dozens of distinct sales an hour is already implausible for
+// this app's use case — generous enough not to block a real farm's normal
+// traffic, tight enough to stop a scripted client from flooding the dataset.
+const RATE_LIMIT_PUSHES_PER_HOUR = 30;
+
 function capacityTier(farmCapacity: number | null): string | null {
   if (farmCapacity == null) return null;
   if (farmCapacity < 500) return "lt_500";
@@ -102,30 +96,81 @@ function jsonResponse(body: unknown, status: number): Response {
   });
 }
 
+// Rejects payloads with implausible numbers rather than trusting the client
+// wholesale — this is the only line of defense between "any signed-in
+// account" and what lands in the analytics dataset.
+function validatePayload(body: PushPayload): string[] {
+  const errors: string[] = [];
+  const inRange = (n: unknown, min: number, max: number) =>
+    typeof n === "number" && Number.isFinite(n) && n > min && n < max;
+
+  if (!inRange(body.totalWeightKg, 0, 1_000_000)) errors.push("totalWeightKg out of range");
+  if (!inRange(body.pricePerKg, 0, 100_000)) errors.push("pricePerKg out of range");
+  if (!inRange(body.totalAmount, 0, 1_000_000_000)) errors.push("totalAmount out of range");
+  if (body.birdsSold != null && !inRange(body.birdsSold, 0, 10_000_000)) {
+    errors.push("birdsSold out of range");
+  }
+  if (body.avgWeightKg != null && !inRange(body.avgWeightKg, 0, 100)) {
+    errors.push("avgWeightKg out of range");
+  }
+  if (body.initialBirdCount != null && !inRange(body.initialBirdCount, 0, 10_000_000)) {
+    errors.push("initialBirdCount out of range");
+  }
+
+  const saleDateMs = Date.parse(body.saleDate);
+  if (!Number.isFinite(saleDateMs)) {
+    errors.push("saleDate is not a valid date");
+  } else if (saleDateMs > Date.now() + 24 * 60 * 60 * 1000) {
+    errors.push("saleDate is in the future");
+  }
+
+  return errors;
+}
+
+async function checkRateLimit(farmerId: string): Promise<boolean> {
+  const since = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+  const { count, error } = await supabase
+    .from("sale_event")
+    .select("sale_id", { count: "exact", head: true })
+    .eq("farmer_id", farmerId)
+    .gte("created_at", since);
+  if (error) {
+    // A rate-limit check that can't run shouldn't block a real push — the
+    // per-row ownership check below still guards data integrity.
+    console.warn("[push-community-sale] rate limit check failed, allowing request", error);
+    return true;
+  }
+  return (count ?? 0) < RATE_LIMIT_PUSHES_PER_HOUR;
+}
+
+// Refuses to let this request's farmer_id overwrite a row another farmer
+// already owns — batch_id/sale_id are client-supplied and used as the
+// upsert conflict key, so without this a caller who learns another
+// farmer's id could vandalize their data.
+async function checkOwnership(
+  table: "batch_profile" | "sale_event",
+  idColumn: "batch_id" | "sale_id",
+  idValue: string,
+  farmerId: string,
+): Promise<boolean> {
+  const { data, error } = await supabase
+    .from(table)
+    .select("farmer_id")
+    .eq(idColumn, idValue)
+    .maybeSingle();
+  if (error) {
+    console.warn(`[push-community-sale] ownership check failed for ${table}`, error);
+    return false;
+  }
+  return !data || data.farmer_id === farmerId;
+}
+
 Deno.serve(async (req: Request) => {
   console.log("[push-community-sale] request received");
 
-  const authHeader = req.headers.get("Authorization");
-  if (!authHeader?.startsWith("Bearer ")) {
-    console.warn("[push-community-sale] rejected: missing or malformed Authorization header");
-    return jsonResponse({ error: "Missing Authorization header" }, 401);
-  }
-  const sessionToken = authHeader.slice("Bearer ".length);
-
-  let clerkUserId: string;
-  try {
-    const { payload } = await jwtVerify(sessionToken, clerkJwks);
-    if (typeof payload.sub !== "string") {
-      throw new Error("token has no sub claim");
-    }
-    clerkUserId = payload.sub;
-  } catch (err) {
-    console.warn(
-      "[push-community-sale] rejected: Clerk JWT verification failed",
-      err instanceof Error ? err.message : err,
-    );
-    return jsonResponse({ error: "Invalid session" }, 401);
-  }
+  const auth = await verifyClerkRequest(req, "push-community-sale");
+  if (!auth.ok) return auth.response;
+  const clerkUserId = auth.userId;
 
   let body: PushPayload;
   try {
@@ -139,6 +184,12 @@ Deno.serve(async (req: Request) => {
     return jsonResponse({ error: "Missing required fields" }, 400);
   }
 
+  const validationErrors = validatePayload(body);
+  if (validationErrors.length > 0) {
+    console.warn("[push-community-sale] rejected: invalid payload", validationErrors);
+    return jsonResponse({ error: "Invalid payload", details: validationErrors }, 400);
+  }
+
   const pushSecret = Deno.env.get("PUSH_SECRET");
   if (!pushSecret) {
     console.error("[push-community-sale] PUSH_SECRET not set");
@@ -146,6 +197,20 @@ Deno.serve(async (req: Request) => {
   }
   const farmerId = await hmacFarmerId(clerkUserId, pushSecret);
   console.log("[push-community-sale] verified caller, farmer_id computed");
+
+  if (!(await checkRateLimit(farmerId))) {
+    console.warn("[push-community-sale] rejected: rate limit exceeded");
+    return jsonResponse({ error: "Too many pushes, try again later" }, 429);
+  }
+
+  if (body.batchId && !(await checkOwnership("batch_profile", "batch_id", body.batchId, farmerId))) {
+    console.warn("[push-community-sale] rejected: batch_id owned by a different farmer");
+    return jsonResponse({ error: "Conflict: record owned by a different account" }, 409);
+  }
+  if (!(await checkOwnership("sale_event", "sale_id", body.saleId, farmerId))) {
+    console.warn("[push-community-sale] rejected: sale_id owned by a different farmer");
+    return jsonResponse({ error: "Conflict: record owned by a different account" }, 409);
+  }
 
   const { error: farmError } = await supabase.from("farm_profile").upsert({
     farmer_id: farmerId,

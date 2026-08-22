@@ -1,5 +1,14 @@
 import type { SaleRecord, MeasurementRow } from "./types";
 
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 function fmt(kg: number) {
   return kg.toFixed(2);
 }
@@ -89,7 +98,7 @@ export function generateReceiptHtml(
   // app takes no payment afterwards — so a shortfall is a discount, not a debt.
   const discount = m ? Math.max(m.finalAmount - receivedAmount, 0) : 0;
 
-  const displayName = farmName.trim() || "Poultry Farm";
+  const displayName = escapeHtml(farmName.trim() || "Poultry Farm");
 
   // ── Page mini-header (used on pages 2+) ──────────────────────────────
   const miniHeader = `
@@ -300,7 +309,7 @@ export function generateReceiptHtml(
           <span>${fmtDate(sale.createdAt)}</span>
           <span>Receipt #${shortId}</span>
         </div>
-        ${m?.buyerName ? `<div class="header-buyer">Buyer: ${m.buyerName}</div>` : ""}
+        ${m?.buyerName ? `<div class="header-buyer">Buyer: ${escapeHtml(m.buyerName)}</div>` : ""}
       </div>
       ${statsGrid}
       ${calcHtml}
