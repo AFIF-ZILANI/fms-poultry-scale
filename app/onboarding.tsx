@@ -21,6 +21,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useTheme } from "@/lib/useTheme";
 import { useSettings } from "@/lib/SettingsContext";
+import { Band } from "@/constants/colors";
 import {
   type OnboardingData,
   type UserRole,
@@ -325,28 +326,34 @@ export default function OnboardingScreen() {
 
 // ─── Step 1: Role ────────────────────────────────────────────────────────────
 
-// The choice is really which side of the trade you stand on, so each card
-// leads with the verb — "I sell" / "I buy" — and then says what the app will
-// do for that side. The glyphs are the two things the trade actually moves:
-// the flock, and the truck it leaves on. (A tractor is crop farming, and a
-// shopfront is retail; neither is this business.)
+// The choice is really which side of the trade you stand on, so it's framed
+// as a reading, not a settings toggle: each option is a dark instrument slab
+// — the same Band material the home screen's scale readout is built from —
+// with the verb ("I SELL" / "I BUY") set in the app's own readout face
+// (IBM Plex Mono, otherwise reserved for figures) as the headline, and the
+// role name as the supporting line beneath it. The chosen side "lights up"
+// in the band's single data hue; the other stays dim. No icon, no checkbox —
+// the lit verb IS the selected state, the way a reading either shows or it
+// doesn't. Band's own colours don't shift with light/dark mode ("an
+// instrument face does not change colour with the room"), so this component
+// deliberately breaks from `theme` for the slab itself.
 function RoleStep({ role, onSelect, theme, t }: any) {
   const options = [
     {
       key: "farmer" as UserRole,
-      icon: "bird",
-      eyebrow: t.obSellEyebrow,
+      verb: t.obSellEyebrow,
       title: t.farmerRole,
       benefit: t.obFarmerBenefit,
     },
     {
       key: "wholesaler" as UserRole,
-      icon: "truck-delivery",
-      eyebrow: t.obBuyEyebrow,
+      verb: t.obBuyEyebrow,
       title: t.wholesalerRole,
       benefit: t.obWholesalerBenefit,
     },
   ];
+
+  const slabBg = theme.isDark ? Band.dark : Band.light;
 
   return (
     <ScrollView
@@ -371,7 +378,7 @@ function RoleStep({ role, onSelect, theme, t }: any) {
       </Text>
 
       <View style={styles.roleCards}>
-        {options.map(({ key, icon, eyebrow, title, benefit }) => {
+        {options.map(({ key, verb, title, benefit }) => {
           const selected = role === key;
           return (
             <Pressable
@@ -380,78 +387,40 @@ function RoleStep({ role, onSelect, theme, t }: any) {
               accessibilityRole="radio"
               accessibilityState={{ selected }}
               style={({ pressed }) => [
-                styles.roleCard,
+                styles.roleSlab,
                 {
-                  backgroundColor: selected ? theme.accentLight : theme.surface,
-                  borderColor: selected ? theme.accent : theme.border,
+                  backgroundColor: slabBg,
+                  borderColor: selected ? Band.bar : "transparent",
                   opacity: pressed ? 0.9 : 1,
                 },
               ]}
             >
-              <View style={styles.roleCardHead}>
-                <View
-                  style={[
-                    styles.roleIcon,
-                    {
-                      backgroundColor: selected ? theme.accent : theme.borderLight,
-                    },
-                  ]}
-                >
-                  <MaterialCommunityIcons
-                    name={icon as any}
-                    size={22}
-                    color={selected ? "#fff" : theme.textSecondary}
-                  />
-                </View>
-
-                <View style={{ flex: 1 }}>
-                  <Text
-                    style={[
-                      styles.roleEyebrow,
-                      {
-                        color: selected ? theme.accent : theme.textTertiary,
-                        fontFamily: "Outfit_600SemiBold",
-                      },
-                    ]}
-                  >
-                    {eyebrow}
-                  </Text>
-                  <Text
-                    style={[
-                      styles.roleCardTitle,
-                      { color: theme.text, fontFamily: "Outfit_700Bold" },
-                    ]}
-                  >
-                    {title}
-                  </Text>
-                </View>
-
-                <View
-                  style={[
-                    styles.radio,
-                    {
-                      borderColor: selected ? theme.accent : theme.border,
-                      backgroundColor: selected ? theme.accent : "transparent",
-                    },
-                  ]}
-                >
-                  {selected && (
-                    <MaterialCommunityIcons
-                      name="check"
-                      size={13}
-                      color="#fff"
-                    />
-                  )}
-                </View>
-              </View>
-
               <Text
                 style={[
-                  styles.roleCardDesc,
+                  styles.roleVerb,
                   {
-                    color: theme.textSecondary,
-                    fontFamily: "Outfit_400Regular",
+                    fontFamily: "IBMPlexMono_600SemiBold",
+                    color: selected ? Band.bar : Band.inkFaint,
                   },
+                ]}
+              >
+                {verb.toUpperCase()}
+              </Text>
+              <Text
+                style={[
+                  styles.roleName,
+                  {
+                    fontFamily: "Outfit_600SemiBold",
+                    color: selected ? Band.ink : Band.inkDim,
+                  },
+                ]}
+              >
+                {title}
+              </Text>
+              <Text
+                style={[
+                  styles.roleDesc,
+                  { fontFamily: "Outfit_400Regular", color: Band.inkFaint },
                 ]}
               >
                 {benefit}
@@ -1116,31 +1085,15 @@ const styles = StyleSheet.create({
   langText: { fontSize: 11 },
 
   roleCards: { gap: 12, marginTop: 8 },
-  roleCard: {
+  roleSlab: {
     borderRadius: 18,
-    borderWidth: 1.5,
-    padding: 16,
-    gap: 10,
+    borderWidth: 2,
+    padding: 20,
+    gap: 4,
   },
-  roleCardHead: { flexDirection: "row", alignItems: "center", gap: 12 },
-  roleIcon: {
-    width: 42,
-    height: 42,
-    borderRadius: 13,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  roleEyebrow: { fontSize: 10.5, letterSpacing: 1, textTransform: "uppercase" },
-  roleCardTitle: { fontSize: 19, marginTop: 1 },
-  roleCardDesc: { fontSize: 13.5, lineHeight: 20 },
-  radio: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    borderWidth: 1.5,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  roleVerb: { fontSize: 24, letterSpacing: 0.5 },
+  roleName: { fontSize: 14, marginTop: 2 },
+  roleDesc: { fontSize: 13, lineHeight: 19, marginTop: 6 },
   fields: { gap: 16, marginTop: 8 },
   fieldGroup: { gap: 6 },
   fieldLabel: { fontSize: 12, textTransform: "uppercase", letterSpacing: 0.5 },
