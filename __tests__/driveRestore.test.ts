@@ -1,5 +1,5 @@
 import { db } from "../db/client";
-import { users, batches, sales, dataBackupQueue } from "../db/schema";
+import { users, batches, sales, dataBackupQueue, communityPushQueue } from "../db/schema";
 import { applyMigrations, resetDb } from "./helpers/db";
 import { checkForRestorableBackup, restoreFromDrive } from "../lib/driveSync/restore";
 import * as driveApi from "../lib/driveSync/driveApi";
@@ -155,6 +155,40 @@ describe("restoreFromDrive", () => {
 
     expect((await db.select().from(users)).map((u) => u.name)).toEqual(["Restored Farmer"]);
     expect((await db.select().from(batches)).map((b) => b.name)).toEqual(["Shed 1"]);
+  });
+
+  // Finding 1: sale_meta_data is restored after both users.subscription_plan
+  // and sales.is_finished are already populated, so community_push_enqueue_
+  // insert fires for every restored finished sale belonging to a currently-
+  // community-plan user — silently backfilling the user's entire (possibly
+  // premium-era) sale history into the push queue. A restore must never
+  // trigger a mass historical backfill.
+  it("does not enqueue restored finished sales onto the community push queue", async () => {
+    mockDownloadAsCopyOf(
+      buildFakeBackupFile((source) => {
+        // FKs off: 'u1' (subscription_plan defaults to 'community') isn't
+        // inserted until after this callback returns — same technique
+        // backupWithABadSaleRow uses above.
+        source.exec("PRAGMA foreign_keys = OFF;");
+        source.exec(
+          `INSERT INTO sales (id, user_id, phase, is_pcs_tracked, has_cull, is_finished, created_at, updated_at)
+           VALUES ('s-restored', 'u1', 'main', 1, 0, 1, 0, 0);`,
+        );
+        source.exec(
+          `INSERT INTO sale_meta_data (
+             sale_id, main_weight_kg, main_pcs, kg_per_crate, deduction_per_crate_g,
+             is_full_crates_only, main_price, main_amount, final_amount, received_amount,
+             total_deduction_wt_kg, net_weight_kg, total_crates, created_at
+           ) VALUES ('s-restored', 10, 5, 2, 200, 0, 100, 900, 900, 900, 1, 9, 5, 0);`,
+        );
+      }),
+    );
+
+    await restoreFromDrive(getAccessToken, "backup-file-id");
+
+    const [restoredSale] = await db.select().from(sales);
+    expect(restoredSale.isFinished).toBe(true); // sanity: the trigger's condition really was met
+    expect(await db.select().from(communityPushQueue)).toHaveLength(0);
   });
 
   // Finding 6: `SELECT *` tied every backup to the schema version that wrote
