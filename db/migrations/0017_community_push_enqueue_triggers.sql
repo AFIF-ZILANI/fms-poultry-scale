@@ -7,6 +7,11 @@ AND (
   SELECT subscription_plan FROM users
   WHERE id = (SELECT user_id FROM sales WHERE id = NEW.sale_id)
 ) = 'community'
+-- INSERT OR IGNORE does not suppress the conflict when this trigger fires
+-- from inside saveSale's own sale_meta_data upsert (its ON CONFLICT DO
+-- UPDATE branch) — throws UNIQUE constraint failed instead. WHERE NOT
+-- EXISTS sidesteps SQLite's conflict-resolution machinery entirely and
+-- is idempotent the same way OR IGNORE would have been.
 BEGIN
   INSERT INTO community_push_queue (sale_id, queued_at)
   SELECT NEW.sale_id, CAST(strftime('%s','now') AS INTEGER)
@@ -24,6 +29,11 @@ AND (
   SELECT subscription_plan FROM users
   WHERE id = (SELECT user_id FROM sales WHERE id = NEW.sale_id)
 ) = 'community'
+-- INSERT OR IGNORE does not suppress the conflict when this trigger fires
+-- from inside saveSale's own sale_meta_data upsert (its ON CONFLICT DO
+-- UPDATE branch) — throws UNIQUE constraint failed instead. WHERE NOT
+-- EXISTS sidesteps SQLite's conflict-resolution machinery entirely and
+-- is idempotent the same way OR IGNORE would have been.
 BEGIN
   INSERT INTO community_push_queue (sale_id, queued_at)
   SELECT NEW.sale_id, CAST(strftime('%s','now') AS INTEGER)
