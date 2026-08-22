@@ -29,6 +29,7 @@ import { useDbMigrations } from "@/db/client";
 import { DbErrorScreen } from "@/components/DBErrorScreen";
 import { useDriveSync } from "@/lib/driveSync/schedule";
 import { DriveSyncProvider } from "@/lib/DriveSyncContext";
+import { useCommunityPush } from "@/lib/communityPush/schedule";
 
 if (Platform.OS !== "web") {
   SplashScreen.preventAutoHideAsync().catch(() => {});
@@ -85,6 +86,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   // Track which userId we already checked so we re-run when the account switches
   const handledUserId = useRef<string | null>(null);
   const driveSync = useDriveSync(isSignedIn ? user?.id : null);
+  useCommunityPush(isSignedIn ? user?.id : null);
 
   useEffect(() => {
     if (!isLoaded) return;
