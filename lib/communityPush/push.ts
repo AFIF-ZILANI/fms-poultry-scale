@@ -100,7 +100,14 @@ export async function flushCommunityPushQueue(
       await db.delete(communityPushQueue).where(eq(communityPushQueue.saleId, row.saleId));
       continue;
     }
-    const succeeded = await invoke(payload);
+    // A rejecting `invoke` (e.g. a network exception) must not abort the
+    // rest of the queue — treat it the same as a `false` result.
+    let succeeded: boolean;
+    try {
+      succeeded = await invoke(payload);
+    } catch {
+      succeeded = false;
+    }
     if (succeeded) {
       await db.delete(communityPushQueue).where(eq(communityPushQueue.saleId, row.saleId));
     }

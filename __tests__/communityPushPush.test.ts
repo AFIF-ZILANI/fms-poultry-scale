@@ -155,4 +155,17 @@ describe("flushCommunityPushQueue", () => {
     const remaining = (await db.select().from(communityPushQueue)).map((r) => r.saleId);
     expect(remaining).toEqual(["sale-1"]);
   });
+
+  it("processes every queued sale independently — a rejecting invoke does not block another", async () => {
+    await saveSale("community-user", makeSale({ id: "sale-1" }));
+    await saveSale("community-user", makeSale({ id: "sale-2" }));
+
+    await flushCommunityPushQueue(async (payload) => {
+      if (payload.saleId === "sale-1") throw new Error("network exception");
+      return true;
+    });
+
+    const remaining = (await db.select().from(communityPushQueue)).map((r) => r.saleId);
+    expect(remaining).toEqual(["sale-1"]);
+  });
 });
