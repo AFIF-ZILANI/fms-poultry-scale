@@ -1198,7 +1198,7 @@ export default function HomeScreen() {
               </Text>
               <Feather name="chevron-right" size={16} color={theme.accent} />
             </Pressable>
-          ) : null
+          ) : undefined
         }
         ListEmptyComponent={
           <Animated.View

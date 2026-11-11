@@ -44,7 +44,7 @@ export function EditRowModal({
   const { t } = useSettings();
   const [weightInput, setWeightInput] = useState("");
   const [pcsInput, setPcsInput] = useState("");
-  const pcsRef = useRef<TextInput>(null);
+  const pcsRef = useRef<React.ComponentRef<typeof TextInput>>(null);
 
   const webTopInset = Platform.OS === "web" ? 67 : 0;
   const webBottomInset = Platform.OS === "web" ? 34 : 0;

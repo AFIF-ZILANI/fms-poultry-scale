@@ -695,10 +695,10 @@ function TradeDeductionModal({
   const [cullPrice, setCullPrice] = useState("");
   const [saving, setSaving] = useState(false);
 
-  const deductionRef = useRef<TextInput>(null);
-  const priceRef = useRef<TextInput>(null);
-  const receivedRef = useRef<TextInput>(null);
-  const cullPriceRef = useRef<TextInput>(null);
+  const deductionRef = useRef<React.ComponentRef<typeof TextInput>>(null);
+  const priceRef = useRef<React.ComponentRef<typeof TextInput>>(null);
+  const receivedRef = useRef<React.ComponentRef<typeof TextInput>>(null);
+  const cullPriceRef = useRef<React.ComponentRef<typeof TextInput>>(null);
 
   useEffect(() => {
     if (visible) {
@@ -1872,7 +1872,7 @@ export default function MeasurementScreen() {
   const [chunkSize, setChunkSizeState] = useState(DEFAULT_CHUNK_SIZE);
   const [activeBatches, setActiveBatches] = useState<BatchSummary[]>([]);
 
-  const weightRef = useRef<TextInput>(null);
+  const weightRef = useRef<React.ComponentRef<typeof TextInput>>(null);
   const enterPcsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const startTimeRef = useRef(Date.now());
   const sessionDraftId = useRef<string>(
