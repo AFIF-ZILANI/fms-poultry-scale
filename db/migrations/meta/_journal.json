@@ -127,6 +127,13 @@
       "when": 1787394595251,
       "tag": "0017_community_push_enqueue_triggers",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "6",
+      "when": 1794395412165,
+      "tag": "0018_drop_cloud_queues",
+      "breakpoints": true
     }
   ]
 }

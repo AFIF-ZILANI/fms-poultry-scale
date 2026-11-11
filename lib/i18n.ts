@@ -212,7 +212,7 @@ const en = {
   communityPlan: "Community",
   premiumPlan: "Premium",
   communityDesc:
-    "Free forever. Your anonymized data helps improve PoultryScale for all Bangladesh farmers.",
+    "Free forever. Your data stays on this phone.",
   premiumDesc:
     "৳299/month. Your data stays completely private and is never shared.",
   startFree: "Start Free",
@@ -334,7 +334,7 @@ const en = {
   premiumFeature3: "Advanced analytics (coming soon)",
   communityNoteLabel: "Community Member",
   communityNote:
-    "Your anonymized usage data helps us improve PoultryScale for Bangladesh's poultry farmers.",
+    "Your data stays on this phone and is never shared.",
   editProfile: "Edit Profile",
   farmLabel: "Farm",
   businessLabel: "Business",
@@ -562,7 +562,7 @@ const bn: typeof en = {
   communityPlan: "কমিউনিটি",
   premiumPlan: "প্রিমিয়াম",
   communityDesc:
-    "একদম ফ্রি। আপনার ডেটা দিয়ে সব বাংলাদেশি ফার্মারদের জন্য অ্যাপ ভালো হয়।",
+    "একদম ফ্রি। আপনার ডেটা এই ফোনেই থাকে।",
   premiumDesc: "৳২৯৯/মাস। আপনার ডেটা আপনারই থাকে, কাউকে দেওয়া হয় না।",
   startFree: "ফ্রিতে শুরু করুন",
   startPremium: "প্রিমিয়াম শুরু করুন (৳২৯৯/মাস)",
@@ -683,7 +683,7 @@ const bn: typeof en = {
   premiumFeature3: "অ্যাডভান্সড অ্যানালিটিক্স (আসছে)",
   communityNoteLabel: "কমিউনিটি মেম্বার",
   communityNote:
-    "আপনার বেনামী ডেটা দিয়ে বাংলাদেশের সব ফার্মারদের জন্য অ্যাপ আরো ভালো হয়।",
+    "আপনার ডেটা এই ফোনেই থাকে, কাউকে দেওয়া হয় না।",
   editProfile: "প্রোফাইল এডিট করুন",
   farmLabel: "ফার্ম",
   businessLabel: "বিজনেস",

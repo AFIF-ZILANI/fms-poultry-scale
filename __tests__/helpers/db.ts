@@ -24,11 +24,7 @@ export function applyMigration(tag: string) {
   }
 }
 
-// users is the root of every FK chain, so this empties the whole DB. The
-// cascade fires the backup triggers, so the queue is cleared after, not
-// before — otherwise every test would start with the previous test's
-// teardown sitting in the queue.
+// users is the root of every FK chain, so this empties the whole DB.
 export function resetDb() {
   db.$client.execSync("DELETE FROM users;");
-  db.$client.execSync("DELETE FROM data_backup_queue;");
 }

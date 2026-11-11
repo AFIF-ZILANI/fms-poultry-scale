@@ -59,7 +59,7 @@ If real payment tracking is ever added, this is the decision to revisit first.
 | Animation | Reanimated 4 |
 | Tests | Jest, against a real in-memory SQLite with real migrations |
 
-**Google Drive** backs the **backup engine** (`lib/driveSync/`). Local SQLite stays the single source of truth and no screen reads from Drive; backups are stored in each user's hidden Drive `appDataFolder` so a reinstall or a new device can restore. See *Backup (Google Drive)* below — it needs a one-time manual setup step on the Clerk dashboard.
+Fully offline: all data lives in on-device SQLite. The only network call is Google sign-in through Clerk. There is no backup — uninstalling the app or losing the phone loses the data. The old Drive backup and Supabase code lives on the `feat/data-backup` branch.
 
 ---
 
@@ -88,7 +88,6 @@ db/
   client.ts               DB handle + useDbMigrations()
   migrations/             Generated SQL + journal — applied on app start
 lib/
-  driveSync/              Google Drive backup: queue flush, restore, scheduling
   storage.ts              Every read and write. Screens never touch the DB directly
   utils.ts                Pure domain logic: calcDeduction, formatters
   types.ts                SaleRecord, SaleMetaData, BatchSummary, MeasurementRow
@@ -161,8 +160,6 @@ Required environment variables:
 | Variable | Purpose |
 |---|---|
 | `EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY` | Clerk auth — the app will not get past sign-in without it |
-| `EXPO_PUBLIC_SUPABASE_URL` | Supabase backend — required for the `drive-token` Edge Function that powers Google Drive backup |
-| `EXPO_PUBLIC_SUPABASE_KEY` | Supabase backend — required for the `drive-token` Edge Function that powers Google Drive backup |
 
 Native builds (`npm run android`) compile the NDK on first run — budget several GB of disk and a long first build.
 
@@ -182,33 +179,6 @@ file for you to fill in. Either way the new file must end up registered in
 `db/migrations/migrations.js` **and** `db/migrations/meta/_journal.json` — Expo needs the static import, and both are checked in; drizzle-kit writes both, so don't hand-edit them. Migrations run at app start through `useDbMigrations()`; a failure renders `DbErrorScreen` instead of the app, because every screen assumes a working database.
 
 Tests apply the real migration files in journal order (`__tests__/helpers/db.ts`), so a broken migration fails the suite rather than surfacing on a user's phone.
-
-### Backup (Google Drive) — one-time project setup
-
-`lib/driveSync/` syncs the local SQLite tables to Google Drive so a reinstall or
-a new device can restore. SQLite triggers (`db/migrations/0012`, backfilled for
-pre-existing rows by `0013`) mark every write in `data_backup_queue`; when that
-queue is non-empty, a flush uploads a whole-database snapshot to the user's Drive
-`appDataFolder` on a 60s tick and when the app leaves the foreground. Local
-SQLite is always the source of truth — nothing is ever pulled down except by
-`checkForRestorableBackup`/`restoreFromDrive`, offered once on a genuinely empty
-install and only with the user's confirmation. Because backups live in each user's private Drive folder, there
-is no shared database of personal data anymore.
-
-Before the feature can work, two one-time setup steps are needed:
-
-1. **Clerk dashboard:** Add the `drive.appdata` scope to the Google OAuth
-   connection. This scope allows the app to access the user's Drive `appDataFolder`
-   without seeing their public Drive files.
-
-2. **Deploy the `drive-token` Edge Function:** This Supabase Edge Function
-   exchanges a Clerk token for a Google access token. Deploy it with
-   `--no-verify-jwt` and set the `CLERK_SECRET_KEY` environment variable
-   (from Supabase Secrets).
-
-After these steps, any account that connected Google *before* the scope was added
-must disconnect/reconnect (sign out, sign back in with Google) for the new scope
-to apply.
 
 ### The lockfile is npm-version sensitive — regenerate with npm 10
 

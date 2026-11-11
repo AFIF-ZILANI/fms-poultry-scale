@@ -27,9 +27,6 @@ import { Image } from "react-native";
 import SplashImage from "@/assets/images/splash-icon.png";
 import { useDbMigrations } from "@/db/client";
 import { DbErrorScreen } from "@/components/DBErrorScreen";
-import { useDriveSync } from "@/lib/driveSync/schedule";
-import { DriveSyncProvider } from "@/lib/DriveSyncContext";
-import { useCommunityPush } from "@/lib/communityPush/schedule";
 
 if (Platform.OS !== "web") {
   SplashScreen.preventAutoHideAsync().catch(() => {});
@@ -47,10 +44,7 @@ const tokenCache = {
   },
 };
 
-// Shown while AuthGuard is deciding where to route — auth resolving, or a
-// silent restore-from-Drive check (and any restore it triggers) in flight.
-// key={message} restarts the fade whenever the message changes (e.g.
-// "Loading..." → "Restoring your data...") instead of it just snapping.
+// Shown while Clerk resolves auth before AuthGuard decides where to route.
 function AuthLoadingScreen({ message }: { message: string }) {
   return (
     <View
@@ -85,8 +79,6 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   // Track which userId we already checked so we re-run when the account switches
   const handledUserId = useRef<string | null>(null);
-  const driveSync = useDriveSync(isSignedIn ? user?.id : null);
-  useCommunityPush(isSignedIn ? user?.id : null);
 
   useEffect(() => {
     if (!isLoaded) return;
@@ -100,11 +92,6 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
       if (!user?.id) return;
       // Already ran the check for this exact user — skip
       if (handledUserId.current === user.id) return;
-      // Wait for the silent Drive-restore check (and any restore it
-      // triggers) to finish before deciding on onboarding, so a reinstalled
-      // app restores its data in the background instead of routing through
-      // onboarding first.
-      if (!driveSync.restoreCheckDone) return;
       handledUserId.current = user.id;
 
       const done = await isOnboardingComplete(user.id);
@@ -112,16 +99,12 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
         router.replace("/onboarding");
       }
     })();
-  }, [isLoaded, isSignedIn, user?.id, router, driveSync.restoreCheckDone]);
+  }, [isLoaded, isSignedIn, user?.id, router]);
 
   if (!isLoaded) {
     return <AuthLoadingScreen message="Loading..." />;
   }
-  if (!driveSync.restoreCheckDone) {
-    return <AuthLoadingScreen message="Restoring your data..." />;
-  }
-
-  return <DriveSyncProvider value={driveSync}>{children}</DriveSyncProvider>;
+  return <>{children}</>;
 }
 
 function AppLayout() {

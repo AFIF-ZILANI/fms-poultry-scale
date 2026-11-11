@@ -1,4 +1,4 @@
-import { sqliteTable, text, real, integer, index, primaryKey } from "drizzle-orm/sqlite-core";
+import { sqliteTable, text, real, integer, index } from "drizzle-orm/sqlite-core";
 import { relations } from "drizzle-orm";
 
 // ─── Users ───
@@ -165,31 +165,6 @@ export const userPrefs = sqliteTable("user_prefs", {
   kgPerCrate: real("kg_per_crate").notNull().default(0),
   deductionWtG: real("deduction_wt_g").notNull().default(0),
   priceKg: real("price_kg").notNull().default(0),
-});
-
-// ─── Data Backup Queue ───
-// Populated entirely by triggers (see migration 0012) — never written to
-// directly from app code. PK on (table_name, row_id) means N edits to one
-// row before the next flush collapse into a single queued operation.
-export const dataBackupQueue = sqliteTable("data_backup_queue", {
-  tableName: text("table_name").notNull(),
-  rowId: text("row_id").notNull(),
-  op: text("op", { enum: ["upsert", "delete"] }).notNull(),
-  queuedAt: integer("queued_at", { mode: "timestamp" }).notNull(),
-}, (table) => ({
-  pk: primaryKey({ columns: [table.tableName, table.rowId] }),
-}));
-
-// ─── Community Push Queue ───
-// Populated entirely by triggers (see migration below) — never written
-// to directly from app code, matching data_backup_queue's own pattern.
-// One row per finished community-plan sale not yet pushed to the
-// analytics dataset.
-export const communityPushQueue = sqliteTable("community_push_queue", {
-  saleId: text("sale_id")
-    .primaryKey()
-    .references(() => sales.id, { onDelete: "cascade" }),
-  queuedAt: integer("queued_at", { mode: "timestamp" }).notNull(),
 });
 
 // ─── Relations ───
